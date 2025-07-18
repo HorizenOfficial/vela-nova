@@ -9,13 +9,13 @@ import (
 
 var generateKeyCmd = &cobra.Command{
 	Use:   "generatekeys",
-	Short: `generate new private keys and save them to the local folder`,
-	Long:  `generate new private keys and save them to the local folder`,
+	Short: `generate new private keys and print them on the terminal`,
+	Long:  `generate new private keys and print them on the terminal`,
 	Run: func(cmd *cobra.Command, args []string) {
-		keyP521, key25519 := services.GenerateKeys()
+		keyP521, keySecp := services.GenerateKeys()
 		fmt.Println(string("P521:"))
 		fmt.Println(string(keyP521))
-		fmt.Println(string("25519:"))
-		fmt.Println(string(key25519))
+		fmt.Println(string("secp:"))
+		fmt.Println(string(keySecp))
 	},
 }

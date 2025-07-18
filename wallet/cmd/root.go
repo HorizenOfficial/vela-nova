@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/horizen-pes/pkg/crypto"
 	"github.com/magiconair/properties"
 	"github.com/spf13/cobra"
 )
@@ -30,11 +31,12 @@ func Execute() {
 }
 
 func init() {
-	loadConf()
 	rootCmd.AddCommand(generateKeyCmd)
+	rootCmd.AddCommand(listpubKeysCmd)
+	rootCmd.AddCommand(getaddressCmd)
 }
 
-func loadConf() {
+func LoadConf() {
 	if !fileExists(confFileName) {
 		panic("File conf not found. Please create it and restart.")
 	} else {
@@ -43,13 +45,11 @@ func loadConf() {
 		if err != nil {
 			panic(err)
 		}
-		keyP521 := config.MustGetString("keyP521")
-		fmt.Printf("Key loaded: %s", keyP521)
-
-		key25519 := config.MustGetString("key25519")
-		fmt.Printf("Key loaded: %s", key25519)
+		keySecp, _ := crypto.ImportPrivateKeySecp256k1FromHex(config.MustGetString("keySecp256k1"))
+		appContext.KeySecp = *keySecp
+		keyP521, _ := crypto.ImportPrivateKeyP521FromHex(config.MustGetString("keyP521"))
+		appContext.KeyP521 = *keyP521
 	}
-
 }
 
 func fileExists(path string) bool {

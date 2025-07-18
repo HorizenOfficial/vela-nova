@@ -5,6 +5,6 @@ import (
 )
 
 type AppContext struct {
-	keyP521  common.PrivateKeyP521
-	key25519 common.PrivateKey25519
+	KeyP521 common.PrivateKeyP521
+	KeySecp common.PrivateKeySecp256k1
 }
