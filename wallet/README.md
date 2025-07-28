@@ -23,14 +23,16 @@ go build -o novaw
 Launch the built executable  with the *help* option to obtain an help of all the commands available:
 
 ```
-novaw help
+./novaw help
 ```
 
 If you are starting a new wallet the first steps will be:
 
 1. Generate new private keys with the command:
 
+```
 novaw generatekeys
+```
 
 2. Create a wallet.conf file by using the wallet.conf.template provided and inserting the keys produced in step 1
 
