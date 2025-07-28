@@ -19,10 +19,18 @@ type AppCommand struct {
 	Config Config
 }
 
+/*
+Constructor function for commands that do not require configuration
+*/
 func NewAppCommandNoConfig() *AppCommand {
 	return &AppCommand{}
 }
 
+/*
+Constructor function for commands that require configuration: if called with
+no config parameter (default use-case) the config will be loaded from a loaded conf file.
+Otherwise an explicit config can be passed (for example to execute unit tests)
+*/
 func NewAppCommand(config *Config) *AppCommand {
 	if config != nil {
 		return &AppCommand{
