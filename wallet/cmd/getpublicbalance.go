@@ -45,7 +45,7 @@ func (c *GetPublicBalanceCommand) Command() *cobra.Command {
 			}
 
 			eth := new(big.Float).Quo(new(big.Float).SetInt(balance), big.NewFloat(1e18))
-			fmt.Printf("Balance: %s ETH\n", eth.Text('f', 18))
+			fmt.Println(eth.Text('f', 18))
 		},
 	}
 	return cmd
