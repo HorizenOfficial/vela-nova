@@ -18,6 +18,7 @@ func Execute() {
 	rootCmd.AddCommand(NewGenerateKeysCommand().Command())
 	rootCmd.AddCommand(NewGetAddressCommand(nil).Command())
 	rootCmd.AddCommand(NewListPubKeysCommand(nil).Command())
+	rootCmd.AddCommand(NewGetPublicBalanceCommand(nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
