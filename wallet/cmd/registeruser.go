@@ -35,10 +35,14 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				//create blockchain client and call register PK method
 				rpcUrl := c.Config.RpcUrl
 				keyRegistryAddress := common.HexToAddress(c.Config.KeyRegistryAddress)
-				
+
 				blockchainClient := blockchain.NewBlockChainClient(keyRegistryAddress, keyRegistryAddress, rpcUrl, c.Config.KeySecp.PrivateKey)
 				blockchainClient.Connect(context.Background())
-				blockchainClient.RegisterPK(context.Background(), keyP521.Bytes())
+				err := blockchainClient.RegisterPK(context.Background(), keyP521.Bytes())
+				if err != nil {
+					fmt.Println("Error registering public key:", err)
+					return
+				}
 				blockchainClient.Close()
 			} else {
 				mockBlockchainClient := blockchain.NewMockClient()
