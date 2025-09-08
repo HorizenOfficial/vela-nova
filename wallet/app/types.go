@@ -14,6 +14,7 @@ type Config struct {
 	KeyP521 common.PrivateKeyP521
 	KeySecp common.PrivateKeySecp256k1
 	RpcUrl string
+	KeyRegistryAddress string
 }
 
 type AppCommand struct {
@@ -49,11 +50,13 @@ func NewAppCommand(config *Config) *AppCommand {
 			keySecp, _ := crypto.ImportPrivateKeySecp256k1FromHex(config.MustGetString("keySecp256k1"))
 			keyP521, _ := crypto.ImportPrivateKeyP521FromHex(config.MustGetString("keyP521"))
 			rpcUrl := config.MustGetString("rpcUrl")
+			keyRegistryAddress := config.MustGetString("keyRegistryAddress")
 			return &AppCommand{
 				Config: Config{
 					KeySecp: *keySecp,
 					KeyP521: *keyP521,
 					RpcUrl: rpcUrl,
+					KeyRegistryAddress: keyRegistryAddress,
 				},
 			}
 		}
