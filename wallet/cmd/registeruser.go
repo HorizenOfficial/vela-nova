@@ -41,6 +41,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				err := blockchainClient.RegisterPK(context.Background(), keyP521.Bytes())
 				if err != nil {
 					fmt.Println("Error registering public key:", err)
+					blockchainClient.Close()
 					return
 				}
 				blockchainClient.Close()
