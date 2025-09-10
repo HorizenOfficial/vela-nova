@@ -19,6 +19,7 @@ func Execute() {
 	rootCmd.AddCommand(NewGetAddressCommand(nil).Command())
 	rootCmd.AddCommand(NewListPubKeysCommand(nil).Command())
 	rootCmd.AddCommand(NewGetPublicBalanceCommand(nil).Command())
+	rootCmd.AddCommand(NewRegisterUserCommand(nil, false).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
