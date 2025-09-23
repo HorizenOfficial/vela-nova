@@ -3,6 +3,7 @@ package main_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -27,40 +28,42 @@ type SystemTestSuite struct {
 	eventChannel       chan interface{}
 	ctx                context.Context
 	cancel             context.CancelFunc
-	executorCommKey    *cryptotypes.PrivateKeyP521
-	executorSigningKey *cryptotypes.PrivateKeySecp256k1
+	executorCommKey    *cryptotypes.PrivateKeyP521      // Executor's communication key for testing
+	executorSigningKey *cryptotypes.PrivateKeySecp256k1 // Executor's signing key for testing
 }
 
 func NewSystemTestSuite(t *testing.T, appType string) *SystemTestSuite {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Create mock components
 	blockchainClient := blockchain.NewMockClient()
 	dataLayer := mockdb.NewMockDataLayer()
 
+	// Create an executor client (TCP for testing)
 	factory := communication.NewTCPConnectionFactory("localhost:8080")
 	executorClient := communication.NewClient(factory)
 
-	config := manager.DefaultConfig()
-	config.ExecutorConnectionType = "tcp"
-	config.ExecutorConnectionParams = map[string]string{"url": "http://localhost:8080"}
+	// Create manager
+	config := manager.ReadConfig()
 	mgr := manager.NewSecureProcessorManager(config, blockchainClient, dataLayer, executorClient)
 
-	execConfig := executor.DefaultConfig()
-	execConfig.ServerType = "tcp"
-	execConfig.ServerAddr = "localhost:8080"
+	// Create executor
+	execConfig := executor.DefaultConfig() // just to generate keys
 
 	server := communication.NewServer(factory)
-	var rt executor.Runtime
+	var runtime executor.Runtime
 	switch appType {
 	case "wasmtime-payment":
-		rt = wasm.NewWasmtimeRuntime()
+		runtime = wasm.NewWasmtimeRuntime()
 	case "mock-runtime":
-		rt = executor.NewMockRuntime()
+		runtime = executor.NewMockRuntime()
 	default:
 		t.Fatalf("Unknown app type: %s", appType)
 	}
-	exec := executor.NewStatelessExecutor(execConfig, rt, server)
+	exec, err := executor.NewStatelessExecutor(execConfig, runtime, server)
+	require.NoError(t, err)
 
+	// Create event channel
 	eventChannel := make(chan interface{}, 100)
 	blockchainClient.SubscribeToEvents(ctx, eventChannel)
 
@@ -73,28 +76,41 @@ func NewSystemTestSuite(t *testing.T, appType string) *SystemTestSuite {
 		eventChannel:       eventChannel,
 		ctx:                ctx,
 		cancel:             cancel,
-		executorCommKey:    execConfig.CommunicationKey,
-		executorSigningKey: execConfig.SignatureKey,
+		executorCommKey:    execConfig.CommunicationKey, // Store the executor's communication key
+		executorSigningKey: execConfig.SignatureKey,     // Store the executor's signing key
 	}
 }
 
 func (s *SystemTestSuite) StartManager() error {
-	go func() { _ = s.manager.Start(s.ctx) }()
+	go func() {
+		if err := s.manager.Start(s.ctx); err != nil {
+			s.t.Errorf("Manager failed: %v", err)
+		}
+	}()
+
 	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
 func (s *SystemTestSuite) StartExecutor() error {
-	go func() { _ = s.executor.Start(s.ctx) }()
+	go func() {
+		if err := s.executor.Start(s.ctx); err != nil {
+			s.t.Errorf("Executor failed: %v", err)
+		}
+	}()
+
 	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
 func (s *SystemTestSuite) AddUserKeys(userID string, publicKey []byte) error {
-	if err := s.blockchainClient.RegisterPublicKey(s.ctx, userID, publicKey); err == nil {
+	// Register in a blockchain client
+	err := s.blockchainClient.RegisterPublicKey(s.ctx, userID, publicKey)
+	if err == nil {
+		// Register in data layer
 		return s.dataLayer.StoreUserKey(s.ctx, userID, publicKey)
 	}
-	return fmt.Errorf("failed to add user key")
+	return err
 }
 
 func (s *SystemTestSuite) SubmitRequest(req *common.Request) error {
@@ -104,15 +120,19 @@ func (s *SystemTestSuite) SubmitRequest(req *common.Request) error {
 func (s *SystemTestSuite) WaitForAppStateInDB(appID string, timeout time.Duration) (*common.ApplicationState, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	timeoutCh := time.After(timeout)
+
 	for {
 		select {
 		case <-ticker.C:
-			if state, err := s.dataLayer.GetApplicationState(s.ctx, appID); err == nil {
+			state, err := s.dataLayer.GetApplicationState(s.ctx, appID)
+			if err == nil {
 				return state, nil
 			}
 		case <-timeoutCh:
 			return nil, fmt.Errorf("timeout waiting for app state %s", appID)
+
 		}
 	}
 }
@@ -120,15 +140,19 @@ func (s *SystemTestSuite) WaitForAppStateInDB(appID string, timeout time.Duratio
 func (s *SystemTestSuite) WaitForAppStateInBlockchain(appID string, timeout time.Duration) (*common.ApplicationState, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	timeoutCh := time.After(timeout)
+
 	for {
 		select {
 		case <-ticker.C:
-			if state, err := s.blockchainClient.GetApplicationState(s.ctx, appID); err == nil {
+			state, err := s.blockchainClient.GetApplicationState(s.ctx, appID)
+			if err == nil {
 				return state, nil
 			}
 		case <-timeoutCh:
 			return nil, fmt.Errorf("timeout waiting for app state %s in blockchain", appID)
+
 		}
 	}
 }
@@ -137,13 +161,17 @@ func (s *SystemTestSuite) AssertRequestCompleted(requestID string, timeout time.
 	return s.blockchainClient.WaitForRequestCompletion(requestID, timeout)
 }
 
+// WaitForEvent waits for a specific event to be published for a user
 func (s *SystemTestSuite) WaitForEvent(userID string, timeout time.Duration) (*common.Event, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	timeoutCh := time.After(timeout)
+
 	for {
 		select {
 		case event := <-s.eventChannel:
+			log.Printf("TESTING: Received event: %+v", event)
 			if evt, ok := event.(common.Event); ok && evt.UserID == userID {
 				return &evt, nil
 			}
@@ -153,14 +181,19 @@ func (s *SystemTestSuite) WaitForEvent(userID string, timeout time.Duration) (*c
 	}
 }
 
+// WaitForDeanonymizationReport waits for a deanonymization report to be generated
 func (s *SystemTestSuite) WaitForDeanonymizationReport(reportID string, timeout time.Duration) (*common.DeanonymizationReport, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	timeoutCh := time.After(timeout)
+
 	for {
 		select {
 		case <-ticker.C:
-			if report, err := s.blockchainClient.GetDeanonymizationReport(s.ctx, reportID); err == nil && report != nil {
+			// Check if deanonymization report exists in blockchain
+			report, err := s.blockchainClient.GetDeanonymizationReport(s.ctx, reportID)
+			if err == nil && report != nil {
 				return report, nil
 			}
 		case <-timeoutCh:
@@ -169,14 +202,19 @@ func (s *SystemTestSuite) WaitForDeanonymizationReport(reportID string, timeout 
 	}
 }
 
+// WaitForWithdrawal waits for a withdrawal to be processed
 func (s *SystemTestSuite) WaitForWithdrawal(appID string, timeout time.Duration) (*common.Withdrawal, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+
 	timeoutCh := time.After(timeout)
+
 	for {
 		select {
 		case <-ticker.C:
-			if withdrawals, err := s.blockchainClient.GetWithdrawals(s.ctx, appID); err == nil && withdrawals != nil && len(*withdrawals) > 0 {
+			// Check if withdrawal exists in blockchain
+			withdrawals, err := s.blockchainClient.GetWithdrawals(s.ctx, appID)
+			if err == nil && withdrawals != nil && len(*withdrawals) > 0 {
 				return &(*withdrawals)[0], nil
 			}
 		case <-timeoutCh:
@@ -186,9 +224,11 @@ func (s *SystemTestSuite) WaitForWithdrawal(appID string, timeout time.Duration)
 }
 
 func (s *SystemTestSuite) GetRequestUpdatePayload(reqId string) (*common.UpdatePayload, error) {
+	// Get the update payload for the request
 	return s.blockchainClient.GetRequestUpdatePayload(s.ctx, reqId)
 }
 
+// GetExecutorCommunicationKey returns the executor's communication public key for encryption
 func (s *SystemTestSuite) GetExecutorCommunicationKey() (*cryptotypes.PublicKeyP521, error) {
 	if s.executorCommKey == nil {
 		return nil, fmt.Errorf("executor communication key not initialized")
@@ -196,6 +236,7 @@ func (s *SystemTestSuite) GetExecutorCommunicationKey() (*cryptotypes.PublicKeyP
 	return s.executorCommKey.PublicKey(), nil
 }
 
+// GetExecutorSigningKey returns the executor's signing public key for encryption
 func (s *SystemTestSuite) GetExecutorSigningKey() (*cryptotypes.PublicKeySecp256k1, error) {
 	if s.executorSigningKey == nil {
 		return nil, fmt.Errorf("executor signing key not initialized")
@@ -211,13 +252,16 @@ func (s *SystemTestSuite) LoadWasmModule(t *testing.T, moduleFilename string) []
 
 func (s *SystemTestSuite) Cleanup() error {
 	s.cancel()
+
 	if s.manager != nil {
 		s.manager.Stop()
 	}
+
 	if s.executor != nil {
 		s.executor.Close()
 	}
+
 	s.blockchainClient.ClearAllData()
+
 	return nil
 }
-

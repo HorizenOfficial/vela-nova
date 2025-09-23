@@ -19,6 +19,7 @@ func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
 	}
 
 	suite := NewSystemTestSuite(t, "wasmtime-payment")
+	defer suite.Cleanup()
 	// Load wasm bytecode for the payment app
 	wasmBytecode := suite.LoadWasmModule(t, "../build/payment_app.wasm")
 	testPaymentAppFullSystemFlow(t, suite, wasmBytecode)
@@ -30,6 +31,7 @@ func TestMockRuntimePaymentAppFullSystemFlow(t *testing.T) {
 	}
 
 	suite := NewSystemTestSuite(t, "mock-runtime")
+	defer suite.Cleanup()
 	// Load wasm bytecode for the payment app
 	wasmBytecode := []byte("mock-runtime-payment-app-bytecode")
 
@@ -37,7 +39,7 @@ func TestMockRuntimePaymentAppFullSystemFlow(t *testing.T) {
 }
 
 func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode []byte) {
-	const appId = "payment-app"
+	const appId = "1"
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 	const auditor = "auditor"
@@ -77,11 +79,12 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	executorSigningKey, err := suite.GetExecutorSigningKey()
 	require.NoError(t, err)
 
+	RequestID := "2133"
 	// Submit deploy request
 	deployReq := &common.Request{
 		RequestType:   common.Deploy,
 		ApplicationID: appId,
-		RequestID:     "deploy-1",
+		RequestID:     RequestID,
 		Payload:       bytecode,
 		Sender:        user1,
 		Timestamp:     time.Now().Unix(),
@@ -98,21 +101,22 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.NoError(t, err)
 	require.NotNil(t, appState)
 
-	err = suite.AssertRequestCompleted("deploy-1", 100*time.Second)
+	err = suite.AssertRequestCompleted(RequestID, 100*time.Second)
 	require.NoError(t, err)
 
 	// Verify updatePayload signature
-	payload, err := suite.GetRequestUpdatePayload("deploy-1")
+	payload, err := suite.GetRequestUpdatePayload(RequestID)
 	require.NoError(t, err)
 	err = cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey)
 	require.NoError(t, err)
 
 	t.Log("Step 2: Sending deposit request")
 
+	RequestID = "2134"
 	depositAmount := uint64(2000000000000000000)
 	depositReq, err := cryptoHelper.CreateDepositRequest(
 		appId,
-		"deposit-1",
+		RequestID,
 		user1,
 		depositAmount,
 		executorPubKey,
@@ -123,7 +127,7 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.NoError(t, err)
 
 	// Wait for deposit to be processed
-	err = suite.AssertRequestCompleted("deposit-1", 100*time.Second)
+	err = suite.AssertRequestCompleted(RequestID, 100*time.Second)
 	require.NoError(t, err)
 
 	// Wait for deposit event
@@ -142,17 +146,19 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.Equal(t, depositAmount, depositEventData.Amount)
 
 	// Verify updatePayload signature
-	payload, err = suite.GetRequestUpdatePayload("deposit-1")
+	payload, err = suite.GetRequestUpdatePayload(RequestID)
 	require.NoError(t, err)
 	err = cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey)
 	require.NoError(t, err)
 
 	t.Log("Step 3: Sending transfer request")
 
+
+	RequestID = "2135"
 	sentAmount := uint64(500000000000000000) // 0.5 ETH
 	transferReq, err := cryptoHelper.CreateTransferRequest(
 		appId,
-		"transfer-1",
+		RequestID,
 		user1,
 		user2,
 		sentAmount,
@@ -164,7 +170,7 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.NoError(t, err)
 
 	// Wait for transfer to be processed
-	err = suite.AssertRequestCompleted("transfer-1", 10*time.Second)
+	err = suite.AssertRequestCompleted(RequestID, 10*time.Second)
 	require.NoError(t, err)
 
 	// Wait for transfer events for both users
@@ -199,16 +205,18 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.Equal(t, sentAmount, recipientEventData.Amount)
 
 	// Verify updatePayload signature
-	payload, err = suite.GetRequestUpdatePayload("transfer-1")
+	payload, err = suite.GetRequestUpdatePayload(RequestID)
 	require.NoError(t, err)
 	err = cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey)
 	require.NoError(t, err)
 
 	t.Log("Step 4: Sending deanonymization request as auditor")
 
+	RequestID = "2136"
+
 	deanonReq, err := cryptoHelper.CreateDeanonymizationRequest(
 		appId,
-		"deanon-1",
+		RequestID,
 		auditor,
 		executorPubKey,
 	)
@@ -218,11 +226,11 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.NoError(t, err)
 
 	// Wait for deanonymization request to be processed
-	err = suite.AssertRequestCompleted("deanon-1", 10*time.Second)
+	err = suite.AssertRequestCompleted(RequestID, 10*time.Second)
 	require.NoError(t, err)
 
 	// Wait for deanonymization report
-	deanonReport, err := suite.WaitForDeanonymizationReport("deanon-1", 10*time.Second)
+	deanonReport, err := suite.WaitForDeanonymizationReport(RequestID, 10*time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, deanonReport)
 
@@ -234,7 +242,7 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	err = json.Unmarshal(decryptedReport, &reportData)
 	require.NoError(t, err)
 	require.Equal(t, appId, reportData.ApplicationID)
-	require.Equal(t, "deanon-1", reportData.RequestID)
+	require.Equal(t, RequestID, reportData.RequestID)
 
 	// Verify account information in the report
 	accounts := reportData.Accounts
@@ -249,10 +257,11 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	// Step 5: As another user, send withdrawal request
 	t.Log("Step 5: Sending withdrawal request as user2")
 
+	RequestID =  "2137"
 	withdrawAmount := uint64(500000000000000000) // 0.5 ETH
 	withdrawalReq, err := cryptoHelper.CreateWithdrawalRequest(
 		appId,
-		"withdraw-1",
+		RequestID,
 		user2,
 		"0x1234567890123456789012345678901234567890",
 		withdrawAmount,
@@ -264,7 +273,7 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.NoError(t, err)
 
 	// Wait for withdrawal to be processed
-	err = suite.AssertRequestCompleted("withdraw-1", 10*time.Second)
+	err = suite.AssertRequestCompleted(RequestID, 10*time.Second)
 	require.NoError(t, err)
 
 	// Wait for withdrawal event
@@ -291,12 +300,11 @@ func testPaymentAppFullSystemFlow(t *testing.T, suite *SystemTestSuite, bytecode
 	require.Equal(t, withdrawAmount, withdrawal.Amount)
 
 	// Verify updatePayload signature
-	payload, err = suite.GetRequestUpdatePayload("withdraw-1")
+	payload, err = suite.GetRequestUpdatePayload(RequestID)
 	require.NoError(t, err)
 	err = cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey)
 	require.NoError(t, err)
 
 	t.Log("system test completed successfully!")
 
-	suite.Cleanup()
 }
