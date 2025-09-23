@@ -1,13 +1,8 @@
-# WASM Go Runtime
+# WASM Go Module: Payment App
 
-This module contains the Go implementation of a WASM runtime for the Horizen PES project.
+This repository contains the Go implementation of the **Payment App** WASM module, an example application for handling deposits, transfers, and withdrawals for the Horizen PES project.
 
-## Overview
-
-The WebAssembly runtime system consists of:
-- **TinyGo**: Compiles Go code to WebAssembly modules.
-- **Wasmtime-Go**: Executes WebAssembly modules in a secure, sandboxed environment.
-- **Payment App**: An example WASM application for handling deposits, transfers, and withdrawals.
+**Note:** The WebAssembly (WASM) runtime itself is implemented and maintained in the `horizen-pes` repository. This module depends on that runtime for building and executing tests.
 
 ## Prerequisites
 
@@ -59,7 +54,7 @@ This will create the `build/payment_app.wasm` file.
 
 1.  **Modify WASM Module**: The core application logic is in `main.go` and `app/app.go`. Utility functions are located in `utils/`.
 2.  **Rebuild Module**: After making changes, rebuild the WASM module using `make build` or the `tinygo` command directly.
-3.  **Update Tests**: Add or update corresponding tests in `wasmtime_runtime_test.go`, `integration_test.go`, or `system_tests/payment_app_system_test.go` to reflect your changes.
+3.  **Update Tests**: Add or update corresponding tests in `wasmtime_runtime_test.go` or `integration_test.go` to reflect your changes.
 4.  **Verify Changes**: Run the test suite to ensure everything is working correctly:
     ```bash
     go test ./...
@@ -80,8 +75,8 @@ This project contains three distinct types of tests, each with a different focus
 
 1.  **`wasmtime_runtime_test.go`**:
     *   **Type**: Unit/Integration Test
-    *   **Scope**: Focuses on the `WasmtimeRuntime` component itself.
-    *   **Purpose**: To verify that the Go implementation of the WASM runtime is robust, correct, and handles various scenarios as expected. It directly calls the runtime's functions to test its behavior in isolation, covering happy paths, error conditions (e.g., invalid WASM, corrupted state), and edge cases (e.g., concurrent operations, large payloads).
+    *   **Scope**: Focuses on the interaction with the `WasmtimeRuntime` component (which is implemented in `horizen-pes`).
+    *   **Purpose**: To verify that this module correctly interacts with the WASM runtime, ensuring robust and correct handling of various scenarios. It tests the module's behavior in isolation when communicating with the runtime, covering happy paths, error conditions (e.g., invalid WASM, corrupted state), and edge cases (e.g., concurrent operations, large payloads).
 
 2.  **`integration_test.go`**:
     *   **Type**: Integration Test
