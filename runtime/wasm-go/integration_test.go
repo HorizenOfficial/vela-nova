@@ -17,7 +17,7 @@ import (
 
 func readWasm(t *testing.T) []byte {
 	t.Helper()
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 	return wasmBytes

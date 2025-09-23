@@ -20,7 +20,7 @@ func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
 
 	suite := NewSystemTestSuite(t, "wasmtime-payment")
 	// Load wasm bytecode for the payment app
-        wasmBytecode := suite.LoadWasmModule(t, "../payment_app.wasm")
+	wasmBytecode := suite.LoadWasmModule(t, "../build/payment_app.wasm")
 	testPaymentAppFullSystemFlow(t, suite, wasmBytecode)
 }
 

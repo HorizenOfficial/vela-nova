@@ -45,7 +45,7 @@ type AppState struct {
 
 func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	// Load the compiled WASM module
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -86,7 +86,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 		Nonce    uint64                      `json:"nonce"`
 	}
 
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -148,7 +148,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	}
 
 	// Load the compiled WASM module
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -232,7 +232,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	}
 
 	// Load the compiled WASM module
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -310,7 +310,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	}
 
 	// Load the compiled WASM module
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -359,7 +359,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	}
 
 	// Load the compiled WASM module
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err, "Failed to read WASM file")
 
@@ -436,7 +436,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -469,7 +469,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -537,7 +537,7 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_NilInputs(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -569,7 +569,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -618,7 +618,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -665,7 +665,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 		largePayload[i] = byte(i % 256)
 	}
 
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -680,7 +680,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -702,7 +702,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_StateRootConsistency(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -727,7 +727,7 @@ func TestWasmtimeRuntime_StateRootConsistency(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
@@ -752,7 +752,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 
 func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 
-	wasmPath := filepath.Join("payment_app.wasm")
+	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
