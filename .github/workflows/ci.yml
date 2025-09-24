@@ -2,7 +2,7 @@ name: CI Nova
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, as/wasm_go_module ]
   pull_request:
     branches: [ main, dev, as/wasm_go_module ]
 
