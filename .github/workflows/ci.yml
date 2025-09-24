@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main, dev, as/wasm_go_module ]
 
+
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   test:
     name: Test Suite
