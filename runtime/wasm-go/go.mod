@@ -8,7 +8,7 @@ toolchain go1.24.3
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.0-00010101000000-000000000000
+	github.com/horizen-pes v0.0.1
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -46,4 +46,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/horizen-pes => ../../../horizen-pes
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.1
