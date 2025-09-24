@@ -5,10 +5,13 @@ on:
     branches: [ main, dev, as/wasm_go_module ]
   pull_request:
     branches: [ main, dev, as/wasm_go_module ]
-
+  # Trigger release job on new tags like v1.0.0
+  create:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write   # needed for creating releases
   packages: read
 
 jobs:
@@ -56,3 +59,38 @@ jobs:
       - name: Run WASM module tests
         run: go test -v ./...
         working-directory: runtime/wasm-go
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Configure Go for private modules
+        run: |
+          go env -w GOPRIVATE=github.com/HorizenOfficial/*
+          git config --global url."https://${{ secrets.GH_PAT }}:@github.com/".insteadOf "https://github.com/"
+
+      - name: Install TinyGo
+        run: |
+          wget https://github.com/tinygo-org/tinygo/releases/download/v0.39.0/tinygo_0.39.0_amd64.deb
+          sudo dpkg -i tinygo_0.39.0_amd64.deb
+
+      - name: Build production WASM module
+        run: make production_build
+        working-directory: runtime/wasm-go
+
+      - name: Create GitHub Release with WASM
+        uses: softprops/action-gh-release@v2
+        with:
+          files: runtime/wasm-go/production_build/payment_app.wasm
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+
