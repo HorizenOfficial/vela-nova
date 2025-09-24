@@ -28,6 +28,7 @@ jobs:
       # Configure Git to use GITHUB_TOKEN for private modules
       - name: Configure Git for private modules
         run: |
+          go env -w GOPRIVATE=github.com/HorizenOfficial/*
           git config --global url."https://${{ secrets.GITHUB_TOKEN }}:@github.com/".insteadOf "https://github.com/"
 
       # Install Go dependencies
