@@ -7,7 +7,7 @@ go 1.23.0
 toolchain go1.24.3
 
 require (
-	github.com/horizen-pes v0.0.0-00010101000000-000000000000
+	github.com/horizen-pes v0.0.2
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -46,4 +46,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/horizen-pes => ../../../horizen-pes
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.2

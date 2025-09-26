@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	systemTests "github.com/horizen-pes/tests/system"
+	systemTests "github.com/horizen-pes/pkg/testutil"
 )
 
 func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
