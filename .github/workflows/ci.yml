@@ -2,12 +2,12 @@ name: CI Nova
 
 on:
   push:
-    branches: [ main, dev, as/wasm_go_module ]
+    branches: [ main, dev ]
     tags:
       - 'v*'       # triggers release job on any tag starting with 'v'
 
   pull_request:
-    branches: [ main, dev, as/wasm_go_module ]
+    branches: [ main, dev ]
 
 permissions:
   contents: write   # needed for creating releases
