@@ -47,3 +47,6 @@ require (
 )
 
 replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.2
+
+// Can be useful for local developments
+//replace github.com/horizen-pes => ../../../horizen-pes

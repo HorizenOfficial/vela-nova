@@ -15,8 +15,16 @@ permissions:
 
 jobs:
   test:
-    name: Test Suite
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Test Suite (All)"
+            ci_flag: ""
+          - name: "Test Suite (Fast)"
+            ci_flag: "true"
 
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +66,8 @@ jobs:
       - name: Run WASM module tests
         run: go test -v ./...
         working-directory: runtime/wasm-go
+        env:
+          CI_FLAG: ${{ matrix.ci_flag }}
 
   release:
     name: Release
