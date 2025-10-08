@@ -31,10 +31,9 @@ func TestIntegration_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := "test-app"
 
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, state)
-	require.NotNil(t, stateRoot)
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(state, &stateData))
@@ -51,7 +50,7 @@ func TestIntegration_Deposit(t *testing.T) {
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1_000_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	newState, events, err := runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
@@ -76,7 +75,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	depositValue := uint64(2_000_000_000_000_000_000)
 	transferValue := uint64(500_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
 	require.NoError(t, err)
@@ -111,7 +110,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawValue := uint64(500_000_000_000_000_000)
 	withdrawAddress := "0x1234567890123456789012345678901234567890"
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
 	require.NoError(t, err)
@@ -153,7 +152,7 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1_000_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
 	require.NoError(t, err)

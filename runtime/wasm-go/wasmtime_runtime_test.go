@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -57,11 +56,9 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := "test-app"
 
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 	require.NotNil(t, state, "State should not be nil")
-	require.NotNil(t, stateRoot, "State root should not be nil")
-	require.Len(t, stateRoot, 32, "State root should be 32 bytes")
 
 	// Verify the state is valid JSON
 	var stateData AppState
@@ -100,7 +97,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1000000000000000000) // 1 ETH
 
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	// Test Deposit
@@ -164,7 +161,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	transferValue := uint64(500000000000000000) // 0.5 ETH
 
 	// Load module and make a deposit first
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
@@ -248,7 +245,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawAddress := "0x1234567890123456789012345678901234567890"
 
 	// Load module and make a deposit first
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
@@ -325,7 +322,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	value := uint64(1000000000000000000) // 1 ETH
 
 	// Load module and make a deposit first to have some state
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateWithData, _, err := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
@@ -373,10 +370,9 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 
 	t.Log("Step 1: Load module")
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 	require.NotNil(t, state)
-	require.NotNil(t, stateRoot)
 
 	t.Log("Step 2: Make deposit for user1")
 	depositValue := uint64(2000000000000000000) // 2 ETH
@@ -453,7 +449,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			appId := fmt.Sprintf("concurrent-app-%d", id)
-			_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+			_, err := runtime.LoadModule(ctx, appId, wasmBytes)
 			if err != nil {
 				errors <- err
 			}
@@ -480,7 +476,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	appId := "large-state-app"
 
 	// Load module and make many deposits to create large state
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	// Make 100 deposits to create a large state
@@ -518,7 +514,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 	appId := "invalid-app"
 	invalidWasm := []byte("invalid wasm bytes")
 
-	_, _, err := runtime.LoadModule(ctx, appId, invalidWasm)
+	_, err := runtime.LoadModule(ctx, appId, invalidWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 }
@@ -531,7 +527,7 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 	appId := "empty-app"
 	emptyWasm := []byte{}
 
-	_, _, err := runtime.LoadModule(ctx, appId, emptyWasm)
+	_, err := runtime.LoadModule(ctx, appId, emptyWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 }
@@ -548,12 +544,12 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 
 	t.Run("NilWasmBytes", func(t *testing.T) {
-		_, _, err := runtime.LoadModule(ctx, "test-app", nil)
+		_, err := runtime.LoadModule(ctx, "test-app", nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("EmptyAppId", func(t *testing.T) {
-		_, _, err := runtime.LoadModule(ctx, "", wasmBytes)
+		_, err := runtime.LoadModule(ctx, "", wasmBytes)
 		// This might succeed depending on implementation, but state should be testable
 		if err == nil {
 			// Verify we can't use empty app ID for operations
@@ -581,7 +577,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	t.Run("InvalidJSON", func(t *testing.T) {
@@ -631,7 +627,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 	value := uint64(12345678901234567890) // # fits in uint64, > max int64
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	state, _, err = runtime.Deposit(ctx, appId, user1, value/2, state, wasmBytes)
@@ -669,7 +665,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	user1 := fmt.Sprintf("0xadd%037x", 1)
@@ -701,7 +697,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	require.Equal(t, []common.PlainEvent(nil), events)
 }
 
-func TestWasmtimeRuntime_StateRootConsistency(t *testing.T) {
+func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 	wasmPath := filepath.Join("build", "payment_app.wasm")
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
@@ -710,19 +706,12 @@ func TestWasmtimeRuntime_StateRootConsistency(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "consistency-test-app"
+	appId := "multiple-load-test-app"
 
-	// Load same module multiple times and verify state root consistency
+	// Load same module multiple times (TODO this will change)
 	for i := 0; i < 5; i++ {
-		state, stateRoot, err := runtime.LoadModule(ctx, fmt.Sprintf("%s-%d", appId, i), wasmBytes)
+		_, err := runtime.LoadModule(ctx, fmt.Sprintf("%s-%d", appId, i), wasmBytes)
 		require.NoError(t, err)
-
-		// Verify state root is exactly 32 bytes (SHA256)
-		assert.Len(t, stateRoot, 32)
-
-		// Verify state root is deterministic
-		expectedHash := sha256.Sum256(state)
-		assert.Equal(t, expectedHash, stateRoot)
 	}
 }
 
@@ -738,7 +727,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	appId := "zero-value-app"
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	// Test zero value deposit
@@ -762,7 +751,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	ctx := context.Background()
 	appId := "invalid-instruction-app"
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	invalidPayload := map[string]interface{}{
