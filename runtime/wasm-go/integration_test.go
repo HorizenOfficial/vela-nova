@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"testing"
 
 	"payment-app/app"
@@ -17,9 +17,18 @@ import (
 
 func readWasm(t *testing.T) []byte {
 	t.Helper()
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+
+	wasmModulePath := "build/payment_app.wasm"
+
+	cmd := exec.Command("make", "build")
+	cmd.Dir = "." // Run in the current directory
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "failed to build wasm module: %s", string(output))
+
+	// Read the wasm module
+	wasmBytes, err := os.ReadFile(wasmModulePath)
+	require.NoError(t, err)
+	require.NotEmpty(t, wasmBytes)
 	return wasmBytes
 }
 
