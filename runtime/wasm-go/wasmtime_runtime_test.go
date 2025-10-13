@@ -329,7 +329,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	require.NoError(t, err, "Deposit should succeed")
 
 	// Test GenerateDeanonymizationReport
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte{}, stateWithData, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte("{}"), stateWithData, wasmBytes)
 	require.NoError(t, err, "GenerateDeanonymizationReport should succeed")
 	require.NotNil(t, report, "Report should not be nil")
 
@@ -417,7 +417,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.Len(t, withdrawals, 1)
 
 	t.Log("Step 5: Generate deanonymization report")
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, "deanon-1", []byte{}, state, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, "deanon-1", []byte("{}"), state, wasmBytes)
 	require.NoError(t, err, "Deanonymization report should succeed")
 	require.NotNil(t, report)
 

@@ -220,7 +220,13 @@ func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessRes
 	}
 }
 
-func GenerateDeanonymizationReport(appId, requestId, stateJSON string) wasmCommon.DeanonymizationResult {
+func GenerateDeanonymizationReport(appId, requestId, payloadJSON, stateJSON string) wasmCommon.DeanonymizationResult {
+	// Deserialize payload
+	var payload ReportPayloadInstructions
+	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+		return wasmCommon.DeanonymizationResult{Error: fmt.Sprintf("Failed to parse payload: %s", payloadJSON)}
+	}
+
 	// Deserialize current state
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
@@ -228,12 +234,15 @@ func GenerateDeanonymizationReport(appId, requestId, stateJSON string) wasmCommo
 	}
 
 	// Create deanonymization report
-	report := wasmCommon.UnencryptedDeanonymizationReportData{
+	report := UnencryptedDeanonymizationReportData{
 		ApplicationID: appId,
 		RequestID:     requestId,
 		Accounts:      convertAccountsToWasmCommon(currentState.Accounts),
 		Nonce:         currentState.Nonce,
 	}
+
+	// read contents of the payload and decide how to build the report.
+	//if payload.... TODO
 
 	// Serialize the report
 	reportBytes, err := json.Marshal(report)
@@ -244,17 +253,17 @@ func GenerateDeanonymizationReport(appId, requestId, stateJSON string) wasmCommo
 }
 
 // convertAccountsToWasmCommon converts app-level AccountState map to wasm/common.AccountState map
-func convertAccountsToWasmCommon(src map[string]*AccountState) map[string]*wasmCommon.AccountState {
+func convertAccountsToWasmCommon(src map[string]*AccountState) map[string]*AccountState {
 	if src == nil {
 		return nil
 	}
-	out := make(map[string]*wasmCommon.AccountState, len(src))
+	out := make(map[string]*AccountState, len(src))
 	for addr, acc := range src {
 		if acc == nil {
 			out[addr] = nil
 			continue
 		}
-		out[addr] = &wasmCommon.AccountState{
+		out[addr] = &AccountState{
 			Address: acc.Address,
 			Balance: acc.Balance,
 		}
@@ -292,4 +301,16 @@ type PayloadInstructions struct {
 	Type     string               `json:"type"`
 	Transfer *TransferInstruction `json:"transfer,omitempty"`
 	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+}
+
+type UnencryptedDeanonymizationReportData struct {
+	ApplicationID string                   `json:"applicationId"`
+	RequestID     string                   `json:"requestId"`
+	Accounts      map[string]*AccountState `json:"accounts"`
+	Nonce         uint64                   `json:"nonce"`
+}
+
+// ReportPayloadInstructions represent a specific information on how to generate a report
+// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether we can omit empry accounts
+type ReportPayloadInstructions struct {
 }

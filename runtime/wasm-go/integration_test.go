@@ -157,7 +157,7 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	state, _, err = runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
 	require.NoError(t, err)
 
-	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte{}, state, wasmBytes)
+	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte("{}"), state, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, reportBytes)
 
