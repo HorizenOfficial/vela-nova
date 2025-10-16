@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 	"unsafe"
-)
 
-// WasmSerializationError is a generic error for failed WASM serialization.
-var WasmSerializationError = []byte("{}")
+	appCommon "github.com/horizen-pes/pkg/wasm/common"
+)
 
 // --- WASM Memory Management Functions ---
 
@@ -83,7 +82,7 @@ func StringToPtr(data []byte) *byte {
 func SerializeAndWriteResult(result any) *byte {
 	reportJSON, err := json.Marshal(result)
 	if err != nil {
-		return StringToPtr(WasmSerializationError)
+		return StringToPtr([]byte(appCommon.WasmSerializationError))
 	}
 	return StringToPtr(reportJSON)
 }

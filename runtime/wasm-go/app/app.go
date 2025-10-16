@@ -19,7 +19,7 @@ func LoadModule(appId string) []byte {
 	}
 	stateJSON, err := json.Marshal(initialState)
 	if err != nil {
-		return utils.WasmSerializationError
+		return []byte(wasmCommon.WasmSerializationError)
 	}
 	return stateJSON
 }
@@ -220,7 +220,7 @@ func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessRes
 	}
 }
 
-func GenerateDeanonymizationReport(appId, requestId, payloadJSON, stateJSON string) wasmCommon.DeanonymizationResult {
+func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.DeanonymizationResult {
 	// Deserialize payload
 	var payload ReportPayloadInstructions
 	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
@@ -235,10 +235,8 @@ func GenerateDeanonymizationReport(appId, requestId, payloadJSON, stateJSON stri
 
 	// Create deanonymization report
 	report := UnencryptedDeanonymizationReportData{
-		ApplicationID: appId,
-		RequestID:     requestId,
-		Accounts:      convertAccountsToWasmCommon(currentState.Accounts),
-		Nonce:         currentState.Nonce,
+		Accounts: convertAccountsToWasmCommon(currentState.Accounts),
+		Nonce:    currentState.Nonce,
 	}
 
 	// read contents of the payload and decide how to build the report.
@@ -304,10 +302,8 @@ type PayloadInstructions struct {
 }
 
 type UnencryptedDeanonymizationReportData struct {
-	ApplicationID string                   `json:"applicationId"`
-	RequestID     string                   `json:"requestId"`
-	Accounts      map[string]*AccountState `json:"accounts"`
-	Nonce         uint64                   `json:"nonce"`
+	Accounts map[string]*AccountState `json:"accounts"`
+	Nonce    uint64                   `json:"nonce"`
 }
 
 // ReportPayloadInstructions represent a specific information on how to generate a report

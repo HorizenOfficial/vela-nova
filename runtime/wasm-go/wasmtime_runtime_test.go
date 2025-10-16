@@ -43,10 +43,8 @@ type AppState struct {
 }
 
 func TestWasmtimeRuntime_LoadModule(t *testing.T) {
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -83,9 +81,8 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 		Nonce    uint64                      `json:"nonce"`
 	}
 
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -144,10 +141,8 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		Amount uint64 `json:"amount"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -228,10 +223,8 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 		Amount uint64 `json:"amount"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -306,10 +299,8 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 		Nonce         uint64                      `json:"nonce"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -317,7 +308,6 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 
 	ctx := context.Background()
 	appId := "test-app"
-	requestId := "deanon-1"
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1000000000000000000) // 1 ETH
 
@@ -329,7 +319,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	require.NoError(t, err, "Deposit should succeed")
 
 	// Test GenerateDeanonymizationReport
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte("{}"), stateWithData, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), stateWithData, wasmBytes)
 	require.NoError(t, err, "GenerateDeanonymizationReport should succeed")
 	require.NotNil(t, report, "Report should not be nil")
 
@@ -337,8 +327,6 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	err = json.Unmarshal(report, &reportData)
 	require.NoError(t, err, "Report should be valid JSON")
 
-	assert.Equal(t, appId, reportData.ApplicationId)
-	assert.Equal(t, requestId, reportData.RequestId)
 	require.Contains(t, reportData.Accounts, sender)
 	assert.Equal(t, value, reportData.Accounts[sender].Balance)
 }
@@ -355,10 +343,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 		Nonce    uint64                      `json:"nonce"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -417,7 +403,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.Len(t, withdrawals, 1)
 
 	t.Log("Step 5: Generate deanonymization report")
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, "deanon-1", []byte("{}"), state, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
 	require.NoError(t, err, "Deanonymization report should succeed")
 	require.NotNil(t, report)
 
@@ -432,9 +418,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -465,9 +450,8 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -533,9 +517,8 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_NilInputs(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -565,9 +548,8 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -614,9 +596,8 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -676,9 +657,8 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -698,9 +678,8 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -716,9 +695,8 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -740,10 +718,8 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
-
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()

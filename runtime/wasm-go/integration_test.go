@@ -157,7 +157,6 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 
 	ctx := context.Background()
 	appId := "test-app"
-	requestId := "deanon-1"
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1_000_000_000_000_000_000)
 
@@ -166,14 +165,12 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	state, _, err = runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
 	require.NoError(t, err)
 
-	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte("{}"), state, wasmBytes)
+	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, reportBytes)
 
 	var report reportStruct
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
-	assert.Equal(t, appId, report.ApplicationID)
-	assert.Equal(t, requestId, report.RequestID)
 	require.Contains(t, report.Accounts, sender)
 	assert.Equal(t, value, report.Accounts[sender].Balance)
 }
