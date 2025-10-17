@@ -235,7 +235,7 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 
 	// Create deanonymization report
 	report := UnencryptedDeanonymizationReportData{
-		Accounts: convertAccountsToWasmCommon(currentState.Accounts),
+		Accounts: currentState.Accounts,
 		Nonce:    currentState.Nonce,
 	}
 
@@ -248,25 +248,6 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 		return wasmCommon.DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
 	}
 	return wasmCommon.DeanonymizationResult{Report: reportBytes}
-}
-
-// convertAccountsToWasmCommon converts app-level AccountState map to wasm/common.AccountState map
-func convertAccountsToWasmCommon(src map[string]*AccountState) map[string]*AccountState {
-	if src == nil {
-		return nil
-	}
-	out := make(map[string]*AccountState, len(src))
-	for addr, acc := range src {
-		if acc == nil {
-			out[addr] = nil
-			continue
-		}
-		out[addr] = &AccountState{
-			Address: acc.Address,
-			Balance: acc.Balance,
-		}
-	}
-	return out
 }
 
 // AccountState represents the state of a user account
@@ -306,7 +287,8 @@ type UnencryptedDeanonymizationReportData struct {
 	Nonce    uint64                   `json:"nonce"`
 }
 
-// ReportPayloadInstructions represent a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether we can omit empry accounts
+// ReportPayloadInstructions represents a specific information on how to generate a report
+// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
+// we can omit empty accounts
 type ReportPayloadInstructions struct {
 }
