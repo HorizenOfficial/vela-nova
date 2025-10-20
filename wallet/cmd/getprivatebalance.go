@@ -19,15 +19,49 @@ const BLOCK_BATCH_SIZE = 100
 
 type GetPrivateBalanceCommand struct {
 	*app.AppCommand
-	useMockClient bool
+	mockEventResponse []byte
 }
 
-func NewGetPrivateBalanceCommand(config *app.Config, useMockClient bool) *GetPrivateBalanceCommand {
+func NewGetPrivateBalanceCommand(config *app.Config, mockEventResponse []byte) *GetPrivateBalanceCommand {
 	return &GetPrivateBalanceCommand{
 		AppCommand: app.NewAppCommand(config),
-		useMockClient: useMockClient,
+		mockEventResponse: mockEventResponse,
 	}
 }
+
+func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, applicationId big.Int, latestBlock uint64) ([]byte, error) {
+	//search range
+	fromBlock := latestBlock
+	toBlock := max(fromBlock - BLOCK_BATCH_SIZE, 0); //so it can't be negative
+	for true {
+		events, err := blockchainClient.GetUserEvents(
+			context.Background(), 
+			privKey, 
+			applicationId, 
+			fromBlock, 
+			toBlock, 
+			nil, 
+			true,
+		);
+		if err != nil {
+			return nil, fmt.Errorf("can't retrieve events: %w", err)//stop
+		}
+		//event found, return the first
+		if len(events) > 0 {
+			return events[0], nil
+		}
+		//event not found, check if block are finished
+		if toBlock == 0 {
+			return nil, fmt.Errorf("can't find events at any block")//stop
+		}
+		//redefine search range
+		fromBlock = toBlock
+		toBlock = max(fromBlock-BLOCK_BATCH_SIZE, 0);
+	}
+	return nil, nil
+}
+
+
 
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -46,70 +80,47 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("Failed to parse to uint applicationId: %s", args[0])
 			}
 
-			//init blockchain client
-			var blockchainClient blockchain.Client
-			if !c.useMockClient { //real client
-				blockchainClient = blockchain.NewBlockChainClient(
+			var event []byte
+			if c.mockEventResponse != nil {
+				//mock event with the given one
+				event = c.mockEventResponse
+			} else { 
+				//init blockchain client
+				blockchainClient := blockchain.NewBlockChainClient(
 					common.HexToAddress(c.Config.ProcessorEndpointAddress),
 					common.HexToAddress(c.Config.TeeAuthenticatorAddress),
 					c.Config.RpcUrl,
 					nil,
 				)
-			} else { //mock
-				blockchainClient = blockchain.NewMockClient();
-			} 
-			//get last block number
-			client, err := ethclient.Dial(c.Config.RpcUrl)
-			if err != nil {
-				log.Fatalf("Failed to connect to RPC: %v", err)
-			}
-			defer client.Close()
-
-			//define search range
-			latestBlock, err := client.BlockByNumber(context.Background(), nil)
-			if err != nil {
-				log.Fatalf("failed to get latest block: %v", err)
-			}
-			fromBlock := latestBlock.NumberU64()
-			toBlock := max(fromBlock-BLOCK_BATCH_SIZE, 0);
-			//decryption key
-			privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
-
-			for true {
-				events, err := blockchainClient.GetUserEvents(
-					context.Background(), 
-					privKey, 
-					*applicationId, 
-					fromBlock, 
-					toBlock, 
-					nil, 
-					true,
-				);
+				//get last block number
+				client, err := ethclient.Dial(c.Config.RpcUrl)
 				if err != nil {
-					log.Fatalf("failed to get user events: %v", err)
+					log.Fatalf("Failed to connect to RPC: %v", err)
 				}
-				//event found
-				if len(events) > 0 {
-					//get json from event
-					var jsonData map[string]interface{} 	
-					err := json.Unmarshal(events[0], &jsonData) 
-					if err != nil {
-						log.Fatalf("failed to convert event to json: %v", err)
-					}
-					//print balance
-					fmt.Println(jsonData["balance"])
-					return
-				}
+				defer client.Close()
 
-				//event not found, check if block are finished
-				if toBlock == 0 {
-					fmt.Println("Balance not found")
-					return //stop
+				//get last block
+				latestBlock, err := client.BlockByNumber(context.Background(), nil)
+				if err != nil {
+					log.Fatalf("failed to get latest block: %v", err)
 				}
-				//redefine search range
-				fromBlock = toBlock
-				toBlock = max(fromBlock-BLOCK_BATCH_SIZE, 0);
+				//decryption key
+				privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
+				//find event
+				event, err = c.FindEvent(blockchainClient, privKey, *applicationId, latestBlock.NumberU64())
+				if err != nil {
+					log.Fatalf("failed to get event: %v", err)
+				}
 			}
+
+			//get json from event
+			var jsonData map[string]interface{} 	
+			err := json.Unmarshal(event, &jsonData) 
+			if err != nil {
+				log.Fatalf("failed to convert event to json: %v", err)
+			}
+			//print balance
+			fmt.Println(jsonData["balance"])
 		},
 	}
 	return cmd
