@@ -1,0 +1,116 @@
+package cmd
+
+import (
+	"fmt"
+	"context"
+	"encoding/json"
+	"log"
+	"math/big"
+
+	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/spf13/cobra"
+	"github.com/horizen-pes/pkg/blockchain"
+	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
+)
+
+const BLOCK_BATCH_SIZE = 100
+
+type GetPrivateBalanceCommand struct {
+	*app.AppCommand
+	useMockClient bool
+}
+
+func NewGetPrivateBalanceCommand(config *app.Config, useMockClient bool) *GetPrivateBalanceCommand {
+	return &GetPrivateBalanceCommand{
+		AppCommand: app.NewAppCommand(config),
+		useMockClient: useMockClient,
+	}
+}
+
+func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "getprivatebalance $applicationId",
+		Short: `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
+		Long:  `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
+		Run: func(cmd *cobra.Command, args []string) {
+			//read first parameter as applicationId
+			if len(args) < 1 {
+				log.Fatalf("applicationId parameter is required")
+			}
+			//parse to big int
+			applicationId := new(big.Int)
+			applicationId, ok := applicationId.SetString(args[0], 10)
+			if !ok {
+				log.Fatalf("Failed to parse to uint applicationId: %s", args[0])
+			}
+
+			//init blockchain client
+			var blockchainClient blockchain.Client
+			if !c.useMockClient { //real client
+				blockchainClient = blockchain.NewBlockChainClient(
+					common.HexToAddress(c.Config.ProcessorEndpointAddress),
+					common.HexToAddress(c.Config.TeeAuthenticatorAddress),
+					c.Config.RpcUrl,
+					nil,
+				)
+			} else { //mock
+				blockchainClient = blockchain.NewMockClient();
+			} 
+			//get last block number
+			client, err := ethclient.Dial(c.Config.RpcUrl)
+			if err != nil {
+				log.Fatalf("Failed to connect to RPC: %v", err)
+			}
+			defer client.Close()
+
+			//define search range
+			latestBlock, err := client.BlockByNumber(context.Background(), nil)
+			if err != nil {
+				log.Fatalf("failed to get latest block: %v", err)
+			}
+			fromBlock := latestBlock.NumberU64()
+			toBlock := max(fromBlock-BLOCK_BATCH_SIZE, 0);
+			//decryption key
+			privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
+
+			for true {
+				events, err := blockchainClient.GetUserEvents(
+					context.Background(), 
+					privKey, 
+					*applicationId, 
+					fromBlock, 
+					toBlock, 
+					nil, 
+					true,
+				);
+				if err != nil {
+					log.Fatalf("failed to get user events: %v", err)
+				}
+				//event found
+				if len(events) > 0 {
+					//get json from event
+					var jsonData map[string]interface{} 	
+					err := json.Unmarshal(events[0], &jsonData) 
+					if err != nil {
+						log.Fatalf("failed to convert event to json: %v", err)
+					}
+					//print balance
+					fmt.Println(jsonData["balance"])
+					return
+				}
+
+				//event not found, check if block are finished
+				if toBlock == 0 {
+					fmt.Println("Balance not found")
+					return //stop
+				}
+				//redefine search range
+				fromBlock = toBlock
+				toBlock = max(fromBlock-BLOCK_BATCH_SIZE, 0);
+			}
+		},
+	}
+	return cmd
+}
