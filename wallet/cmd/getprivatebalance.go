@@ -30,10 +30,15 @@ func NewGetPrivateBalanceCommand(config *app.Config, knownLastEvent []byte) *Get
 }
 
 func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, applicationId big.Int, latestBlock uint64) ([]byte, error) {
-	//search range
+	// define search range
 	fromBlock := latestBlock
-	toBlock := max(fromBlock - BLOCK_BATCH_SIZE, 0); //so it can't be negative
+	var toBlock uint64 = 0
+	if fromBlock > BLOCK_BATCH_SIZE {
+		toBlock = fromBlock - BLOCK_BATCH_SIZE
+	}
+	//start loop
 	for true {
+		fmt.Printf("Searching from block %d to %d\n", fromBlock, toBlock)
 		events, err := blockchainClient.GetUserEvents(
 			context.Background(), 
 			privKey, 
@@ -55,8 +60,14 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 			return nil, fmt.Errorf("can't find events at any block") //stop
 		}
 		//redefine search range
-		fromBlock = toBlock
-		toBlock = max(fromBlock-BLOCK_BATCH_SIZE, 0);
+		fromBlock = 0
+		if toBlock > 0 {
+			fromBlock = toBlock - 1
+		}
+		toBlock = 0
+		if fromBlock > BLOCK_BATCH_SIZE {
+			toBlock = fromBlock - BLOCK_BATCH_SIZE
+		}
 	}
 	return nil, nil
 }
