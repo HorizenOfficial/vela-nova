@@ -19,13 +19,13 @@ const BLOCK_BATCH_SIZE = 100
 
 type GetPrivateBalanceCommand struct {
 	*app.AppCommand
-	knownLastEvent []byte
+	customClient blockchain.Client
 }
 
-func NewGetPrivateBalanceCommand(config *app.Config, knownLastEvent []byte) *GetPrivateBalanceCommand {
+func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
 	return &GetPrivateBalanceCommand{
 		AppCommand: app.NewAppCommand(config),
-		knownLastEvent: knownLastEvent,
+		customClient: customClient,
 	}
 }
 
@@ -103,25 +103,24 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("Failed to connect to RPC: %v", err)
 			}
 			defer client.Close()
-
-			//get last block
 			latestBlock, err := client.BlockNumber(context.Background())
 			if err != nil {
 				log.Fatalf("failed to get latest block: %v", err)
 			}
+
 			//decryption key
 			privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
 
-			var event []byte
-			if c.knownLastEvent != nil {
-				//use the given event 
-				event = c.knownLastEvent
-			} else { 
-				//find event
-				event, err = c.FindEvent(blockchainClient, privKey, *applicationId, latestBlock)
-				if err != nil {
-					log.Fatalf("failed to get event: %v", err)
-				}
+			clientToUse := c.customClient
+			if clientToUse == nil {
+				//use the real client
+				clientToUse = blockchainClient
+			}
+
+			//find event
+			event, err := c.FindEvent(clientToUse, privKey, *applicationId, latestBlock)
+			if err != nil {
+				log.Fatalf("failed to get event: %v", err)
 			}
 
 			//get json from event

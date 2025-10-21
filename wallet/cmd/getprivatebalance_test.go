@@ -14,39 +14,7 @@ import (
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestGetPrivateBalance(t *testing.T) {
-	// Redirect stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-	var key2, _ = crypto.GeneratePrivateKeyP521()
-
-	//prepare args
-	args := []string{"1"}
-	mockEvent := []byte(`{"balance": "12345"}`)
-	// Execute the command
-	cmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
-		RpcUrl: "https://base-sepolia.drpc.org",
-	}, mockEvent).Command()
-	cmd.Run(nil, args)
-
-	// Restore stdout
-	w.Close()
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	output := buf.String()
-	
-	assert.Contains(t, output, "12345")
-}
 
 // create a test blockchain client with only the GetUserEvents method defined
 type TestGetPrivateBalanceBlockChainClient struct {
@@ -97,30 +65,40 @@ func (c TestGetPrivateBalanceBlockChainClient) GetUserEvents(ctx context.Context
 	return [][]byte{}, nil
 }
 
-func TestFindEventInGetPrivateBalance(t *testing.T) {
-	expectedEvent := []byte(`{"balance": "12345"}`)
+func TestGetPrivateBalance(t *testing.T) {
+	// Redirect stdout
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
+	var key2, _ = crypto.GeneratePrivateKeyP521()
+
+	//prepare args
+	balanceStr := "12345"
+	args := []string{"1"}
+	mockEvent := []byte(`{"balance": "` + balanceStr + `"}`)
 
 	client := TestGetPrivateBalanceBlockChainClient{
-		expectedEvent,
+		mockEvent,
 		3, //the event is returned when searching in the block 3
 		0,
 	}
-	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-	var key2, _ = crypto.GeneratePrivateKeyP521()
-	//invoke find event
+	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: *key1,
 		KeyP521: *key2,
 		RpcUrl: "https://base-sepolia.drpc.org",
-	}, nil)
+	}, client).Command()
+	cmd.Run(nil, args)
 
-	event, err := cmd.FindEvent(
-		client, 
-		cryptotypes.PrivateKeyP521{PrivateKey: key2.PrivateKey},
-		*big.NewInt(0),
-		500, //block number for the search
-	)
+	// Restore stdout
+	w.Close()
+	os.Stdout = old
 
-	require.NoError(t, err)
-	require.Equal(t, event, expectedEvent, "unexpectedEvent")
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+	
+	assert.Contains(t, output, balanceStr)
 }
