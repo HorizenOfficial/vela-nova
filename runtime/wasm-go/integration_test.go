@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"testing"
 
 	"payment-app/app"
@@ -17,9 +17,18 @@ import (
 
 func readWasm(t *testing.T) []byte {
 	t.Helper()
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+
+	wasmModulePath := "build/payment_app.wasm"
+
+	cmd := exec.Command("make", "build")
+	cmd.Dir = "." // Run in the current directory
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "failed to build wasm module: %s", string(output))
+
+	// Read the wasm module
+	wasmBytes, err := os.ReadFile(wasmModulePath)
+	require.NoError(t, err)
+	require.NotEmpty(t, wasmBytes)
 	return wasmBytes
 }
 
@@ -31,10 +40,9 @@ func TestIntegration_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := "test-app"
 
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, state)
-	require.NotNil(t, stateRoot)
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(state, &stateData))
@@ -51,7 +59,7 @@ func TestIntegration_Deposit(t *testing.T) {
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1_000_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	newState, events, err := runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
@@ -76,7 +84,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	depositValue := uint64(2_000_000_000_000_000_000)
 	transferValue := uint64(500_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
 	require.NoError(t, err)
@@ -111,7 +119,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawValue := uint64(500_000_000_000_000_000)
 	withdrawAddress := "0x1234567890123456789012345678901234567890"
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
 	require.NoError(t, err)
@@ -149,23 +157,20 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 
 	ctx := context.Background()
 	appId := "test-app"
-	requestId := "deanon-1"
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1_000_000_000_000_000_000)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	state, _, err = runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
 	require.NoError(t, err)
 
-	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte{}, state, wasmBytes)
+	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, reportBytes)
 
 	var report reportStruct
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
-	assert.Equal(t, appId, report.ApplicationID)
-	assert.Equal(t, requestId, report.RequestID)
 	require.Contains(t, report.Accounts, sender)
 	assert.Equal(t, value, report.Accounts[sender].Balance)
 }

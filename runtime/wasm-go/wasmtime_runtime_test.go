@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,10 +43,8 @@ type AppState struct {
 }
 
 func TestWasmtimeRuntime_LoadModule(t *testing.T) {
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -57,11 +54,9 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := "test-app"
 
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 	require.NotNil(t, state, "State should not be nil")
-	require.NotNil(t, stateRoot, "State root should not be nil")
-	require.Len(t, stateRoot, 32, "State root should be 32 bytes")
 
 	// Verify the state is valid JSON
 	var stateData AppState
@@ -86,9 +81,8 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 		Nonce    uint64                      `json:"nonce"`
 	}
 
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -100,7 +94,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1000000000000000000) // 1 ETH
 
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	// Test Deposit
@@ -147,10 +141,8 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		Amount uint64 `json:"amount"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -164,7 +156,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	transferValue := uint64(500000000000000000) // 0.5 ETH
 
 	// Load module and make a deposit first
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
@@ -231,10 +223,8 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 		Amount uint64 `json:"amount"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -248,7 +238,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawAddress := "0x1234567890123456789012345678901234567890"
 
 	// Load module and make a deposit first
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
@@ -309,10 +299,8 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 		Nonce         uint64                      `json:"nonce"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -320,19 +308,18 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 
 	ctx := context.Background()
 	appId := "test-app"
-	requestId := "deanon-1"
 	sender := fmt.Sprintf("0xadd%037x", 1)
 	value := uint64(1000000000000000000) // 1 ETH
 
 	// Load module and make a deposit first to have some state
-	initialState, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	stateWithData, _, err := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
 	require.NoError(t, err, "Deposit should succeed")
 
 	// Test GenerateDeanonymizationReport
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, requestId, []byte{}, stateWithData, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), stateWithData, wasmBytes)
 	require.NoError(t, err, "GenerateDeanonymizationReport should succeed")
 	require.NotNil(t, report, "Report should not be nil")
 
@@ -340,8 +327,6 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	err = json.Unmarshal(report, &reportData)
 	require.NoError(t, err, "Report should be valid JSON")
 
-	assert.Equal(t, appId, reportData.ApplicationId)
-	assert.Equal(t, requestId, reportData.RequestId)
 	require.Contains(t, reportData.Accounts, sender)
 	assert.Equal(t, value, reportData.Accounts[sender].Balance)
 }
@@ -358,10 +343,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 		Nonce    uint64                      `json:"nonce"`
 	}
 
-	// Load the compiled WASM module
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err, "Failed to read WASM file")
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	// Create runtime
 	runtime := wasm.NewWasmtimeRuntime()
@@ -373,10 +356,9 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 
 	t.Log("Step 1: Load module")
-	state, stateRoot, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 	require.NotNil(t, state)
-	require.NotNil(t, stateRoot)
 
 	t.Log("Step 2: Make deposit for user1")
 	depositValue := uint64(2000000000000000000) // 2 ETH
@@ -421,7 +403,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.Len(t, withdrawals, 1)
 
 	t.Log("Step 5: Generate deanonymization report")
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, "deanon-1", []byte{}, state, wasmBytes)
+	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
 	require.NoError(t, err, "Deanonymization report should succeed")
 	require.NotNil(t, report)
 
@@ -436,9 +418,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -453,7 +434,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			appId := fmt.Sprintf("concurrent-app-%d", id)
-			_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+			_, err := runtime.LoadModule(ctx, appId, wasmBytes)
 			if err != nil {
 				errors <- err
 			}
@@ -469,9 +450,8 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -480,7 +460,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	appId := "large-state-app"
 
 	// Load module and make many deposits to create large state
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	// Make 100 deposits to create a large state
@@ -518,7 +498,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 	appId := "invalid-app"
 	invalidWasm := []byte("invalid wasm bytes")
 
-	_, _, err := runtime.LoadModule(ctx, appId, invalidWasm)
+	_, err := runtime.LoadModule(ctx, appId, invalidWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 }
@@ -531,15 +511,14 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 	appId := "empty-app"
 	emptyWasm := []byte{}
 
-	_, _, err := runtime.LoadModule(ctx, appId, emptyWasm)
+	_, err := runtime.LoadModule(ctx, appId, emptyWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 }
 
 func TestWasmtimeRuntime_NilInputs(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -548,12 +527,12 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 
 	t.Run("NilWasmBytes", func(t *testing.T) {
-		_, _, err := runtime.LoadModule(ctx, "test-app", nil)
+		_, err := runtime.LoadModule(ctx, "test-app", nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("EmptyAppId", func(t *testing.T) {
-		_, _, err := runtime.LoadModule(ctx, "", wasmBytes)
+		_, err := runtime.LoadModule(ctx, "", wasmBytes)
 		// This might succeed depending on implementation, but state should be testable
 		if err == nil {
 			// Verify we can't use empty app ID for operations
@@ -569,9 +548,8 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -581,7 +559,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	t.Run("InvalidJSON", func(t *testing.T) {
@@ -618,9 +596,8 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -631,7 +608,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	user2 := fmt.Sprintf("0xadd%037x", 2)
 	value := uint64(12345678901234567890) // # fits in uint64, > max int64
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	state, _, err = runtime.Deposit(ctx, appId, user1, value/2, state, wasmBytes)
@@ -669,7 +646,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	user1 := fmt.Sprintf("0xadd%037x", 1)
@@ -680,9 +657,8 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -701,35 +677,26 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	require.Equal(t, []common.PlainEvent(nil), events)
 }
 
-func TestWasmtimeRuntime_StateRootConsistency(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "consistency-test-app"
+	appId := "multiple-load-test-app"
 
-	// Load same module multiple times and verify state root consistency
+	// Load same module multiple times (TODO this will change)
 	for i := 0; i < 5; i++ {
-		state, stateRoot, err := runtime.LoadModule(ctx, fmt.Sprintf("%s-%d", appId, i), wasmBytes)
+		_, err := runtime.LoadModule(ctx, fmt.Sprintf("%s-%d", appId, i), wasmBytes)
 		require.NoError(t, err)
-
-		// Verify state root is exactly 32 bytes (SHA256)
-		assert.Len(t, stateRoot, 32)
-
-		// Verify state root is deterministic
-		expectedHash := sha256.Sum256(state)
-		assert.Equal(t, expectedHash, stateRoot)
 	}
 }
 
 func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -738,7 +705,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	appId := "zero-value-app"
 	user1 := fmt.Sprintf("0xadd%037x", 1)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	// Test zero value deposit
@@ -751,10 +718,8 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
-
-	wasmPath := filepath.Join("build", "payment_app.wasm")
-	wasmBytes, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
+	// Build and load the compiled WASM module
+	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime()
 	defer runtime.Close()
@@ -762,7 +727,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	ctx := context.Background()
 	appId := "invalid-instruction-app"
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	invalidPayload := map[string]interface{}{
