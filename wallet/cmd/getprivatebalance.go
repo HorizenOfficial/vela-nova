@@ -19,13 +19,13 @@ const BLOCK_BATCH_SIZE = 100
 
 type GetPrivateBalanceCommand struct {
 	*app.AppCommand
-	mockEventResponse []byte
+	knownLastEvent []byte
 }
 
-func NewGetPrivateBalanceCommand(config *app.Config, mockEventResponse []byte) *GetPrivateBalanceCommand {
+func NewGetPrivateBalanceCommand(config *app.Config, knownLastEvent []byte) *GetPrivateBalanceCommand {
 	return &GetPrivateBalanceCommand{
 		AppCommand: app.NewAppCommand(config),
-		mockEventResponse: mockEventResponse,
+		knownLastEvent: knownLastEvent,
 	}
 }
 
@@ -52,7 +52,7 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 		}
 		//event not found, check if block are finished
 		if toBlock == 0 {
-			return nil, fmt.Errorf("can't find events at any block")//stop
+			return nil, fmt.Errorf("can't find events at any block") //stop
 		}
 		//redefine search range
 		fromBlock = toBlock
@@ -69,6 +69,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
 		Long:  `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
 		Run: func(cmd *cobra.Command, args []string) {
+
 			//read first parameter as applicationId
 			if len(args) < 1 {
 				log.Fatalf("applicationId parameter is required")
@@ -79,35 +80,35 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			if !ok {
 				log.Fatalf("Failed to parse to uint applicationId: %s", args[0])
 			}
+			//init blockchain client
+			blockchainClient := blockchain.NewBlockChainClient(
+				common.HexToAddress(c.Config.ProcessorEndpointAddress),
+				common.HexToAddress(c.Config.TeeAuthenticatorAddress),
+				c.Config.RpcUrl,
+				nil,
+			)
+			//get last block number
+			client, err := ethclient.Dial(c.Config.RpcUrl)
+			if err != nil {
+				log.Fatalf("Failed to connect to RPC: %v", err)
+			}
+			defer client.Close()
+
+			//get last block
+			latestBlock, err := client.BlockNumber(context.Background())
+			if err != nil {
+				log.Fatalf("failed to get latest block: %v", err)
+			}
+			//decryption key
+			privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
 
 			var event []byte
-			if c.mockEventResponse != nil {
-				//mock event with the given one
-				event = c.mockEventResponse
+			if c.knownLastEvent != nil {
+				//use the given event 
+				event = c.knownLastEvent
 			} else { 
-				//init blockchain client
-				blockchainClient := blockchain.NewBlockChainClient(
-					common.HexToAddress(c.Config.ProcessorEndpointAddress),
-					common.HexToAddress(c.Config.TeeAuthenticatorAddress),
-					c.Config.RpcUrl,
-					nil,
-				)
-				//get last block number
-				client, err := ethclient.Dial(c.Config.RpcUrl)
-				if err != nil {
-					log.Fatalf("Failed to connect to RPC: %v", err)
-				}
-				defer client.Close()
-
-				//get last block
-				latestBlock, err := client.BlockByNumber(context.Background(), nil)
-				if err != nil {
-					log.Fatalf("failed to get latest block: %v", err)
-				}
-				//decryption key
-				privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
 				//find event
-				event, err = c.FindEvent(blockchainClient, privKey, *applicationId, latestBlock.NumberU64())
+				event, err = c.FindEvent(blockchainClient, privKey, *applicationId, latestBlock)
 				if err != nil {
 					log.Fatalf("failed to get event: %v", err)
 				}
@@ -115,7 +116,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 
 			//get json from event
 			var jsonData map[string]interface{} 	
-			err := json.Unmarshal(event, &jsonData) 
+			err = json.Unmarshal(event, &jsonData) 
 			if err != nil {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
