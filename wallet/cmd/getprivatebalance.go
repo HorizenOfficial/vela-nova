@@ -38,7 +38,6 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 	}
 	//start loop
 	for true {
-		fmt.Printf("Searching from block %d to %d\n", fromBlock, toBlock)
 		events, err := blockchainClient.GetUserEvents(
 			context.Background(), 
 			privKey, 
