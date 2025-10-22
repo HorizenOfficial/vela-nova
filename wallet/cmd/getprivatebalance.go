@@ -124,7 +124,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			fmt.Println(jsonData["balance"])
+			fmt.Println(jsonData[BALANCE_JSON_KEY])
 		},
 	}
 	return cmd
