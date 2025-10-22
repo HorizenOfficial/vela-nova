@@ -8,7 +8,6 @@ import (
 	"math/big"
 
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 	"github.com/horizen-pes/pkg/blockchain"
@@ -92,8 +91,8 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 			//init blockchain client
 			blockchainClient := blockchain.NewBlockChainClient(
-				common.HexToAddress(c.Config.ProcessorEndpointAddress),
-				common.HexToAddress(c.Config.TeeAuthenticatorAddress),
+				c.Config.ProcessorEndpointAddress,
+				c.Config.TeeAuthenticatorAddress,
 				c.Config.RpcUrl,
 				nil,
 			)
