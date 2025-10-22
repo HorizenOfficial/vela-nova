@@ -14,6 +14,7 @@ import (
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 )
 
+var NOVA_APPLICATION_ID = *big.NewInt(1)
 const BLOCK_BATCH_SIZE = 100
 
 type GetPrivateBalanceCommand struct {
@@ -28,7 +29,7 @@ func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Cli
 	}
 }
 
-func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, applicationId big.Int, latestBlock uint64) ([]byte, error) {
+func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, latestBlock uint64) ([]byte, error) {
 	// define search range
 	fromBlock := latestBlock
 	var toBlock uint64 = 0
@@ -40,7 +41,7 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 		events, err := blockchainClient.GetUserEvents(
 			context.Background(), 
 			privKey, 
-			applicationId, 
+			NOVA_APPLICATION_ID, 
 			fromBlock, 
 			toBlock, 
 			nil, 
@@ -74,21 +75,10 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "getprivatebalance $applicationId",
-		Short: `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
-		Long:  `get private balance from the last event from ProcessorEndpoint smart contract that the user can decrypt`,
+		Use:   "getprivatebalance",
+		Short: `get private balance associated to the wallet address`,
+		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
-
-			//read first parameter as applicationId
-			if len(args) < 1 {
-				log.Fatalf("applicationId parameter is required")
-			}
-			//parse to big int
-			applicationId := new(big.Int)
-			applicationId, ok := applicationId.SetString(args[0], 10)
-			if !ok {
-				log.Fatalf("Failed to parse to uint applicationId: %s", args[0])
-			}
 			//init blockchain client
 			blockchainClient := blockchain.NewBlockChainClient(
 				c.Config.ProcessorEndpointAddress,
@@ -117,7 +107,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := c.FindEvent(clientToUse, privKey, *applicationId, latestBlock)
+			event, err := c.FindEvent(clientToUse, privKey, latestBlock)
 			if err != nil {
 				log.Fatalf("failed to get event: %v", err)
 			}

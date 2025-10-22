@@ -76,7 +76,6 @@ func TestGetPrivateBalance(t *testing.T) {
 
 	//prepare args
 	balanceStr := "12345"
-	args := []string{"1"}
 	mockEvent := []byte(`{"balance": "` + balanceStr + `"}`)
 
 	client := TestGetPrivateBalanceBlockChainClient{
@@ -90,7 +89,7 @@ func TestGetPrivateBalance(t *testing.T) {
 		KeyP521: *key2,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}, client).Command()
-	cmd.Run(nil, args)
+	cmd.Run(nil, nil)
 
 	// Restore stdout
 	w.Close()
