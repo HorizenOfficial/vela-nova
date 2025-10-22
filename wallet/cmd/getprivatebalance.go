@@ -30,13 +30,13 @@ func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Cli
 	}
 }
 
-func eventFilter(b []byte) bool {
+func EventFilter(b []byte) bool {
 	var m map[string]any
 	err := json.Unmarshal(b, &m)
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, latestBlock uint64) ([]byte, error) {
+func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, latestBlock uint64) ([]byte, error) {
 	// define search range
 	fromBlock := latestBlock
 	var toBlock uint64 = 0
@@ -51,7 +51,7 @@ func (c *GetPrivateBalanceCommand) FindEvent(blockchainClient blockchain.Client,
 			NOVA_APPLICATION_ID, 
 			fromBlock, 
 			toBlock, 
-			eventFilter, 
+			EventFilter, 
 			true,
 		);
 		if err != nil {
@@ -112,7 +112,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := c.FindEvent(clientToUse, privKey, latestBlock)
+			event, err := FindEvent(clientToUse, privKey, latestBlock)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}
