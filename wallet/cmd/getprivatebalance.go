@@ -69,7 +69,6 @@ func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKe
 			toBlock = fromBlock - BLOCK_BATCH_SIZE
 		}
 	}
-	return nil, nil
 }
 
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
