@@ -48,7 +48,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.4
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.5
 
 // Can be useful for local developments
 //replace github.com/horizen-pes => ../../../horizen-pes
