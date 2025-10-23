@@ -14,10 +14,6 @@ import (
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 )
 
-var NOVA_APPLICATION_ID = *big.NewInt(1)
-const BLOCK_BATCH_SIZE = 100
-const BALANCE_JSON_KEY = "balance"
-
 type GetPrivateBalanceCommand struct {
 	*app.AppCommand
 	customClient blockchain.Client
@@ -44,7 +40,7 @@ func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKe
 		toBlock = fromBlock - BLOCK_BATCH_SIZE
 	}
 	//start loop
-	for true {
+	for {
 		events, err := blockchainClient.GetUserEvents(
 			context.Background(), 
 			privKey, 
@@ -63,13 +59,11 @@ func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKe
 		}
 		//event not found, check if block are finished
 		if toBlock == 0 {
-			return nil, fmt.Errorf("can't find events at any block") //stop
+			//if finished, balance 0
+			return []byte(`{"` + BALANCE_JSON_KEY + `": "0"}`), nil
 		}
 		//redefine search range
-		fromBlock = 0
-		if toBlock > 0 {
-			fromBlock = toBlock - 1
-		}
+		fromBlock = toBlock - 1
 		toBlock = 0
 		if fromBlock > BLOCK_BATCH_SIZE {
 			toBlock = fromBlock - BLOCK_BATCH_SIZE
@@ -84,13 +78,6 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
-			//init blockchain client
-			blockchainClient := blockchain.NewBlockChainClient(
-				c.Config.ProcessorEndpointAddress,
-				c.Config.TeeAuthenticatorAddress,
-				c.Config.RpcUrl,
-				nil,
-			)
 			//get last block number
 			client, err := ethclient.Dial(c.Config.RpcUrl)
 			if err != nil {
@@ -102,17 +89,19 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to get latest block: %v", err)
 			}
 
-			//decryption key
-			privKey := cryptotypes.PrivateKeyP521{PrivateKey: c.Config.KeyP521.PrivateKey}
-
-			clientToUse := c.customClient
-			if clientToUse == nil {
-				//use the real client
-				clientToUse = blockchainClient
+			blockchainClient := c.customClient
+			if blockchainClient == nil {
+				//init blockchain client
+				blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
+				err := blockchainClient.Connect(context.Background())
+				if err != nil {
+					fmt.Printf("Error connecting to rpc node: %v", err)
+					return
+				}	
 			}
 
 			//find event
-			event, err := FindEvent(clientToUse, privKey, latestBlock)
+			event, err := FindEvent(blockchainClient, c.Config.KeyP521, latestBlock)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}
@@ -124,7 +113,10 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			fmt.Println(jsonData[BALANCE_JSON_KEY])
+			wei := new(big.Int)
+			wei.SetString(jsonData[BALANCE_JSON_KEY].(string), 10)
+			eth := new(big.Float).Quo(new(big.Float).SetInt(wei), big.NewFloat(1e18))
+			fmt.Println(eth.Text('f', 18))
 		},
 	}
 	return cmd
