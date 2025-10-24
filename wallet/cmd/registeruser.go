@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"math/big"
 
@@ -13,17 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type RegisterUserCommand struct {
-	*app.AppCommand
-	blockchainClient blockchain.Client
-}
 
 func NewRegisterUserCommand(config *app.Config, blockchainClient blockchain.Client) *RegisterUserCommand {
 	return &RegisterUserCommand{
-		AppCommand: app.NewAppCommand(config),
-		blockchainClient: blockchainClient,
+		ChainCommand: app.NewChainCommand(config, blockchainClient),
 	}
 }
+
+type RegisterUserCommand struct {
+	*app.ChainCommand
+}
+
 
 func (c *RegisterUserCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -32,23 +31,22 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 		Long:  `register the association [address, encryption key (P521)] of the wallet into the PES system`,
 		Run: func(cmd *cobra.Command, args []string) {
 
-			if c.blockchainClient == nil {
+			if c.BlockchainClient == nil {
 				//create blockchain client
-				c.blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
-				err := c.blockchainClient.Connect(context.Background())
-				if err != nil {
-					fmt.Printf("Error connecting to rpc node: %v", err)
-					return
-				}
+				 if err :=c.InitChainClient(); err != nil {
+					fmt.Printf("Error connecting to rpc node: %v\n", err)
+					return 
+
+				 }
 			} 
-			defer c.blockchainClient.Close()
+			defer c.CloseClient()
 
 			payload := c.Config.KeyP521.PublicKey().Bytes()
 			value := big.NewInt(0)
 			appId := big.NewInt(1)
 			var protocolVersion uint8 = 0
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.blockchainClient.SubmitRequest(context.Background(), protocolVersion, appId, requestType, payload, value)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(context.Background(), protocolVersion, appId, requestType, payload, value)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v", err)
 				return
@@ -57,36 +55,17 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			fmt.Println("Waiting for confirmation from PES")
 
 
-			ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
-			defer ticker.Stop()
-
-			timeoutCh := time.After(time.Duration(c.Config.BlockchainPollingTimeout) * time.Second)
-
-			toBlock := blockNumber + 1
-			for {
-				select {
-				case <-ticker.C:
-					result, err := c.blockchainClient.GetRequestCompletedEvent(context.Background(), requestID, 0, toBlock)
-					if err != nil {
-						fmt.Printf("Error getting request completion event: %v. Retrying", err)
-						continue
-					}
-					if result == nil {
-						fmt.Println("Waiting for confirmation from PES...")
-						continue
-					}
-					if result.Status != common.RequestResultOK {
-						fmt.Println("Public key registration failed")
-						return
-					}
-					fmt.Println("Public key registered successfully")
-					return
-
-				case <-timeoutCh:
-					fmt.Println("Timeout expired while waiting for confirmation from PES")
-					return
-				}
+			result, err := c.WaitForRequestCompleted(requestID, blockNumber)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
+			if result {
+				fmt.Println("Public key registered successfully")
+			} else {
+				fmt.Println("Public key registration failed")
+			}
+
 
 		},
 	}
