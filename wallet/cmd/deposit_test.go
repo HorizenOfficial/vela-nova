@@ -139,45 +139,6 @@ func TestDepositCmdFailure(t *testing.T) {
 }
 
 
-// // func TestRegisterUserCmdTimeout(t *testing.T) {
-// // 	// Redirect stdout
-// // 	old := os.Stdout
-// // 	r, w, _ := os.Pipe()
-// // 	os.Stdout = w
-
-// // 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-// // 	var key2, _ = crypto.GeneratePrivateKeyP521()
-
-// // 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
-// // 	defer testHelper.Close()
-
-// // 	blockchainClient := SetupNewBlockChainClient(testHelper)
-// // 	// Execute the command
-// // 	cmd := NewRegisterUserCommand(&app.Config{
-// // 		KeySecp: *key1,
-// // 		KeyP521: *key2,
-// // 		BlockchainPollingInterval: 20,
-// // 		BlockchainPollingTimeout: 1,
-// // 	}, blockchainClient).Command()
-
-// // 	go failKeyRequest(t, testHelper)
-
-// // 	cmd.Run(nil, nil)
-
-// // 	// Restore stdout
-// // 	w.Close()
-// // 	os.Stdout = old
-
-// // 	var buf bytes.Buffer
-// // 	io.Copy(&buf, r)
-// // 	output := buf.String()
-
-// // 	fmt.Println(output)
-// // 	assert.Contains(t, output, "Timeout expired")
-
-// // }
-
-
 func TestParseEtherValue(t *testing.T) {
 
 
