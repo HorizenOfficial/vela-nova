@@ -94,7 +94,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
 				err := blockchainClient.Connect(context.Background())
 				if err != nil {
-					fmt.Printf("Error connecting to rpc node: %v", err)
+					log.Fatalf("Error connecting to rpc node: %v", err)
 					return
 				}	
 			}
