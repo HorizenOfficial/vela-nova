@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
 
 )
@@ -69,9 +68,12 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			//build body with type transfer
 			jsonBody := `{"type":"trasfer", "transfer": {"amount":"` + amount + `, "to": "` + toAddress +`"}}`
 			//get public key
-			var publicKey cryptotypes.PublicKeyP521
+			publicKey, err := blockchainClient.GetTeePublicKey(context.Background())
+			if err != nil {
+				log.Fatalf("error retrieving public key to encrypt: %v", err)
+			}
 			// encrypt
-			payload, err := crypto.Encrypt(&c.Config.KeyP521, &publicKey, []byte(jsonBody))
+			payload, err := crypto.Encrypt(&c.Config.KeyP521, publicKey, []byte(jsonBody))
 			if err != nil {
 				log.Fatalf("error encrypting private transfer payload: %v", err)
 			}
