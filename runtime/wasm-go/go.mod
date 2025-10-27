@@ -1,4 +1,4 @@
-module payment-app
+module github.com/horizen-pes-nova/payment-app
 
 // sets the minimum language version required for the module
 go 1.23.0

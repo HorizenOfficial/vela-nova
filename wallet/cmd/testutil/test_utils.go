@@ -9,16 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
-
-
-
 func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.BlockChainClient {
-	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress,  testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
 
 }
 
-func CompleteKeyRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func CompletePendingRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
@@ -33,7 +29,7 @@ func CompleteKeyRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	}
 }
 
-func FailKeyRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func FailPendingRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {

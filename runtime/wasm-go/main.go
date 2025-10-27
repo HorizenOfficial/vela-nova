@@ -1,8 +1,8 @@
 package main
 
 import (
-	"payment-app/app"
-	"payment-app/utils"
+	"github.com/horizen-pes-nova/payment-app/app"
+	"github.com/horizen-pes-nova/payment-app/utils"
 )
 
 // --- WASM-Exposed Functions (Bridge to Application Logic) ---

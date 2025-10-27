@@ -98,6 +98,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 					return
 				}	
 			}
+			defer blockchainClient.Close()
 
 			//find event
 			event, err := FindEvent(blockchainClient, c.Config.KeyP521, latestBlock)

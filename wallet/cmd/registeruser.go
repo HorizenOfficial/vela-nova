@@ -45,12 +45,13 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				fmt.Println("Error: P521 key not found in the wallet")
 				return
 			}
+			ctx := context.Background()
 			payload := c.Config.KeyP521.PublicKey().Bytes()
 			value := big.NewInt(0)
-			appId := big.NewInt(1)
+		
 			var protocolVersion uint8 = 0
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(context.Background(), protocolVersion, appId, requestType, payload, value)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, protocolVersion,  &NOVA_APPLICATION_ID, requestType, payload, value)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v", err)
 				return
@@ -59,7 +60,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			fmt.Println("Waiting for confirmation from PES")
 
 
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber)
+			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
 				fmt.Println(err)
 				return
