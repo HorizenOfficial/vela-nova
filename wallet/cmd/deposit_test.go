@@ -32,8 +32,8 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout: 10,
 	}, blockchainClient).Command()
@@ -71,8 +71,8 @@ func TestDepositCmd(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout: 10,
 	}, blockchainClient).Command()
@@ -112,8 +112,8 @@ func TestDepositCmdFailure(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout: 10,
 	}, blockchainClient).Command()

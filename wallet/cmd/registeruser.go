@@ -41,6 +41,10 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			} 
 			defer c.CloseClient()
 
+			if c.Config.KeyP521 == nil {
+				fmt.Println("Error: P521 key not found in the wallet")
+				return
+			}
 			payload := c.Config.KeyP521.PublicKey().Bytes()
 			value := big.NewInt(0)
 			appId := big.NewInt(1)

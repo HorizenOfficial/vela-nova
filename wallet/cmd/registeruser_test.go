@@ -31,8 +31,8 @@ func TestRegisterUserCmd(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout: 60,
 	}, blockchainClient).Command()
@@ -70,8 +70,8 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout: 60,
 	}, blockchainClient).Command()
@@ -108,8 +108,8 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		BlockchainPollingInterval: 20,
 		BlockchainPollingTimeout: 1,
 	}, blockchainClient).Command()

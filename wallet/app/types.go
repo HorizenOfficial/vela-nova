@@ -17,11 +17,11 @@ import (
 const ConfFileName = "wallet.conf"
 
 type Config struct {
-	KeyP521 cryptotypes.PrivateKeyP521
-	KeySecp cryptotypes.PrivateKeySecp256k1
+	KeyP521 *cryptotypes.PrivateKeyP521
+	KeySecp *cryptotypes.PrivateKeySecp256k1
 	RpcUrl string
-	ProcessorEndpointAddress ethCommon.Address
-	TeeAuthenticatorAddress ethCommon.Address
+	ProcessorEndpointAddress *ethCommon.Address
+	TeeAuthenticatorAddress *ethCommon.Address
 	// BlockchainPollingInterval is the interval at which to poll the blockchain for events
 	BlockchainPollingInterval int64
 	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain 
@@ -77,29 +77,48 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error loading conf file %w", err)
 		}
-		keySecp, err := crypto.ImportPrivateKeySecp256k1FromHex(config.MustGetString("keySecp256k1"))
-		if err != nil {
-			return nil, fmt.Errorf("error importing secp256 key: %w", err)
+		
+		
+		var keySecp *cryptotypes.PrivateKeySecp256k1
+		if keySecpFromFile := config.MustGetString("keySecp256k1"); keySecpFromFile != "" {
+			keySecp, err = crypto.ImportPrivateKeySecp256k1FromHex(keySecpFromFile)
+			if err != nil {
+				return nil, fmt.Errorf("error importing secp256 key: %w", err)
+			}
 		}
-		keyP521, err := crypto.ImportPrivateKeyP521FromHex(config.MustGetString("keyP521"))
-		if err != nil {
-			return nil, fmt.Errorf("error importing P521 key: %w", err)
+
+		
+		var keyP521 *cryptotypes.PrivateKeyP521
+		if keyP521FromFile := config.MustGetString("keyP521"); keyP521FromFile != "" {
+			keyP521, err = crypto.ImportPrivateKeyP521FromHex(keyP521FromFile)
+			if err != nil {
+				return nil, fmt.Errorf("error importing P521 key: %w", err)
+			}
 		}
 		rpcUrl := config.MustGetString("rpcUrl")
-		processorAddress := config.MustGetString("ProcessorAddress")
-		if !ethCommon.IsHexAddress(processorAddress) {
-			return nil, fmt.Errorf("processor address %s is not a valid hex address", processorAddress)
+
+		var processorEndpointAddress ethCommon.Address
+		if processorAddress := config.MustGetString("ProcessorAddress"); processorAddress != "" {
+			if !ethCommon.IsHexAddress(processorAddress) {
+				return nil, fmt.Errorf("processor address %s is not a valid hex address", processorAddress)
+			}
+			processorEndpointAddress = ethCommon.HexToAddress(processorAddress)
+		} 
+
+		var teeAuthenticatorAddress ethCommon.Address
+		if teeAddress := config.MustGetString("TeeAuthenticatorAddress"); teeAddress != "" {
+			if !ethCommon.IsHexAddress(teeAddress) {
+				return nil, fmt.Errorf("tee authenticator address %s is not a valid hex address", teeAddress)
+			}
+			teeAuthenticatorAddress = ethCommon.HexToAddress(teeAddress)
 		}
-		teeAuthenticatorAddress := config.MustGetString("TeeAuthenticatorAddress")
-		if !ethCommon.IsHexAddress(teeAuthenticatorAddress) {
-			return nil, fmt.Errorf("tee authenticator address %s is not a valid hex address", teeAuthenticatorAddress)
-		}
+
 		return &Config{
-				KeySecp: *keySecp,
-				KeyP521: *keyP521,
+				KeySecp: keySecp,
+				KeyP521: keyP521,
 				RpcUrl: rpcUrl,
-				ProcessorEndpointAddress: ethCommon.HexToAddress(processorAddress),
-				TeeAuthenticatorAddress: ethCommon.HexToAddress(teeAuthenticatorAddress),
+				ProcessorEndpointAddress: &processorEndpointAddress,
+				TeeAuthenticatorAddress: &teeAuthenticatorAddress,
 				BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
 				BlockchainPollingTimeout: config.GetInt64("BlockchainPollingTimeout", 60),
 			}, nil
@@ -122,7 +141,11 @@ func NewChainCommand(config *Config, blockchainClient blockchain.Client) *ChainC
 func (c *ChainCommand) InitChainClient() error {
 	if c.BlockchainClient == nil {
 		//create blockchain client
-		c.BlockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
+		// Check that required config fields are set
+		if c.Config.ProcessorEndpointAddress == nil || c.Config.TeeAuthenticatorAddress == nil || c.Config.KeySecp == nil || c.Config.RpcUrl == ""{
+			return fmt.Errorf("missing required configuration fields to create blockchain client")
+		}
+		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
 		err := c.BlockchainClient.Connect(context.Background())
 		if err != nil {
 			return err

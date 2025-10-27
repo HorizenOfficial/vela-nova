@@ -24,9 +24,17 @@ func (c *ListPubKeysCommand) Command() *cobra.Command {
 		Short: `list public keys loaded from local configuration`,
 		Long:  `list public keys loaded from local configuration`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(string("P521:"))
-			fmt.Println(crypto.ExportPublicKeyP521ToHex(c.Config.KeyP521.PublicKey()))
-			fmt.Println(string("secp:"))
+			fmt.Println(string("P521: "))
+			if c.Config.KeyP521 == nil {
+				fmt.Println("not set")
+			} else {
+				fmt.Println(crypto.ExportPublicKeyP521ToHex(c.Config.KeyP521.PublicKey()))
+			}
+			fmt.Println(string("secp: "))
+			if c.Config.KeySecp == nil {
+				fmt.Println("not set")
+				return
+			}
 			fmt.Println(crypto.ExportPublicKeySecp256k1ToHex(c.Config.KeySecp.PublicKey()))
 		},
 	}

@@ -23,6 +23,10 @@ func (c *GetAddressCommand) Command() *cobra.Command {
 		Short: `display Ethereum public address of this wallet`,
 		Long:  `display Ethereum public address of this wallet`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if c.Config.KeySecp == nil {
+				fmt.Println("Error: Secp256k1 key not found in the wallet")
+				return
+			}
 			fmt.Println(c.Config.KeySecp.PublicKey().Address())
 		},
 	}
