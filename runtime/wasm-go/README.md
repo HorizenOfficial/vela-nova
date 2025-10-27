@@ -32,8 +32,12 @@ tinygo version
 
 TODO: This will change when the github public repo will be available.
 
-This module depends on the `horizen-pes` repository, specifically the `dev` branch.
-Make sure you have the `horizen-pes` repository checked out at the `dev` branch and that it is in your Go path.
+This module depends on the `horizen-pes` repository.
+Since it is a private repo, you need to set Go to access Github private repos:
+
+go env -w GOPRIVATE=github.com/HorizenOfficial/*
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+
 
 ## Building
 

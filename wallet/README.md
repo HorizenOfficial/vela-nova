@@ -2,14 +2,18 @@
 
 This is a command line wallet for the Horizen Nova Wallet.
 
-## Ho to build
+## Dependencies
 
-The project has a dependency with the https://github.com/HorizenOfficial/horizen-pes/ project.<br>
-Since that one is not yet public, you will have to download it separately to a local folder and eventually update the replace directive in the go.mod file of this project (donwload it to the same level of this repo to not having to modify anything!):
+TODO: This will change when the github public repo will be available.
 
-```
-replace github.com/horizen-pes v0.0.0 => ../../horizen-pes/
-```
+This module depends on the `horizen-pes` repository.
+Since it is a private repo, you need to set Go to access Github private repos:
+
+go env -w GOPRIVATE=github.com/HorizenOfficial/*
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+
+## Building
 
 Execute the following command to produce an executable:
 
