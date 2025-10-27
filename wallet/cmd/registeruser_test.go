@@ -3,32 +3,18 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"testing"
-	"fmt"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type MockBCClient struct {
-	blockchain.BlockChainClient
-	f func(context.Context) ([]*common.Request, error) 
-}
-
-func (m * MockBCClient) GetPendingRequests(ctx context.Context) ([]*common.Request, error) {
-	if m.f != nil {
-		return m.f(ctx)
-	}
-	return nil, nil
-}
-
 
 func TestRegisterUserCmd(t *testing.T) {
 	// Redirect stdout
@@ -45,13 +31,13 @@ func TestRegisterUserCmd(t *testing.T) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp:                   *key1,
+		KeyP521:                   *key2,
 		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout: 60,
+		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
 
-	go completeKeyRequest(t, testHelper)
+	go completeNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 
@@ -68,7 +54,6 @@ func TestRegisterUserCmd(t *testing.T) {
 
 }
 
-
 func TestRegisterUserCmdFailure(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
@@ -84,10 +69,10 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp:                   *key1,
+		KeyP521:                   *key2,
 		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout: 60,
+		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
 
 	go failKeyRequest(t, testHelper)
@@ -122,10 +107,10 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp:                   *key1,
+		KeyP521:                   *key2,
 		BlockchainPollingInterval: 20,
-		BlockchainPollingTimeout: 1,
+		BlockchainPollingTimeout:  1,
 	}, blockchainClient).Command()
 
 	go failKeyRequest(t, testHelper)
@@ -145,14 +130,12 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 
 }
 
-
-
 func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.BlockChainClient {
-	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress,  testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
 
 }
 
-func completeKeyRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func completeNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
