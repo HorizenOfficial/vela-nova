@@ -34,8 +34,8 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}, blockchainClient).Command()
@@ -75,8 +75,8 @@ func TestDepositCmd(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}, blockchainClient).Command()
@@ -84,7 +84,7 @@ func TestDepositCmd(t *testing.T) {
 	cmd.Flags().Set("amount", "333 wei")
 
 	// To be honest, it should be a StateUpdate but the test it is enough for now
-	go testutil.CompletePendingRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 
@@ -119,15 +119,15 @@ func TestDepositCmdFailure(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewDepositCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}, blockchainClient).Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 
-	go testutil.FailPendingRequest(t, testHelper)
+	go testutil.FailNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 

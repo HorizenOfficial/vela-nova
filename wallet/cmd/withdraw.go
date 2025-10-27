@@ -40,17 +40,18 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
 			}
+
 			receiver, err := ValidateAndChecksumAddress(c.receiver)
 			if err != nil {
 				fmt.Printf("Error: invalid receiver address: %v\n", err)
 				return
 			}
+
 			if c.BlockchainClient == nil {
 				//create blockchain client
 				if err := c.InitChainClient(); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return 
-
 				}
 			} 
 			defer c.CloseClient()

@@ -14,7 +14,7 @@ func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.Bl
 
 }
 
-func CompletePendingRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
@@ -29,7 +29,7 @@ func CompletePendingRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	}
 }
 
-func FailPendingRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
