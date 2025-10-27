@@ -6,8 +6,13 @@ go 1.23.0
 // This prevents "works on my machine" problems that can arise from subtle differences between minor Go versions
 toolchain go1.24.3
 
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.6
+
+// Can be useful for local developments
+//replace github.com/horizen-pes => ../../../horizen-pes
+
 require (
-	github.com/horizen-pes v0.0.5
+	github.com/horizen-pes v0.0.6
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -47,8 +52,3 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.5
-
-// Can be useful for local developments
-//replace github.com/horizen-pes => ../../../horizen-pes
