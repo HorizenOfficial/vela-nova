@@ -83,7 +83,7 @@ func TestDepositCmd(t *testing.T) {
 
 	cmd.Flags().Set("amount", "333 wei")
 
-	// To be honest, it should be a StateUpdate but the test it is enough for now
+	// To be honest, it should be a StateUpdate but for the test it is enough, for now
 	go testutil.CompleteNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
