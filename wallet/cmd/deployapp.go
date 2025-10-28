@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strconv"
 	"time"
 
 	"github.com/horizen-pes-nova/wallet/app"
@@ -27,9 +26,9 @@ func NewDeployAppCommand(config *app.Config, blockchainClient blockchain.Client)
 
 func (c *DeployAppCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "deployapp <app_id>",
-		Short: `Trigger an app deployment.  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
-		Long:  `Trigger an app deployment.  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
+		Use:   "deployapp",
+		Short: `Triggers the app deployment (admin feature).  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
+		Long:  `Triggers the app deployment (admin feature).  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			if c.blockchainClient == nil {
@@ -43,16 +42,10 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 			}
 			defer c.blockchainClient.Close()
 
-			value := big.NewInt(0)
-			appId, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				fmt.Println("Error parsing app id:", err)
-				return
-			}
 			var protocolVersion uint8 = 0
 			requestType := common.Deploy
 
-			requestID, blockNumber, err := c.blockchainClient.SubmitRequest(context.Background(), protocolVersion, big.NewInt(appId), requestType, []byte{}, value)
+			requestID, blockNumber, err := c.blockchainClient.SubmitRequest(context.Background(), protocolVersion, big.NewInt(1), requestType, []byte{}, big.NewInt(0))
 			if err != nil {
 				fmt.Printf("Error sending request to deploy app: %v", err)
 				return
