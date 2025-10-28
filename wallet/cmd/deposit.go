@@ -32,7 +32,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 		Long:  `deposit funds into the PES system`,
 		Run: func(cmd *cobra.Command, args []string)  {
 
-			amount, err := ParseEtherValue(c.value)
+			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return

@@ -35,13 +35,13 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 		Long:  `withdraw funds from the PES system and send them to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string)  {
 
-			amount, err := ParseEtherValue(c.value)
+			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
 			}
 
-			receiver, err := ValidateAndChecksumAddress(c.receiver)
+			receiver, err := app.ValidateAndChecksumAddress(c.receiver)
 			if err != nil {
 				fmt.Printf("Error: invalid receiver address: %v\n", err)
 				return
