@@ -79,7 +79,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				fmt.Printf("Error sending request to trasnfer amount %s to %s: %v", c.value, c.receiver, err)
 				return 
 			}
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Printf("Waiting for confirmation from PES for requestID: %s\n", requestID)
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
 				fmt.Println(err)
@@ -87,12 +87,10 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			}
 			
 			if result {
-				fmt.Println("Deposit completed successfully")
+				fmt.Println("Private transfer completed successfully")
 			} else {
-				fmt.Println("Deposit failed")
+				fmt.Println("Private transfer failed")
 			}
-
-			
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")

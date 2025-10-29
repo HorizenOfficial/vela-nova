@@ -3,36 +3,26 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
-	"math/big"
 	"os"
-	"strconv"
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	"github.com/horizen-pes/pkg/blockchain"
+	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
+	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-pes/pkg/common"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-// create a test blockchain client with only the GetUserEvents method defined
 type TestPrivateTransferBlockChainClient struct {
-	blockchain.MockClient
-	request *common.Request
+	blockchain.Client
 }
-
-///rewrite SubmitRequest
-func (c *TestPrivateTransferBlockChainClient) SubmitRequest(ctx context.Context, protocolVersion uint8, applicationId *big.Int, requestType common.RequestType, payload []byte, value *big.Int) (string, uint64, error) {
-	c.request = &common.Request{
-		ProtocolVersion: strconv.FormatUint(uint64(protocolVersion), 10),		
-		ApplicationID:   applicationId.String(),
-		RequestType:     requestType,
-		Payload:         payload,
-		Value:           value.Uint64(),
-	}
-	return "1", 0, nil
+func (c *TestPrivateTransferBlockChainClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
+	key, err := crypto.GeneratePrivateKeyP521()
+	return key.PublicKey(), err
 }
 
 func TestPrivateTransfer(t *testing.T) {
@@ -44,19 +34,22 @@ func TestPrivateTransfer(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
-
+	
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
 	client := &TestPrivateTransferBlockChainClient{
-		*blockchain.NewMockClient(),
-		nil,
+		testutil.SetupNewBlockChainClient(testHelper),
 	}
-
 	// Execute the command
 	cmd := NewPrivateTransferCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
 	}, client).Command()
-	cmd.Flags().Set("amount", "1")
+	cmd.Flags().Set("amount", "1 ETH")
 	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
+	cmd.Run(nil, nil)
 
 	// Restore stdout
 	w.Close()
@@ -66,13 +59,7 @@ func TestPrivateTransfer(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 	
-	assert.Contains(t, output, "Private transfer request submitted with request id:")
-
-	//check that request is saved correctly
-	require.Equal(t, client.request.RequestType, common.Process)
-	require.Greater(t, len(client.request.Payload), 0)
-	require.Equal(t, client.request.ProtocolVersion, strconv.FormatUint(uint64(PROTOCOL_VERSION), 10))
-	require.Equal(t, client.request.ApplicationID, NOVA_APPLICATION_ID.String())
-	require.Equal(t, client.request.Value, uint64(0))
+	fmt.Println(output)
+	assert.Contains(t, output, "Private transfer completed successfully")
 
 }
