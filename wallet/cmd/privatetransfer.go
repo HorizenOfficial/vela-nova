@@ -94,7 +94,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")
-	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer (.e.g., 0xabc123...)")
+	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer. Eg --to 0xabc123...")
 	return cmd
 }
 
