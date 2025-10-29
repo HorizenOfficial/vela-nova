@@ -33,7 +33,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			if c.blockchainClient == nil {
 				//create blockchain client
-				c.blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
+				c.blockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
 				err := c.blockchainClient.Connect(context.Background())
 				if err != nil {
 					fmt.Printf("Error connecting to rpc node: %v", err)

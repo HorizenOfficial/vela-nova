@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain/testutil"
+	"github.com/horizen-pes-nova/wallet/cmd/testutil"
+	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,10 +18,10 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
-	testHelper := testutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
-	blockchainClient := SetupNewBlockChainClient(testHelper)
+	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 
 	config := &app.Config{
 		BlockchainPollingInterval: 2,
@@ -30,7 +31,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	deployCmd := NewDeployAppCommand(config, blockchainClient)
 	cmd := deployCmd.Command()
 
-	go completeNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper)
 	cmd.Run(nil, []string{"1"})
 
 	// Restore stdout
