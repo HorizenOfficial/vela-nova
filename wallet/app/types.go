@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
+	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
@@ -29,7 +31,7 @@ type Config struct {
 }
 
 type AppCommand struct {
-	Config Config
+	Config *Config
 }
 
 /*
@@ -47,18 +49,18 @@ Otherwise an explicit config can be passed (for example to execute unit tests)
 func NewAppCommand(config *Config) *AppCommand {
 	if config != nil {
 		return &AppCommand{
-			Config: *config,
+			Config: config,
 		}
 	} 
 
 	config, err := LoadConfigFromFile(ConfFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while loading configuration from file %v", err)
+		fmt.Fprintf(os.Stderr, "Error while loading configuration from file '%s': %v\n", ConfFileName, err)
         os.Exit(1)
 	} 
 
 	return &AppCommand{
-		Config: *config,
+		Config: config,
 	}
 		
 }
@@ -70,7 +72,7 @@ func fileExists(path string) bool {
 
 func LoadConfigFromFile(confFileName string) (*Config, error) {
 	if !fileExists(confFileName) {
-		return nil, fmt.Errorf("file conf not found")
+		return nil, fmt.Errorf("config file %s not found", confFileName)
 	} else {
 		// Load properties from file
 		config, err := properties.LoadFile(confFileName, properties.UTF8)
@@ -161,7 +163,7 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64) (bool, error) {
+func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64, ctx context.Context) (bool, error) {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()
@@ -172,9 +174,9 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 	for {
 		select {
 		case <-ticker.C:
-			result, err := c.BlockchainClient.GetRequestCompletedEvent(context.Background(), requestID, 0, toBlock)
+			result, err := c.BlockchainClient.GetRequestCompletedEvent(ctx, requestID, 0, toBlock)
 			if err != nil {
-				fmt.Printf("Error getting request completion event: %v. Retrying", err)
+				fmt.Printf("Error getting request completion event: %v. Retrying\n", err)
 				continue
 			}
 			if result == nil {
@@ -182,10 +184,10 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 				continue
 			}
 			if result.Status != common.RequestResultOK {
-				fmt.Println("Deposit failed")
+				fmt.Println("Request failed")
 				return false, nil
 			}
-			fmt.Println("Deposit completed successfully")
+			fmt.Println("Request completed successfully")
 			return true, nil
 
 		case <-timeoutCh:
@@ -194,4 +196,22 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 		}
 	}
 	
+}
+
+// EncryptPayload encrypts the given payload using ECIES with the TEE public key retrieved from the blockchain client.
+// Returns the encrypted payload bytes or an error if marshalling, key retrieval, or encryption fails.
+func (c *ChainCommand) EncryptPayload(payload *runtimeapp.PayloadInstructions, ctx context.Context) ([]byte, error)  {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("error preparing process payload: %w", err)
+	}
+	receiverPubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving PES public key: %w", err)
+	}
+	encryptedPayload, err := crypto.Encrypt(c.Config.KeyP521, receiverPubKey, payloadBytes)
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting process payload: %w", err) 
+	}
+	return encryptedPayload, nil
 }

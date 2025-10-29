@@ -2,19 +2,19 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"testing"
-	"fmt"
 
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	"github.com/horizen-pes/pkg/blockchain"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
 
 func TestRegisterUserCmd(t *testing.T) {
 	// Redirect stdout
@@ -31,13 +31,13 @@ func TestRegisterUserCmd(t *testing.T) {
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout: 60,
+		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
 
-	go testutil.CompleteKeyRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 
@@ -54,15 +54,17 @@ func TestRegisterUserCmd(t *testing.T) {
 
 }
 
-
 func TestRegisterUserCmdFailure(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
-	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-	var key2, _ = crypto.GeneratePrivateKeyP521()
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
@@ -70,13 +72,13 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout: 60,
+		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
 
-	go testutil.FailKeyRequest(t, testHelper)
+	go testutil.FailNextRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 
@@ -96,11 +98,14 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 func TestRegisterUserCmdTimeout(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	os.Stdout = w
 
-	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-	var key2, _ = crypto.GeneratePrivateKeyP521()
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
@@ -108,13 +113,11 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	cmd := NewRegisterUserCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
-		BlockchainPollingInterval: 20,
-		BlockchainPollingTimeout: 1,
+		KeySecp:                   key1,
+		KeyP521:                   key2,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  2,
 	}, blockchainClient).Command()
-
-	go testutil.FailKeyRequest(t, testHelper)
 
 	cmd.Run(nil, nil)
 

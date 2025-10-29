@@ -1,2 +1,7 @@
 wallet.conf
 novaw
+.vscode
+*.swp
+*.bkp
+*.draft
+main
