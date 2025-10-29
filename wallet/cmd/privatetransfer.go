@@ -6,12 +6,11 @@ import (
 	"log"
 	"math/big"
 
+	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/spf13/cobra"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
-	"github.com/horizen-pes/pkg/crypto"
-
 )
 
 type PrivateTransferCommand struct {
@@ -58,23 +57,20 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			} 
 			defer c.CloseClient()
 
-			//build body with type transfer
-			jsonBody := `{"type":"trasfer", "transfer": {"amount":"` + amount.String() + `, "to": "` + to +`"}}`
-			//get public key
-			publicKey, err := c.BlockchainClient.GetTeePublicKey(context.Background())
-			if err != nil {
-				log.Fatalf("Error retrieving public key to encrypt: %v", err)
-			}
-			// encrypt
-			payload, err := crypto.Encrypt(c.Config.KeyP521, publicKey, []byte(jsonBody))
+			//build payload with type transfer
+			payload := runtimeapp.PayloadInstructions{
+				Type:     "transfer",
+				Transfer: &runtimeapp.TransferInstruction{To: to, Amount: amount.Uint64()},
+			}			
+			ctx := context.Background()
+			encryptedPayload, err := c.EncryptPayload(&payload, ctx)			
 			if err != nil {
 				log.Fatalf("Error encrypting private transfer payload: %v", err)
 			}
 
 			//submit request
-			ctx := context.Background()
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, &NOVA_APPLICATION_ID, requestType, payload, big.NewInt(0))
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, &NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
 			if err != nil {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return 

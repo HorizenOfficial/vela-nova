@@ -68,9 +68,8 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return 
 			}
 
-			var protocolVersion uint8 = 0
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, protocolVersion,  &NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  &NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
 			if err != nil {
 				fmt.Printf("Error sending request to withdraw amount %s: %v", c.value, err)
 				return 
