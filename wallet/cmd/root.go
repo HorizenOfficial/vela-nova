@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-
+	
 	"github.com/spf13/cobra"
+	"github.com/horizen-pes-nova/wallet/app"
 )
 
 var rootCmd = &cobra.Command{
@@ -14,14 +15,21 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() {
+func Execute() {	
+	config, err := app.LoadConfigFromFile(app.ConfFileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error while loading configuration from file: %v\n", err)
+        os.Exit(1)
+	}
 	rootCmd.AddCommand(NewGenerateKeysCommand().Command())
-	rootCmd.AddCommand(NewGetAddressCommand(nil).Command())
-	rootCmd.AddCommand(NewListPubKeysCommand(nil).Command())
-	rootCmd.AddCommand(NewGetPublicBalanceCommand(nil).Command())
-	rootCmd.AddCommand(NewRegisterUserCommand(nil, nil).Command())
-	rootCmd.AddCommand(NewGetPrivateBalanceCommand(nil, nil).Command())
-	rootCmd.AddCommand(NewDeployAppCommand(nil, nil).Command())
+	rootCmd.AddCommand(NewGetAddressCommand(config).Command())
+	rootCmd.AddCommand(NewListPubKeysCommand(config).Command())
+	rootCmd.AddCommand(NewGetPublicBalanceCommand(config).Command())
+	rootCmd.AddCommand(NewRegisterUserCommand(config, nil).Command())
+	rootCmd.AddCommand(NewDepositCommand(config, nil).Command())
+	rootCmd.AddCommand(NewGetPrivateBalanceCommand(config, nil).Command())
+	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
+  rootCmd.AddCommand(NewDeployAppCommand(nil, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

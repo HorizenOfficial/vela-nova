@@ -28,7 +28,14 @@ func (c *GetPublicBalanceCommand) Command() *cobra.Command {
 		Use:   "getpublicbalance",
 		Short: `display BASE balance of this wallet`,
 		Long:  `display BASE balance of this wallet`,
+
+		
 		Run: func(cmd *cobra.Command, args []string) {
+			
+			if c.Config.KeySecp == nil {
+				fmt.Println("Error: Secp256k1 key not found in the wallet")
+				return
+			}
 			address := c.Config.KeySecp.PublicKey().Address()
 			rpcURL := c.Config.RpcUrl
 
