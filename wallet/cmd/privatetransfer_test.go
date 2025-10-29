@@ -49,14 +49,14 @@ func TestPrivateTransfer(t *testing.T) {
 		*blockchain.NewMockClient(),
 		nil,
 	}
-	args := []string{"0x0000000000000000000000000000000000000001", "1"}
 
 	// Execute the command
 	cmd := NewPrivateTransferCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 	}, client).Command()
-	cmd.Run(nil, args)
+	cmd.Flags().Set("amount", "1")
+	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
 
 	// Restore stdout
 	w.Close()

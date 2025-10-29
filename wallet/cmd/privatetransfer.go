@@ -16,15 +16,18 @@ import (
 )
 
 type PrivateTransferCommand struct {
-	*app.AppCommand
-	customClient blockchain.Client
+	*app.ChainCommand
+	receiver string
+	value string
 }
 
-func NewPrivateTransferCommand(config *app.Config, customClient blockchain.Client) *PrivateTransferCommand {
-	return &PrivateTransferCommand{
-		AppCommand: app.NewAppCommand(config),
-		customClient: customClient,
+
+func NewPrivateTransferCommand(config *app.Config, blockchainClient blockchain.Client) *PrivateTransferCommand {
+	cmd := &PrivateTransferCommand{
+		ChainCommand: app.NewChainCommand(config, blockchainClient),
 	}
+
+	return cmd
 }
 
 func (c *PrivateTransferCommand) Command() *cobra.Command {
@@ -33,58 +36,67 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 		Short: `submits a private transfer request specifying receiver address and amount as parameters`,
 		Long: `submits a private transfer request specifying receiver address and amount as parameters`,
 		Run: func(cmd *cobra.Command, args []string) {
-			//check args
-			if(len(args) < 2) {
-				log.Fatalf("receiver address and amount parameters are required")
-			}
 			//get receiver
-			toAddress := args[0]
-			if !ethCommon.IsHexAddress(toAddress) {
-				log.Fatalf("first argument %s is not a valid hex address", args[0])
+			if !ethCommon.IsHexAddress(c.receiver) {
+				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
 			}
 
 			//get amount
-    		f, _, err := big.ParseFloat(args[1], 10, 0, big.ToNearestEven)
+			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
-				log.Fatalf("second argument %s is not a valid amount: %v", args[1], err)
+				fmt.Printf("Error: invalid amount: %v\n", err)
+				return
 			}
-			weiFloat := new(big.Float).Mul(f, big.NewFloat(1e18))
-			weiInt := new(big.Int)
-			weiFloat.Int(weiInt)
-			amount := weiInt.String()
 			
-			//init blockchain client
-			blockchainClient := c.customClient
-			if blockchainClient == nil {
-				//init blockchain client
-				blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
-				err := blockchainClient.Connect(context.Background())
-				if err != nil {
-					log.Fatalf("Error connecting to rpc node: %v", err)
-					return
-				}			
-			}
+			if c.BlockchainClient == nil {
+				//create blockchain client
+				if err := c.InitChainClient(); err != nil {
+					fmt.Printf("Error connecting to rpc node: %v\n", err)
+					return 
+
+				}
+			} 
+			defer c.CloseClient()
 
 			//build body with type transfer
-			jsonBody := `{"type":"trasfer", "transfer": {"amount":"` + amount + `, "to": "` + toAddress +`"}}`
+			jsonBody := `{"type":"trasfer", "transfer": {"amount":"` + amount.String() + `, "to": "` + c.receiver +`"}}`
 			//get public key
-			publicKey, err := blockchainClient.GetTeePublicKey(context.Background())
+			publicKey, err := c.BlockchainClient.GetTeePublicKey(context.Background())
 			if err != nil {
-				log.Fatalf("error retrieving public key to encrypt: %v", err)
+				log.Fatalf("Error retrieving public key to encrypt: %v", err)
 			}
 			// encrypt
-			payload, err := crypto.Encrypt(&c.Config.KeyP521, publicKey, []byte(jsonBody))
+			payload, err := crypto.Encrypt(c.Config.KeyP521, publicKey, []byte(jsonBody))
 			if err != nil {
-				log.Fatalf("error encrypting private transfer payload: %v", err)
+				log.Fatalf("Error encrypting private transfer payload: %v", err)
 			}
+
 			//submit request
-			requestId, _, err := blockchainClient.SubmitRequest(context.Background(), PROTOCOL_VERSION, &NOVA_APPLICATION_ID, common.Process, payload, big.NewInt(0))
+			ctx := context.Background()
+			requestType := common.Process
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, &NOVA_APPLICATION_ID, requestType, payload, big.NewInt(0))
 			if err != nil {
-				log.Fatalf("error submitting private transfer request: %v", err)
+				fmt.Printf("Error sending request to trasnfer amount %s to %s: %v", c.value, c.receiver, err)
+				return 
 			}
-			fmt.Printf("Private transfer request submitted with request id: %s\n", requestId)			
+			fmt.Println("Waiting for confirmation from PES")
+			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			
+			if result {
+				fmt.Println("Deposit completed successfully")
+			} else {
+				fmt.Println("Deposit failed")
+			}
+
+			
 		},
 	}
+	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")
+	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer (.e.g., 0xabc123...)")
 	return cmd
 }
 
