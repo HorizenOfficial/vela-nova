@@ -61,8 +61,8 @@ func TestGetPrivateBalance(t *testing.T) {
 	}
 	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}, client).Command()
 	cmd.Run(nil, nil)
@@ -98,8 +98,8 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 	}
 	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}, client).Command()
 	cmd.Run(nil, nil)

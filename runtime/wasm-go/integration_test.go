@@ -8,8 +8,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"payment-app/app"
-
+	"github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
