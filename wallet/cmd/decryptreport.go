@@ -32,9 +32,9 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 		Short: `decrypt a deanonymization report specifying file that contains it`,
 		Long: `decrypt a deanonymization report specifying file that contains it`,
 		Run: func(cmd *cobra.Command, args []string) {
-			readBytes, err := os.ReadFile(filePath)
+			readBytes, err := os.ReadFile(c.filePath)
 			if err != nil {
-				log.Fatalf("error reading file %s: %v", filePath, err)
+				log.Fatalf("error reading file %s: %v", c.filePath, err)
 			}
 			
 			if c.BlockchainClient == nil {
@@ -46,12 +46,12 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			} 
 			defer c.CloseClient()
 			//get public key
-			publicKey, err := blockchainClient.GetTeePublicKey(context.Background())
+			publicKey, err := c.BlockchainClient.GetTeePublicKey(context.Background())
 			if err != nil {
 				log.Fatalf("error retrieving public key to encrypt: %v", err)
 			}
 			// decrypt
-			decrypted, err := crypto.Decrypt(publicKey, &c.Config.KeyP521, []byte(readBytes))
+			decrypted, err := crypto.Decrypt(publicKey, c.Config.KeyP521, []byte(readBytes))
 			if err != nil {
 				log.Fatalf("error decrypting report payload: %v", err)
 			}

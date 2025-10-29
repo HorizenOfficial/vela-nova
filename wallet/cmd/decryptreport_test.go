@@ -8,23 +8,22 @@ import (
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/crypto"
+	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
+	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 
 )
 
-// create a test blockchain client with only the GetTeePublicKey method defined
-type TestDecryptReportBlockChainClient struct {
-	blockchain.MockClient
-	key *cryptotypes.PublicKeyP521
+type TestDecryptReportClient struct {
+	blockchain.Client
+	key cryptotypes.PrivateKeyP521
 }
-
-///rewrite SubmitRequest
-func (c *TestDecryptReportBlockChainClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
-	return c.key, nil
+func (c *TestDecryptReportClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
+	return c.key.PublicKey(), nil
 }
 
 func TestDecryptReport(t *testing.T) {
@@ -47,19 +46,22 @@ func TestDecryptReport(t *testing.T) {
 	os.Stdout = w
 
 	//create client
-
-	client := &TestDecryptReportBlockChainClient{
-		*blockchain.NewMockClient(),
-		teeKey.PublicKey(),
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+	client := &TestDecryptReportClient{
+		testutil.SetupNewBlockChainClient(testHelper),
+		*teeKey,
 	}
-	args := []string{filePath}
 
 	// Execute the command
 	cmd := NewDecryptReportCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
 	}, client).Command()
-	cmd.Run(nil, args)
+	cmd.Flags().Set("path", filePath)
+	cmd.Run(nil, nil)
 
 	// Restore stdout
 	w.Close()
