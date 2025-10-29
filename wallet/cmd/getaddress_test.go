@@ -22,7 +22,7 @@ func TestGetAddressCmd(t *testing.T) {
 
 	// Execute the command
 	cmd := NewGetAddressCommand(&app.Config{
-		KeySecp: *key,
+		KeySecp: key,
 	}).Command()
 	cmd.Run(nil, nil)
 

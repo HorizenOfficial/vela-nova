@@ -24,8 +24,8 @@ func TestListPubKeysCmd(t *testing.T) {
 
 	// Execute the command
 	cmd := NewListPubKeysCommand(&app.Config{
-		KeySecp: *key1,
-		KeyP521: *key2,
+		KeySecp: key1,
+		KeyP521: key2,
 	}).Command()
 	cmd.Run(nil, nil)
 

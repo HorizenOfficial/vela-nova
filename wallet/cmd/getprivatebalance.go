@@ -32,7 +32,7 @@ func EventFilter(b []byte) bool {
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKeyP521, latestBlock uint64) ([]byte, error) {
+func FindEvent(blockchainClient blockchain.Client, privKey *cryptotypes.PrivateKeyP521, latestBlock uint64) ([]byte, error) {
 	// define search range
 	fromBlock := latestBlock
 	var toBlock uint64 = 0
@@ -43,7 +43,7 @@ func FindEvent(blockchainClient blockchain.Client, privKey cryptotypes.PrivateKe
 	for {
 		events, err := blockchainClient.GetUserEvents(
 			context.Background(), 
-			privKey, 
+			*privKey, 
 			NOVA_APPLICATION_ID, 
 			fromBlock, 
 			toBlock, 
@@ -91,13 +91,14 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			blockchainClient := c.customClient
 			if blockchainClient == nil {
 				//init blockchain client
-				blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
+				blockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
 				err := blockchainClient.Connect(context.Background())
 				if err != nil {
 					log.Fatalf("Error connecting to rpc node: %v", err)
 					return
 				}	
 			}
+			defer blockchainClient.Close()
 
 			//find event
 			event, err := FindEvent(blockchainClient, c.Config.KeyP521, latestBlock)

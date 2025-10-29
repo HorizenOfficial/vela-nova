@@ -21,7 +21,7 @@ func TestGetPublicBalanceCmd(t *testing.T) {
 
 	// Execute the command
 	cmd := NewGetPublicBalanceCommand(&app.Config{
-		KeySecp: *key,
+		KeySecp: key,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}).Command()
 	cmd.Run(nil, nil)
