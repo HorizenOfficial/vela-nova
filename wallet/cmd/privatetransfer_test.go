@@ -49,6 +49,9 @@ func TestPrivateTransfer(t *testing.T) {
 	}, client).Command()
 	cmd.Flags().Set("amount", "1 ETH")
 	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
+
+	go testutil.CompleteNextRequest(t, testHelper)
+
 	cmd.Run(nil, nil)
 
 	// Restore stdout
