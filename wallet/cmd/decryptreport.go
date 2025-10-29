@@ -14,15 +14,16 @@ import (
 )
 
 type DecryptReportCommand struct {
-	*app.AppCommand
-	customClient blockchain.Client
+	*app.ChainCommand
+	filePath string
 }
 
-func NewDecryptReportCommand(config *app.Config, customClient blockchain.Client) *DecryptReportCommand {
-	return &DecryptReportCommand{
-		AppCommand: app.NewAppCommand(config),
-		customClient: customClient,
+
+func NewDecryptReportCommand(config *app.Config, blockchainClient blockchain.Client) *DecryptReportCommand {
+	cmd := &DecryptReportCommand{
+		ChainCommand: app.NewChainCommand(config, blockchainClient),
 	}
+	return cmd
 }
 
 func (c *DecryptReportCommand) Command() *cobra.Command {
@@ -31,28 +32,19 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 		Short: `decrypt a deanonymization report specifying file that contains it`,
 		Long: `decrypt a deanonymization report specifying file that contains it`,
 		Run: func(cmd *cobra.Command, args []string) {
-			//check args
-			if(len(args) < 1) {
-				log.Fatalf("file path parameter is required")
-			}
-			//get file path
-			file := args[0]
-			readBytes, err := os.ReadFile(file)
+			readBytes, err := os.ReadFile(filePath)
 			if err != nil {
-				log.Fatalf("error reading file %s: %v", file, err)
+				log.Fatalf("error reading file %s: %v", filePath, err)
 			}
 			
-			//init blockchain client to get decryption public key
-			blockchainClient := c.customClient
-			if blockchainClient == nil {
-				//init blockchain client
-				blockchainClient = blockchain.NewBlockChainClient(c.Config.ProcessorEndpointAddress, c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, &c.Config.KeySecp)
-				err := blockchainClient.Connect(context.Background())
-				if err != nil {
-					log.Fatalf("Error connecting to rpc node: %v", err)
-					return
-				}			
-			}
+			if c.BlockchainClient == nil {
+				//create blockchain client
+				if err := c.InitChainClient(); err != nil {
+					fmt.Printf("Error connecting to rpc node: %v\n", err)
+					return 
+				}
+			} 
+			defer c.CloseClient()
 			//get public key
 			publicKey, err := blockchainClient.GetTeePublicKey(context.Background())
 			if err != nil {
@@ -69,6 +61,7 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			fmt.Println(strDecrypted)
 		},
 	}
+	cmd.Flags().StringVarP(&c.filePath, "path", "p", "", "The path of the file to decrypt (e.g., /path/to/file.txt).")
 	return cmd
 }
 
