@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,20 +9,10 @@ import (
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 )
-
-type TestPrivateTransferBlockChainClient struct {
-	blockchain.Client
-}
-func (c *TestPrivateTransferBlockChainClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
-	key, err := crypto.GeneratePrivateKeyP521()
-	return key.PublicKey(), err
-}
 
 func TestPrivateTransfer(t *testing.T) {
 
@@ -34,12 +23,13 @@ func TestPrivateTransfer(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
-	
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	var teeKey, _ = crypto.GeneratePrivateKeyP521()
+
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())	
 	defer testHelper.Close()
-	client := &TestPrivateTransferBlockChainClient{
-		testutil.SetupNewBlockChainClient(testHelper),
-	}
+
+	client := testutil.SetupNewBlockChainClient(testHelper)
+	
 	// Execute the command
 	cmd := NewPrivateTransferCommand(&app.Config{
 		KeySecp: key1,
