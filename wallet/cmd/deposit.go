@@ -50,9 +50,8 @@ func (c *DepositCommand) Command() *cobra.Command {
 			ctx := context.Background()
 			var payload []byte
 			
-			var protocolVersion uint8 = 0
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, protocolVersion, &NOVA_APPLICATION_ID, requestType, payload, amount)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, &NOVA_APPLICATION_ID, requestType, payload, amount)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v", c.value, err)
 				return 

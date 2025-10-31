@@ -27,6 +27,7 @@ func Execute() {
 	rootCmd.AddCommand(NewGetPublicBalanceCommand(config).Command())
 	rootCmd.AddCommand(NewRegisterUserCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDepositCommand(config, nil).Command())
+	rootCmd.AddCommand(NewPrivateTransferCommand(config, nil).Command())
 	rootCmd.AddCommand(NewGetPrivateBalanceCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
