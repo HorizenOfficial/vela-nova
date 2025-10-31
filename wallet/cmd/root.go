@@ -29,7 +29,7 @@ func Execute() {
 	rootCmd.AddCommand(NewDepositCommand(config, nil).Command())
 	rootCmd.AddCommand(NewPrivateTransferCommand(config, nil).Command())
 	rootCmd.AddCommand(NewGetPrivateBalanceCommand(config, nil).Command())
-	rootCmd.AddCommand(NewDecryptReportCommand(nil, nil).Command())
+	rootCmd.AddCommand(NewDecryptReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
   rootCmd.AddCommand(NewDeployAppCommand(nil, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
