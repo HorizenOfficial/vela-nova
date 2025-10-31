@@ -42,7 +42,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 			var protocolVersion uint8 = 0
 			requestType := common.Deploy
 
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(context.Background(), protocolVersion, big.NewInt(1), requestType, []byte{}, big.NewInt(0))
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(context.Background(), protocolVersion, &NOVA_APPLICATION_ID, requestType, []byte{}, big.NewInt(0))
 			if err != nil {
 				fmt.Printf("Error sending request to deploy app: %v", err)
 				return
