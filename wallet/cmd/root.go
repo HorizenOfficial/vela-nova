@@ -30,6 +30,7 @@ func Execute() {
 	rootCmd.AddCommand(NewPrivateTransferCommand(config, nil).Command())
 	rootCmd.AddCommand(NewGetPrivateBalanceCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
+  rootCmd.AddCommand(NewDeployAppCommand(nil, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
