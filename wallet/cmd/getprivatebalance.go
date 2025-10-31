@@ -1,17 +1,17 @@
 package cmd
 
 import (
-	"fmt"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 
-	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/spf13/cobra"
+	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
+	"github.com/spf13/cobra"
 )
 
 type GetPrivateBalanceCommand struct {
@@ -21,7 +21,7 @@ type GetPrivateBalanceCommand struct {
 
 func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
 	return &GetPrivateBalanceCommand{
-		AppCommand: app.NewAppCommand(config),
+		AppCommand:   app.NewAppCommand(config),
 		customClient: customClient,
 	}
 }
@@ -42,16 +42,16 @@ func FindEvent(blockchainClient blockchain.Client, privKey *cryptotypes.PrivateK
 	//start loop
 	for {
 		events, err := blockchainClient.GetUserEvents(
-			context.Background(), 
-			*privKey, 
-			NOVA_APPLICATION_ID, 
-			fromBlock, 
-			toBlock, 
-			EventFilter, 
+			context.Background(),
+			*privKey,
+			NOVA_APPLICATION_ID,
+			fromBlock,
+			toBlock,
+			EventFilter,
 			true,
-		);
+		)
 		if err != nil {
-			return nil, fmt.Errorf("can't retrieve events: %w", err)//stop
+			return nil, fmt.Errorf("can't retrieve events: %w", err) //stop
 		}
 		//event found, return the first
 		if len(events) > 0 {
@@ -60,7 +60,7 @@ func FindEvent(blockchainClient blockchain.Client, privKey *cryptotypes.PrivateK
 		//event not found, check if block are finished
 		if toBlock == 0 {
 			//if finished, balance 0
-			return []byte(`{"` + BALANCE_JSON_KEY + `": "0"}`), nil
+			return []byte(`{"` + BALANCE_JSON_KEY + `": 0}`), nil
 		}
 		//redefine search range
 		fromBlock = toBlock - 1
@@ -96,7 +96,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				if err != nil {
 					log.Fatalf("Error connecting to rpc node: %v", err)
 					return
-				}	
+				}
 			}
 			defer blockchainClient.Close()
 
@@ -107,15 +107,15 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//get json from event
-			var jsonData map[string]interface{} 	
-			err = json.Unmarshal(event, &jsonData) 
+			var jsonData map[string]interface{}
+			err = json.Unmarshal(event, &jsonData)
 			if err != nil {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			wei := new(big.Int)
-			wei.SetString(jsonData[BALANCE_JSON_KEY].(string), 10)
-			eth := new(big.Float).Quo(new(big.Float).SetInt(wei), big.NewFloat(1e18))
+			wei := new(big.Float)
+			wei.SetFloat64(jsonData[BALANCE_JSON_KEY].(float64))
+			eth := new(big.Float).SetPrec(60).Quo(wei, big.NewFloat(1e18))
 			fmt.Println(eth.Text('f', 18))
 		},
 	}

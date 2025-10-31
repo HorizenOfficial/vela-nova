@@ -21,16 +21,16 @@ type TestGetPrivateBalanceBlockChainClient struct {
 	blockchain.MockClient
 	eventToReturn []byte
 	blockToReturn uint64
-	lastToBlock uint64
+	lastToBlock   uint64
 }
 
-///rewrite GetUserEvents
+// /rewrite GetUserEvents
 func (c *TestGetPrivateBalanceBlockChainClient) GetUserEvents(ctx context.Context, privKey cryptotypes.PrivateKeyP521, applicationId big.Int, fromBlock uint64, toBlock uint64, filter func([]byte) bool, stopAtFirst bool) ([][]byte, error) {
 	if fromBlock < toBlock {
 		return [][]byte{}, fmt.Errorf("fromBlock should be greater than toBlock: %d, %d", fromBlock, toBlock)
 	}
 	//check that the blocks are searched with continuity
-	if c.lastToBlock != 0 && fromBlock != c.lastToBlock - 1 {
+	if c.lastToBlock != 0 && fromBlock != c.lastToBlock-1 {
 		return [][]byte{}, fmt.Errorf("when searching again, no block should be skipped: %d, %d", fromBlock, c.lastToBlock)
 	}
 	c.lastToBlock = toBlock
@@ -51,7 +51,7 @@ func TestGetPrivateBalance(t *testing.T) {
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 
 	//prepare args
-	mockEvent := []byte(`{"` + BALANCE_JSON_KEY + `": "12345"}`)
+	mockEvent := []byte(`{"` + BALANCE_JSON_KEY + `": 12345}`)
 
 	client := &TestGetPrivateBalanceBlockChainClient{
 		*blockchain.NewMockClient(),
@@ -63,7 +63,7 @@ func TestGetPrivateBalance(t *testing.T) {
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
-		RpcUrl: "https://base-sepolia.drpc.org",
+		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client).Command()
 	cmd.Run(nil, nil)
 
@@ -74,7 +74,7 @@ func TestGetPrivateBalance(t *testing.T) {
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	output := buf.String()
-	
+
 	assert.Contains(t, output, "0.000000000000012345")
 }
 
@@ -93,14 +93,14 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 	client := &TestGetPrivateBalanceBlockChainClient{
 		*blockchain.NewMockClient(),
 		mockEvent, //since the event is not valid, it will be filtered out and we'll arrive at the end without events, returning 0
-		3, //the event is returned when searching in the block 3
+		3,         //the event is returned when searching in the block 3
 		0,
 	}
 	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
-		RpcUrl: "https://base-sepolia.drpc.org",
+		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client).Command()
 	cmd.Run(nil, nil)
 
@@ -111,6 +111,6 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	output := buf.String()
-	
+
 	assert.Contains(t, output, "0.000000000000000000")
 }
