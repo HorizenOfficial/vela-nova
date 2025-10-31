@@ -2,29 +2,18 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 
 )
-
-type TestDecryptReportClient struct {
-	blockchain.Client
-	key cryptotypes.PrivateKeyP521
-}
-func (c *TestDecryptReportClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
-	return c.key.PublicKey(), nil
-}
 
 func TestDecryptReport(t *testing.T) {
 	// create keys
@@ -46,12 +35,9 @@ func TestDecryptReport(t *testing.T) {
 	os.Stdout = w
 
 	//create client
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
-	client := &TestDecryptReportClient{
-		testutil.SetupNewBlockChainClient(testHelper),
-		*teeKey,
-	}
+	client := testutil.SetupNewBlockChainClient(testHelper)
 
 	// Execute the command
 	cmd := NewDecryptReportCommand(&app.Config{
