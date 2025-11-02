@@ -31,7 +31,7 @@ func Execute() {
 	rootCmd.AddCommand(NewGetPrivateBalanceCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDecryptReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
-  rootCmd.AddCommand(NewDeployAppCommand(nil, nil).Command())
+  	rootCmd.AddCommand(NewDeployAppCommand(config, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
