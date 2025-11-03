@@ -25,7 +25,11 @@ func TestDecryptReport(t *testing.T) {
 	encrypted, err := crypto.Encrypt(teeKey, key2.PublicKey(), []byte(payload))
 	require.NoError(t, err)
 	// write to file
-	filePath := "/tmp/testReport"
+	tmpFile, err := os.CreateTemp("", "testreport-*.txt")
+	require.NoError(t, err)
+	filePath := tmpFile.Name()
+	defer os.Remove(filePath)
+	
 	err = os.WriteFile(filePath, encrypted, 0644)
 	require.NoError(t, err)
 
