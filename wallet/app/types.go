@@ -8,7 +8,6 @@ import (
 	"time"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
@@ -200,7 +199,7 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 
 // EncryptPayload encrypts the given payload using ECIES with the TEE public key retrieved from the blockchain client.
 // Returns the encrypted payload bytes or an error if marshalling, key retrieval, or encryption fails.
-func (c *ChainCommand) EncryptPayload(payload *runtimeapp.PayloadInstructions, ctx context.Context) ([]byte, error)  {
+func (c *ChainCommand) EncryptPayload(payload any, ctx context.Context) ([]byte, error)  {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing process payload: %w", err)

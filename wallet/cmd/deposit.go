@@ -53,7 +53,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 			requestType := common.Process
 			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, &NOVA_APPLICATION_ID, requestType, payload, amount)
 			if err != nil {
-				fmt.Printf("Error sending request to deposit amount %s: %v", c.value, err)
+				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.value, err)
 				return 
 			}
 
@@ -75,7 +75,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 			
 		},
 	}
-	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")
+	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
 	return cmd
 }
 
