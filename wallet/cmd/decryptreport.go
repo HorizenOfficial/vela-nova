@@ -26,6 +26,12 @@ type Report struct {
 	EncryptedReport string `json:"encryptedReport"`
 }
 
+type DecryptedReport struct {
+	ApplicationId  string `json:"applicationId"`
+	RequestId       string `json:"requestId"`
+	ReportDataBytes string `json:"reportDataBytes"`
+}
+
 func NewDecryptReportCommand(config *app.Config, blockchainClient blockchain.Client) *DecryptReportCommand {
 	cmd := &DecryptReportCommand{
 		ChainCommand: app.NewChainCommand(config, blockchainClient),
@@ -72,12 +78,23 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			if err != nil {
 				log.Fatalf("error decrypting report payload: %v", err)
 			}
-			//transform to string and print
+			//unmarshall decrypted as json
 			strDecrypted := string(decrypted)
+			var decryptedReport DecryptedReport
+			err = json.Unmarshal([]byte(strDecrypted), &decryptedReport)
+			if err != nil {
+				log.Fatalf("error unmarshalling json from decrypted report: %v", err)
+			}
+			//take report data and decode from base64
+			finalJson, err := base64.StdEncoding.DecodeString(decryptedReport.ReportDataBytes)
+			if err != nil {
+				log.Fatalf("error decoding base64 string from decrypted report: %v", err)
+			}
+
 			fmt.Println("Decrypted report:")
 			fmt.Printf("Application Id: %s\n", er.ApplicationId)
 			fmt.Printf("Report Id: %s\n", er.ReportId)
-			fmt.Println(strDecrypted)
+			fmt.Printf("ReportData: %s\n", string(finalJson))
 		},
 	}
 	cmd.Flags().StringVarP(&c.filePath, "path", "p", "", "The path of the file to decrypt (e.g., /path/to/file.txt).")

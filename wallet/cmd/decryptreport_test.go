@@ -22,8 +22,21 @@ func TestDecryptReport(t *testing.T) {
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
-	// generate encrypted payload
-	payload := "test report 12345"
+
+	// create report
+	reportFinalJson := "{'accounts': ['0x1111']}"
+	//base64
+	encodedReportFinalJson := base64.StdEncoding.EncodeToString([]byte(reportFinalJson))
+	//create json object to encrypt
+	payload, err := json.Marshal(
+		DecryptedReport {
+			ApplicationId:  "1",
+			RequestId: "test-request-id",
+			ReportDataBytes: encodedReportFinalJson,
+		},
+	)
+	require.NoError(t, err)
+
 	encrypted, err := crypto.Encrypt(teeKey, key2.PublicKey(), []byte(payload))
 	require.NoError(t, err)
 	//encode as base64
@@ -75,5 +88,5 @@ func TestDecryptReport(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 	
-	assert.Contains(t, output, payload)
+	assert.Contains(t, output, reportFinalJson)
 }
