@@ -95,7 +95,7 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			fmt.Printf("Application Id: %s\n", er.ApplicationId)
 			fmt.Printf("Report Id: %s\n", er.ReportId)
 			fmt.Printf("Request Id: %s\n", decryptedReport.RequestId)
-			fmt.Printf("ReportData: %s\n", string(finalJson))
+			fmt.Printf("Report Data: %s\n", string(finalJson))
 		},
 	}
 	cmd.Flags().StringVarP(&c.filePath, "path", "p", "", "The path of the file to decrypt (e.g., /path/to/file.txt).")
