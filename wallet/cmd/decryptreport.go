@@ -94,6 +94,7 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			fmt.Println("Decrypted report:")
 			fmt.Printf("Application Id: %s\n", er.ApplicationId)
 			fmt.Printf("Report Id: %s\n", er.ReportId)
+			fmt.Printf("Request Id: %s\n", decryptedReport.RequestId)
 			fmt.Printf("ReportData: %s\n", string(finalJson))
 		},
 	}
