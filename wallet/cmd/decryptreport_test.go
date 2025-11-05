@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"os"
 	"testing"
@@ -24,13 +26,25 @@ func TestDecryptReport(t *testing.T) {
 	payload := "test report 12345"
 	encrypted, err := crypto.Encrypt(teeKey, key2.PublicKey(), []byte(payload))
 	require.NoError(t, err)
-	// write to file
+	//encode as base64
+	encoded := base64.StdEncoding.EncodeToString(encrypted)
+
+	// write to file as json
 	tmpFile, err := os.CreateTemp("", "testreport-*.txt")
 	require.NoError(t, err)
 	filePath := tmpFile.Name()
 	defer os.Remove(filePath)
-	
-	err = os.WriteFile(filePath, encrypted, 0644)
+
+	jsonData, err := json.Marshal(
+		Report{
+			ApplicationId:  "1",
+			ReportId:       "test-report-Id",
+			EncryptedReport: encoded,
+		},
+	)
+
+	require.NoError(t, err)
+	err = os.WriteFile(filePath, jsonData, 0644)
 	require.NoError(t, err)
 
 	// Redirect stdout

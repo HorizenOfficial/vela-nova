@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -18,6 +20,11 @@ type DecryptReportCommand struct {
 	filePath string
 }
 
+type Report struct {
+	ApplicationId  string `json:"applicationId"`
+	ReportId       string `json:"reportId"`
+	EncryptedReport string `json:"encryptedReport"`
+}
 
 func NewDecryptReportCommand(config *app.Config, blockchainClient blockchain.Client) *DecryptReportCommand {
 	cmd := &DecryptReportCommand{
@@ -32,9 +39,19 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 		Short: `decrypt a deanonymization report specifying file that contains it`,
 		Long: `decrypt a deanonymization report specifying file that contains it`,
 		Run: func(cmd *cobra.Command, args []string) {
-			readBytes, err := os.ReadFile(c.filePath)
+			readJson, err := os.ReadFile(c.filePath)
 			if err != nil {
 				log.Fatalf("error reading file %s: %v", c.filePath, err)
+			}
+			var er Report
+			err = json.Unmarshal(readJson, &er)
+			if err != nil {
+				log.Fatalf("error unmarshalling json from file %s: %v", c.filePath, err)
+			}
+			//get bytes from base64 string
+			readBytes, err := base64.StdEncoding.DecodeString(er.EncryptedReport)
+			if err != nil {
+				log.Fatalf("error decoding base64 string from file %s: %v", c.filePath, err)
 			}
 			
 			if c.BlockchainClient == nil {
@@ -58,6 +75,8 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			//transform to string and print
 			strDecrypted := string(decrypted)
 			fmt.Println("Decrypted report:")
+			fmt.Printf("Application Id: %s\n", er.ApplicationId)
+			fmt.Printf("Report Id: %s\n", er.ReportId)
 			fmt.Println(strDecrypted)
 		},
 	}
