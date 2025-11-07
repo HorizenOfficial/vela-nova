@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"log"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/spf13/cobra"
 	"github.com/horizen-pes/pkg/blockchain"
+	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/crypto"
 
 )
@@ -18,18 +18,6 @@ import (
 type DecryptReportCommand struct {
 	*app.ChainCommand
 	filePath string
-}
-
-type Report struct {
-	ApplicationId  string `json:"applicationId"`
-	ReportId       string `json:"reportId"`
-	EncryptedReport string `json:"encryptedReport"`
-}
-
-type DecryptedReport struct {
-	ApplicationId  string `json:"applicationId"`
-	RequestId       string `json:"requestId"`
-	ReportDataBytes string `json:"reportDataBytes"`
 }
 
 func NewDecryptReportCommand(config *app.Config, blockchainClient blockchain.Client) *DecryptReportCommand {
@@ -49,15 +37,10 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 			if err != nil {
 				log.Fatalf("error reading file %s: %v", c.filePath, err)
 			}
-			var er Report
+			var er common.DeanonymizationReport
 			err = json.Unmarshal(readJson, &er)
 			if err != nil {
 				log.Fatalf("error unmarshalling json from file %s: %v", c.filePath, err)
-			}
-			//get bytes from base64 string
-			readBytes, err := base64.StdEncoding.DecodeString(er.EncryptedReport)
-			if err != nil {
-				log.Fatalf("error decoding base64 string from file %s: %v", c.filePath, err)
 			}
 			
 			if c.BlockchainClient == nil {
@@ -74,28 +57,23 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 				log.Fatalf("error retrieving public key to encrypt: %v", err)
 			}
 			// decrypt
-			decrypted, err := crypto.Decrypt(publicKey, c.Config.KeyP521, []byte(readBytes))
+			decrypted, err := crypto.Decrypt(publicKey, c.Config.KeyP521, er.EncryptedReport)
 			if err != nil {
 				log.Fatalf("error decrypting report payload: %v", err)
 			}
 			//unmarshall decrypted as json
 			strDecrypted := string(decrypted)
-			var decryptedReport DecryptedReport
+			var decryptedReport common.DecryptedReport
 			err = json.Unmarshal([]byte(strDecrypted), &decryptedReport)
 			if err != nil {
 				log.Fatalf("error unmarshalling json from decrypted report: %v", err)
 			}
-			//take report data and decode from base64
-			finalJson, err := base64.StdEncoding.DecodeString(decryptedReport.ReportDataBytes)
-			if err != nil {
-				log.Fatalf("error decoding base64 string from decrypted report: %v", err)
-			}
 
 			fmt.Println("Decrypted report:")
-			fmt.Printf("Application Id: %s\n", er.ApplicationId)
-			fmt.Printf("Report Id: %s\n", er.ReportId)
-			fmt.Printf("Request Id: %s\n", decryptedReport.RequestId)
-			fmt.Printf("Report Data: %s\n", string(finalJson))
+			fmt.Printf("Application Id: %s\n", er.ApplicationID)
+			fmt.Printf("Report Id: %s\n", er.ReportID)
+			fmt.Printf("Request Id: %s\n", decryptedReport.RequestID)
+			fmt.Printf("Report Data: %s\n", string(decryptedReport.ReportDataBytes))
 		},
 	}
 	cmd.Flags().StringVarP(&c.filePath, "path", "p", "", "The path of the file to decrypt (e.g., /path/to/file.txt).")

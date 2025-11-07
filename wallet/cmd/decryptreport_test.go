@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"os"
 	"testing"
 
+	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
@@ -25,22 +25,18 @@ func TestDecryptReport(t *testing.T) {
 
 	// create report
 	reportFinalJson := "{'accounts': ['0x1111']}"
-	//base64
-	encodedReportFinalJson := base64.StdEncoding.EncodeToString([]byte(reportFinalJson))
 	//create json object to encrypt
 	payload, err := json.Marshal(
-		DecryptedReport {
-			ApplicationId:  "1",
-			RequestId: "test-request-id",
-			ReportDataBytes: encodedReportFinalJson,
+		common.DecryptedReport {
+			ApplicationID:  "1",
+			RequestID: "test-request-id",
+			ReportDataBytes: []byte(reportFinalJson),
 		},
 	)
 	require.NoError(t, err)
 
 	encrypted, err := crypto.Encrypt(teeKey, key2.PublicKey(), []byte(payload))
 	require.NoError(t, err)
-	//encode as base64
-	encoded := base64.StdEncoding.EncodeToString(encrypted)
 
 	// write to file as json
 	tmpFile, err := os.CreateTemp("", "testreport-*.txt")
@@ -49,10 +45,10 @@ func TestDecryptReport(t *testing.T) {
 	defer os.Remove(filePath)
 
 	jsonData, err := json.Marshal(
-		Report{
-			ApplicationId:  "1",
-			ReportId:       "test-report-Id",
-			EncryptedReport: encoded,
+		common.DeanonymizationReport {
+			ApplicationID:  "1",
+			ReportID:       "test-report-Id",
+			EncryptedReport: encrypted,
 		},
 	)
 
