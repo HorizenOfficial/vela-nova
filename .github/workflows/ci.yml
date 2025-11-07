@@ -102,4 +102,35 @@ jobs:
           files: runtime/wasm-go/production_build/payment_app.wasm
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
+      
+      - name: Build wallet
+        run: |
+          cd wallet
+          mkdir -p releases
+          go build -o releases/wallet
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          release_name: Release ${{ github.event.release.tag_name }}
+          body: |
+            Release ${{ github.event.release.tag_name }} Horizen PES Nova Wallet
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./wallet/releases/wallet
+          asset_name: wallet-linux-${{ github.event.release.tag_name }}
+          asset_content_type: application/x-executable
+
 
