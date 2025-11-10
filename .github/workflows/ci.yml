@@ -98,7 +98,7 @@ jobs:
 
       - name: Test wallet
         run: |
-          cd ./wallet/test
+          cd ./wallet/cmd
           go test -v
           cd ../..
       
