@@ -69,6 +69,12 @@ jobs:
         env:
           CI_FLAG: ${{ matrix.ci_flag }}
 
+      - name: Test wallet 
+        run: |
+          cd ./wallet/
+          go test -v ./...
+          cd ..
+  
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -95,12 +101,6 @@ jobs:
       - name: Build production WASM module
         run: make production_build
         working-directory: runtime/wasm-go
-
-      - name: Test wallet
-        run: |
-          cd ./wallet/cmd
-          go test -v
-          cd ../..
       
       - name: Build wallet
         run: |
