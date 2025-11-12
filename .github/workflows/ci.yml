@@ -106,7 +106,7 @@ jobs:
         run: |
           cd wallet
           mkdir -p releases
-          go build -o releases/novaw-linux-${{ github.event.release.tag_name }}
+          go build -o releases/novaw-linux
           cd ..
 
       - name: Create GitHub Release with WASM and Wallet
