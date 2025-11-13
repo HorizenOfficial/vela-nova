@@ -3,18 +3,19 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/horizen-pes-nova/payment-app/utils"
+	"math/big"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes/pkg/common"
 	wasmCommon "github.com/horizen-pes/pkg/wasm/common"
 )
 
 // --- High-Level Application Logic ---
 
-func LoadModule(appId string) []byte {
+func LoadModule(appId int64) []byte {
 	initialState := &ApplicationInternalState{
 		AppID:    appId,
-		Accounts: make(map[string]*AccountState),
+		Accounts: make(map[ethCommon.Address]*AccountState),
 		Nonce:    0,
 	}
 	stateJSON, err := json.Marshal(initialState)
@@ -24,29 +25,36 @@ func LoadModule(appId string) []byte {
 	return stateJSON
 }
 
-func DepositFunds(sender string, value uint64, stateJSON string) wasmCommon.DepositResult {
+func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string) wasmCommon.DepositResult {
+	if senderPtr == nil {
+		return wasmCommon.DepositResult{Error: "Sender address is missing"}
+	}
+
+	sender := *senderPtr
+	//This should never happens but just in case
+	if value == nil {
+		return wasmCommon.DepositResult{Error: "value is nil"}
+	}
+
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
 		return wasmCommon.DepositResult{Error: "Failed to parse application state"}
-	}
-	if !utils.IsValidAddress(sender) {
-		return wasmCommon.DepositResult{Error: fmt.Sprintf("sender address is not valid: %s", sender)}
 	}
 
 	var events []common.PlainEvent
 
 	// Handle deposit
-	if value > 0 {
+	if value.Sign() > 0 {
 		// Ensure sender account exists
 		if currentState.Accounts[sender] == nil {
 			currentState.Accounts[sender] = &AccountState{
 				Address: sender,
-				Balance: 0,
+				Balance: big.NewInt(0),
 			}
 		}
 
 		// Add deposit to sender's balance
-		currentState.Accounts[sender].Balance += value
+		currentState.Accounts[sender].Balance.Add(currentState.Accounts[sender].Balance, value)
 		currentState.Nonce++
 
 		// Create deposit event
@@ -75,14 +83,15 @@ func DepositFunds(sender string, value uint64, stateJSON string) wasmCommon.Depo
 	return wasmCommon.DepositResult{State: newStateBytes, Events: events}
 }
 
-func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessResult {
+func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string) wasmCommon.ProcessResult {
+	if senderPtr == nil {
+		return wasmCommon.ProcessResult{Error: "Sender address is missing"}
+	}
+	sender := *senderPtr
 	// Deserialize current state
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
 		return wasmCommon.ProcessResult{Error: "Failed to parse application state"}
-	}
-	if !utils.IsValidAddress(sender) {
-		return wasmCommon.ProcessResult{Error: fmt.Sprintf("sender address is not valid: %s", sender)}
 	}
 
 	var events []common.PlainEvent
@@ -101,15 +110,12 @@ func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessRes
 				return wasmCommon.ProcessResult{Error: "Transfer instruction is missing"}
 			}
 
-			if !utils.IsValidAddress(instructions.Transfer.To) {
-				return wasmCommon.ProcessResult{Error: fmt.Sprintf("Transfer destination address is not valid: %s", instructions.Transfer.To)}
-			}
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[sender] == nil {
-				return wasmCommon.ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender)}
+				return wasmCommon.ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender.Hex())}
 			}
-			if currentState.Accounts[sender].Balance < instructions.Transfer.Amount {
+			if currentState.Accounts[sender].Balance.Cmp( instructions.Transfer.Amount) < 0 {
 				return wasmCommon.ProcessResult{Error: "Insufficient balance for transfer"}
 			}
 
@@ -117,13 +123,13 @@ func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessRes
 			if currentState.Accounts[instructions.Transfer.To] == nil {
 				currentState.Accounts[instructions.Transfer.To] = &AccountState{
 					Address: instructions.Transfer.To,
-					Balance: 0,
+					Balance: big.NewInt(0),
 				}
 			}
 
 			// Execute transfer
-			currentState.Accounts[sender].Balance -= instructions.Transfer.Amount
-			currentState.Accounts[instructions.Transfer.To].Balance += instructions.Transfer.Amount
+			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Transfer.Amount) 
+			currentState.Accounts[instructions.Transfer.To].Balance.Add(currentState.Accounts[instructions.Transfer.To].Balance, instructions.Transfer.Amount)
 			currentState.Nonce++
 
 			// Create events for both parties
@@ -171,12 +177,12 @@ func ProcessRequest(sender, payloadJSON, stateJSON string) wasmCommon.ProcessRes
 				return wasmCommon.ProcessResult{Error: "Account does not exist"}
 			}
 
-			if currentState.Accounts[sender].Balance < instructions.Withdraw.Amount {
+			if currentState.Accounts[sender].Balance.Cmp(instructions.Withdraw.Amount) < 0 {
 				return wasmCommon.ProcessResult{Error: "Insufficient balance for withdrawal"}
 			}
 
 			// Execute withdrawal
-			currentState.Accounts[sender].Balance -= instructions.Withdraw.Amount
+			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance,instructions.Withdraw.Amount)
 			currentState.Nonce++
 
 			// Create withdrawal
@@ -252,27 +258,27 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 
 // AccountState represents the state of a user account
 type AccountState struct {
-	Address string `json:"address"`
-	Balance uint64 `json:"balance"`
+	Address ethCommon.Address `json:"address"`
+	Balance *big.Int `json:"balance"`
 }
 
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    string                   `json:"appId"`
-	Accounts map[string]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	AppID   int64                                `json:"appId"`
+	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
+	Nonce    uint64                              `json:"nonce"`
 }
 
 // TransferInstruction represents instructions for transferring funds
 type TransferInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount *big.Int `json:"amount"`
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
 type WithdrawInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount *big.Int `json:"amount"`
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -283,7 +289,7 @@ type PayloadInstructions struct {
 }
 
 type UnencryptedDeanonymizationReportData struct {
-	Accounts map[string]*AccountState `json:"accounts"`
+	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
 	Nonce    uint64                   `json:"nonce"`
 }
 

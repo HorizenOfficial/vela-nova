@@ -5,12 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
+	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ type TestGetPrivateBalanceBlockChainClient struct {
 }
 
 // /rewrite GetUserEvents
-func (c *TestGetPrivateBalanceBlockChainClient) GetUserEvents(ctx context.Context, privKey cryptotypes.PrivateKeyP521, applicationId big.Int, fromBlock uint64, toBlock uint64, filter func([]byte) bool, stopAtFirst bool) ([][]byte, error) {
+func (c *TestGetPrivateBalanceBlockChainClient) GetUserEvents(ctx context.Context, privKey cryptotypes.PrivateKeyP521, applicationId common.ApplicationIdType, fromBlock uint64, toBlock uint64, filter func([]byte) bool, stopAtFirst bool) ([][]byte, error) {
 	if fromBlock < toBlock {
 		return [][]byte{}, fmt.Errorf("fromBlock should be greater than toBlock: %d, %d", fromBlock, toBlock)
 	}

@@ -30,7 +30,7 @@ func TestRequestReportCmd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the authority to be the testHelper manager account
-	tx := testHelper.AddAuthority(&NOVA_APPLICATION_ID, testHelper.ManagerAccount.From)
+	tx := testHelper.AddAuthority(NOVA_APPLICATION_ID, testHelper.ManagerAccount.From)
 	testHelper.WaitMined(tx)
 
 	t.Run("Command successful", func(t *testing.T) { 

@@ -107,15 +107,15 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//get json from event
-			var jsonData map[string]interface{}
+			var jsonData struct {
+				Balance *big.Int
+			}
 			err = json.Unmarshal(event, &jsonData)
 			if err != nil {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			wei := new(big.Float)
-			wei.SetFloat64(jsonData[BALANCE_JSON_KEY].(float64))
-			eth := new(big.Float).SetPrec(60).Quo(wei, big.NewFloat(1e18))
+			eth := new(big.Float).Quo(new(big.Float).SetInt(jsonData.Balance), big.NewFloat(1e18))
 			fmt.Println(eth.Text('f', 18))
 		},
 	}

@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"os/exec"
 	"testing"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes-nova/payment-app/app"
+	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +40,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
+	appId := common.NewApplicationId(1)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -45,7 +48,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(state, &stateData))
-	assert.Equal(t, appId, stateData.AppID)
+	assert.Equal(t, appId, common.ApplicationIdType(stateData.AppID))
 }
 
 func TestIntegration_Deposit(t *testing.T) {
@@ -54,9 +57,9 @@ func TestIntegration_Deposit(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	value := uint64(1_000_000_000_000_000_000)
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	value := big.NewInt(1_000_000_000_000_000_000)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -77,11 +80,11 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	recipient := fmt.Sprintf("0xadd%037x", 2)
-	depositValue := uint64(2_000_000_000_000_000_000)
-	transferValue := uint64(500_000_000_000_000_000)
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	recipient :=  ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
+	depositValue := big.NewInt(2_000_000_000_000_000_000)
+	transferValue := big.NewInt(500_000_000_000_000_000)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -102,7 +105,8 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
-	assert.Equal(t, depositValue-transferValue, stateData.Accounts[sender].Balance)
+	updatedBalance := new(big.Int).Sub(depositValue, transferValue)
+	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance)
 	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance)
 }
 
@@ -112,11 +116,11 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	depositValue := uint64(1_000_000_000_000_000_000)
-	withdrawValue := uint64(500_000_000_000_000_000)
-	withdrawAddress := "0x1234567890123456789012345678901234567890"
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	depositValue := big.NewInt(1_000_000_000_000_000_000)
+	withdrawValue := big.NewInt(500_000_000_000_000_000)
+	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -139,7 +143,8 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
-	assert.Equal(t, depositValue-withdrawValue, stateData.Accounts[sender].Balance)
+	updatedBalance := new(big.Int).Sub(depositValue, withdrawValue)
+	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance)
 }
 
 func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
@@ -150,14 +155,14 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	type reportStruct struct {
 		ApplicationID string                       `json:"applicationId"`
 		RequestID     string                       `json:"requestId"`
-		Accounts      map[string]*app.AccountState `json:"accounts"`
+		Accounts      map[ethCommon.Address]*app.AccountState `json:"accounts"`
 		Nonce         uint64                       `json:"nonce"`
 	}
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	value := uint64(1_000_000_000_000_000_000)
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	value := big.NewInt(1_000_000_000_000_000_000)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
