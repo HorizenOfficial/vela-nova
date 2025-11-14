@@ -61,7 +61,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Register user failed: %v\n", err)
 				return
 			}
 			if result {

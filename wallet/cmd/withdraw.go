@@ -79,7 +79,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Withdraw failed: %v\n", err)
 				return
 			}
 			

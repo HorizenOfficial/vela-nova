@@ -107,6 +107,6 @@ func TestWithdrawCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Withdrawal failed")
+	assert.Contains(t, output, "Withdraw failed: internal error (code 2)")
 
 }

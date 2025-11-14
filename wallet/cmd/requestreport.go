@@ -61,7 +61,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			fmt.Println("Waiting for confirmation from PES")
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Request report failed: %v\n", err)
 				return
 			}
 			if result {

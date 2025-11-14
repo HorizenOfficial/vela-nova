@@ -78,7 +78,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			fmt.Printf("Waiting for confirmation from PES for requestID: %s\n", requestID)
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Private transfer failed: %v\n", err)
 				return
 			}
 			

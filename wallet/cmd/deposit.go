@@ -62,7 +62,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Deposit failed: %v\n", err)
 				return
 			}
 			

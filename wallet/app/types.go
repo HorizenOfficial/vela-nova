@@ -183,8 +183,8 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 				continue
 			}
 			if result.Status != common.RequestResultOK {
-				fmt.Println("Request failed")
-				return false, nil
+				err := fmt.Errorf("%s (code %d)", result.ErrorMessage, result.ErrorCode)
+				return false, err
 			}
 			fmt.Println("Request completed successfully")
 			return true, nil

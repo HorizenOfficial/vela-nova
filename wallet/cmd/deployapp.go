@@ -52,7 +52,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Deploy app failed: %v\n", err)
 				return
 			}
 			if result {
