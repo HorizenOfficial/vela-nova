@@ -10,7 +10,7 @@ replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.7
+	github.com/horizen-pes v0.0.8
 	github.com/horizen-pes-nova/payment-app v0.0.0
 	github.com/magiconair/properties v1.8.10
 	github.com/spf13/cobra v1.9.1
