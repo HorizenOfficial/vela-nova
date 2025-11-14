@@ -1,0 +1,50 @@
+# Horizen Nova Wallet
+
+This is a command line wallet for the Horizen Nova Wallet.
+
+## Dependencies
+
+TODO: This will change when the github public repo will be available.
+
+This module depends on the `horizen-pes` repository.
+Since it is a private repo, you need to set Go to access Github private repos:
+
+go env -w GOPRIVATE=github.com/HorizenOfficial/*
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+
+## Building
+
+Execute the following command to produce an executable:
+
+```
+go build -o novaw
+```
+
+
+## Usage instructions:
+
+Launch the built executable  with the *help* option to obtain an help of all the commands available:
+
+```
+./novaw help
+```
+
+If you are starting a new wallet the first steps will be:
+
+1. Generate new private keys with the command:
+
+```
+novaw generatekeys
+```
+
+2. Create a wallet.conf file by using the wallet.conf.template provided and inserting the keys produced in step 1
+
+3. You are now ready for all the other actions: your keys will be automatically loaded at every execution.
+
+**[Do not share the keys with anyone!]**
+
+
+
+
+

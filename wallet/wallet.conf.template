@@ -1,0 +1,7 @@
+keyP521=
+keySecp256k1=
+rpcUrl=
+ProcessorAddress=
+TeeAuthenticatorAddress=
+BlockchainPollingInterval=
+BlockchainPollingTimeout=
