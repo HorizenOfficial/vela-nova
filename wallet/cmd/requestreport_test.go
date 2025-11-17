@@ -95,7 +95,7 @@ func TestRequestReportCmd(t *testing.T) {
 		output := buf.String()
 
 		fmt.Println(output)
-		assert.Contains(t, output, "Request report failed: internal error (code 2)")
+		assert.Contains(t, output, "Deanonymization request failed: internal error (code 2)")
 
 	})
 

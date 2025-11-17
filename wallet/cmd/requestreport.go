@@ -59,21 +59,16 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Printf("Request report failed: %v\n", err)
+				fmt.Printf("Deanonymization request failed: %v\n", err)
 				return
 			}
-			if result {
-				fmt.Printf("Deanonymization request completed successfully. Report id: %d_%s\n", NOVA_APPLICATION_ID.Uint64(), requestID)
-			} else {
-				fmt.Println("Deanonymization request failed")
-			}
+			fmt.Printf("Deanonymization request completed successfully. Report id: %d_%s\n", NOVA_APPLICATION_ID.Uint64(), requestID)
 
 
 		},
 	}
 	return cmd
 }
-
 

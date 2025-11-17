@@ -59,16 +59,12 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			fmt.Println("Waiting for confirmation from PES")
 
 
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
 				fmt.Printf("Register user failed: %v\n", err)
 				return
 			}
-			if result {
-				fmt.Println("Public key registered successfully")
-			} else {
-				fmt.Println("Public key registration failed")
-			}
+			fmt.Println("Public key registered successfully")
 
 
 		},
