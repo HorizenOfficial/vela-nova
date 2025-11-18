@@ -69,6 +69,12 @@ jobs:
         env:
           CI_FLAG: ${{ matrix.ci_flag }}
 
+      - name: Test wallet 
+        run: |
+          cd ./wallet/
+          go test -v ./...
+          cd ..
+  
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -95,11 +101,23 @@ jobs:
       - name: Build production WASM module
         run: make production_build
         working-directory: runtime/wasm-go
+      
+      - name: Build wallet
+        run: |
+          cd wallet
+          mkdir -p releases
+          go build -o releases/novaw-linux
+          cd ..
 
-      - name: Create GitHub Release with WASM
+      - name: Create GitHub Release with WASM and Wallet
         uses: softprops/action-gh-release@v2
         with:
-          files: runtime/wasm-go/production_build/payment_app.wasm
+          files: |
+            runtime/wasm-go/production_build/payment_app.wasm
+            wallet/releases/novaw-linux
+            wallet/wallet.conf.template
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
+
+
 

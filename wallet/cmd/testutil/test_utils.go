@@ -6,6 +6,7 @@ import (
 
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/blockchain/testutil"
+	"github.com/horizen-pes/pkg/common/apperrors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +37,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 		request, _, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			err = blockchainClient.MarkRequestFailed(context.Background(), request.RequestID)
+			err = blockchainClient.MarkRequestFailed(context.Background(), request.RequestID, apperrors.New(apperrors.CodeInternalFallback, "internal error", nil))
 			require.NoError(t, err)
 			return
 		}

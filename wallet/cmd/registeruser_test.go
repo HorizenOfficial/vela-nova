@@ -91,7 +91,7 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Public key registration failed")
+	assert.Contains(t, output, "Register user failed: internal error (code 2)")
 
 }
 

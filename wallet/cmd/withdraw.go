@@ -77,17 +77,13 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Withdrawal failed: %v\n", err)
 				return
 			}
 			
-			if result {
-				fmt.Println("Withdrawal completed successfully")
-			} else {
-				fmt.Println("Withdrawal failed")
-			}
+			fmt.Println("Withdrawal completed successfully")
 
 			
 		},
@@ -96,5 +92,4 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 	cmd.Flags().StringVarP(&c.receiver, "to", "", "", "The address that will receive the withdrawal amount")
 	return cmd
 }
-
 

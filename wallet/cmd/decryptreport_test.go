@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"testing"
 
+	"github.com/horizen-pes/pkg/common"
+	commontestutil "github.com/horizen-pes/pkg/common/testutil"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes-nova/wallet/cmd/testutil"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
@@ -20,17 +23,39 @@ func TestDecryptReport(t *testing.T) {
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
-	// generate encrypted payload
-	payload := "test report 12345"
+
+	// create report
+	reportFinalJson := "{'accounts': ['0x1111']}"
+	//create json object to encrypt
+	RequestID := commontestutil.GenerateRandomRequestID()
+	payload, err := json.Marshal(
+		common.DecryptedReport {
+			ApplicationID:  common.NewApplicationId(1),
+			RequestID: RequestID,
+			ReportDataBytes: []byte(reportFinalJson),
+		},
+	)
+	require.NoError(t, err)
+
 	encrypted, err := crypto.Encrypt(teeKey, key2.PublicKey(), []byte(payload))
 	require.NoError(t, err)
-	// write to file
+
+	// write to file as json
 	tmpFile, err := os.CreateTemp("", "testreport-*.txt")
 	require.NoError(t, err)
 	filePath := tmpFile.Name()
 	defer os.Remove(filePath)
-	
-	err = os.WriteFile(filePath, encrypted, 0644)
+
+	jsonData, err := json.Marshal(
+		common.DeanonymizationReport {
+			ApplicationID:  common.NewApplicationId(1),
+			ReportID:       RequestID,
+			EncryptedReport: encrypted,
+		},
+	)
+
+	require.NoError(t, err)
+	err = os.WriteFile(filePath, jsonData, 0644)
 	require.NoError(t, err)
 
 	// Redirect stdout
@@ -61,5 +86,5 @@ func TestDecryptReport(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 	
-	assert.Contains(t, output, payload)
+	assert.Contains(t, output, reportFinalJson)
 }
