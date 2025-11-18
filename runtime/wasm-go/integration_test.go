@@ -61,8 +61,8 @@ func TestIntegration_Deposit(t *testing.T) {
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	newState, events, err := runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
-	require.NoError(t, err)
+	newState, events, failure := runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 1)
 
 	var stateData app.ApplicationInternalState
@@ -85,8 +85,8 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
-	require.NoError(t, err)
+	state, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
+	require.Nil(t, failure)
 
 	payload := app.PayloadInstructions{
 		Type:     "transfer",
@@ -95,8 +95,8 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
-	require.NoError(t, err)
+	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
 
@@ -120,8 +120,8 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, err = runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
-	require.NoError(t, err)
+	state, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, state, wasmBytes)
+	require.Nil(t, failure)
 
 	payload := app.PayloadInstructions{
 		Type:     "withdraw",
@@ -130,8 +130,8 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
-	require.NoError(t, err)
+	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
 	assert.Equal(t, withdrawAddress, withdrawals[0].DestinationAddress)
@@ -161,11 +161,11 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, err = runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
-	require.NoError(t, err)
+	state, _, failure := runtime.Deposit(ctx, appId, sender, value, state, wasmBytes)
+	require.Nil(t, failure)
 
-	reportBytes, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
-	require.NoError(t, err)
+	reportBytes, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
 
 	var report reportStruct

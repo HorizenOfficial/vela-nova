@@ -60,17 +60,13 @@ func (c *DepositCommand) Command() *cobra.Command {
 			fmt.Println("Waiting for confirmation from PES")
 
 
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Deposit failed: %v\n", err)
 				return
 			}
 			
-			if result {
-				fmt.Println("Deposit completed successfully")
-			} else {
-				fmt.Println("Deposit failed")
-			}
+			fmt.Println("Deposit completed successfully")
 
 			
 		},

@@ -98,7 +98,8 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 
 	// Test Deposit
-	newState, events, err := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
+	newState, events, failure := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
+	require.Nil(t, failure)
 	require.NoError(t, err, "Deposit should succeed")
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
@@ -159,8 +160,8 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
-	require.NoError(t, err, "Deposit should succeed")
+	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
+	require.Nil(t, failure)
 
 	// Create transfer payload
 	transferPayload := PayloadInstructions{
@@ -174,8 +175,8 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err, "Should marshal transfer payload")
 
 	// Test ProcessRequest for transfer
-	newState, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, stateAfterDeposit, wasmBytes)
-	require.NoError(t, err, "ProcessRequest should succeed")
+	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, stateAfterDeposit, wasmBytes)
+	require.Nil(t, failure)
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 2, "Should generate two events (sender and recipient)")
 	require.Len(t, withdrawals, 0, "Should not generate withdrawals")
@@ -241,8 +242,8 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateAfterDeposit, _, err := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
-	require.NoError(t, err, "Deposit should succeed")
+	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
+	require.Nil(t, failure)
 
 	// Create withdrawal payload
 	withdrawPayload := PayloadInstructions{
@@ -256,8 +257,8 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err, "Should marshal withdrawal payload")
 
 	// Test ProcessRequest for withdrawal
-	newState, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, stateAfterDeposit, wasmBytes)
-	require.NoError(t, err, "ProcessRequest should succeed")
+	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, stateAfterDeposit, wasmBytes)
+	require.Nil(t, failure)
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
 	require.Len(t, withdrawals, 1, "Should generate one withdrawal")
@@ -315,12 +316,12 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateWithData, _, err := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
-	require.NoError(t, err, "Deposit should succeed")
+	stateWithData, _, failure := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
+	require.Nil(t, failure)
 
 	// Test GenerateDeanonymizationReport
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), stateWithData, wasmBytes)
-	require.NoError(t, err, "GenerateDeanonymizationReport should succeed")
+	report, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), stateWithData, wasmBytes)
+	require.Nil(t, failure)
 	require.NotNil(t, report, "Report should not be nil")
 
 	var reportData TestDeanonymizationReport
@@ -362,8 +363,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	t.Log("Step 2: Make deposit for user1")
 	depositValue := uint64(2000000000000000000) // 2 ETH
-	state, events, err := runtime.Deposit(ctx, appId, user1, depositValue, state, wasmBytes)
-	require.NoError(t, err, "Deposit should succeed")
+	state, events, failure := runtime.Deposit(ctx, appId, user1, depositValue, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 1)
 
 	t.Log("Step 3: Transfer from user1 to user2")
@@ -378,8 +379,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	payloadBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	state, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, user1, payloadBytes, state, wasmBytes)
-	require.NoError(t, err, "Transfer should succeed")
+	state, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, user1, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
 
@@ -397,14 +398,14 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	payloadBytes, err = json.Marshal(withdrawPayload)
 	require.NoError(t, err)
 
-	state, events, withdrawals, err = runtime.ProcessRequest(ctx, appId, user2, payloadBytes, state, wasmBytes)
-	require.NoError(t, err, "Withdrawal should succeed")
+	state, events, withdrawals, failure = runtime.ProcessRequest(ctx, appId, user2, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
 
 	t.Log("Step 5: Generate deanonymization report")
-	report, err := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
-	require.NoError(t, err, "Deanonymization report should succeed")
+	report, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	require.Nil(t, failure)
 	require.NotNil(t, report)
 
 	var stateData TestStateData
@@ -468,8 +469,9 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	for i := range 100 {
 		user := fmt.Sprintf("0xadd%037x", i)
 		value := uint64(1000000000000000000) // 1 ETH
-		state, _, err = runtime.Deposit(ctx, appId, user, value, state, wasmBytes)
-		require.NoError(t, err)
+		newState, _, failure := runtime.Deposit(ctx, appId, user, value, state, wasmBytes)
+		require.Nil(t, failure)
+		state = newState
 	}
 
 	// Verify the large state can still be processed
@@ -484,8 +486,8 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := fmt.Sprintf("0xadd%037x", 0)
-	_, events, withdrawals, err := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
-	require.NoError(t, err)
+	_, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
 	assert.Len(t, events, 2)
 	assert.Len(t, withdrawals, 0)
 }
@@ -611,8 +613,8 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, err = runtime.Deposit(ctx, appId, user1, value/2, state, wasmBytes)
-	require.NoError(t, err)
+	state, _, failure := runtime.Deposit(ctx, appId, user1, value/2, state, wasmBytes)
+	require.Nil(t, failure)
 
 	// Try to transfer without enough funds
 	transferPayload := PayloadInstructions{
@@ -709,9 +711,9 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test zero value deposit
-	newState, events, err := runtime.Deposit(ctx, appId, user1, 0, state, wasmBytes)
+	newState, events, failure := runtime.Deposit(ctx, appId, user1, 0, state, wasmBytes)
 
-	require.NoError(t, err, "Deposit with zero value should succeed")
+	require.Nil(t, failure)
 	require.Len(t, events, 0, "Zero value deposit should not generate any events")
 	require.NotNil(t, state, "State should not be nil after zero value deposit")
 	require.Equal(t, state, newState)

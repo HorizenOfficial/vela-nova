@@ -140,6 +140,6 @@ func TestDepositCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Deposit failed")
+	assert.Contains(t, output, "Deposit failed: internal error (code 2)")
 
 }

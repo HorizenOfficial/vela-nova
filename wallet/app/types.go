@@ -162,7 +162,7 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64, ctx context.Context) (bool, error) {
+func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64, ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()
@@ -183,15 +183,18 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uin
 				continue
 			}
 			if result.Status != common.RequestResultOK {
-				fmt.Println("Request failed")
-				return false, nil
+				failureMsg := result.ErrorMessage
+				if failureMsg == "" {
+					failureMsg = "request failed"
+				}
+				return fmt.Errorf("%s (code %d)", failureMsg, result.ErrorCode)
 			}
 			fmt.Println("Request completed successfully")
-			return true, nil
+			return nil
 
 		case <-timeoutCh:
 			fmt.Println("Timeout expired while waiting for confirmation from PES")
-			return false, fmt.Errorf("timeout expired while waiting for confirmation from PES")
+			return fmt.Errorf("timeout expired while waiting for confirmation from PES")
 		}
 	}
 	

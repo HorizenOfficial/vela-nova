@@ -50,16 +50,12 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			result, err := c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Deploy app failed: %v\n", err)
 				return
 			}
-			if result {
-				fmt.Println("Deploy app completed successfully")
-			} else {
-				fmt.Println("Deploy app failed")
-			}
+			fmt.Println("Deploy app completed successfully")
 		},
 	}
 	return cmd
