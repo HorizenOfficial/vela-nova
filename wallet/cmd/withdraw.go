@@ -58,7 +58,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: receiver, Amount: amount.Uint64()},
+				Withdraw: &runtimeapp.WithdrawInstruction{To: receiver, Amount: amount},
 			}
 
 			ctx := context.Background()
@@ -69,7 +69,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  &NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
 			if err != nil {
 				fmt.Printf("Error sending request to withdraw amount %s: %v\n", c.value, err)
 				return 

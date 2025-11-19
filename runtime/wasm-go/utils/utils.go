@@ -3,10 +3,12 @@ package utils
 import (
 	"encoding/binary"
 	"encoding/json"
-	"strings"
+	"math/big"
 	"unsafe"
 
 	appCommon "github.com/horizen-pes/pkg/wasm/common"
+	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/horizen-pes/pkg/common"
 )
 
 // --- WASM Memory Management Functions ---
@@ -87,44 +89,30 @@ func SerializeAndWriteResult(result any) *byte {
 	return StringToPtr(reportJSON)
 }
 
-// isValidAddress checks if a given string is a valid hexadecimal address.
-// We might use ethereum common util func but that would imply a lot of pkg dependancies in go.mod
-func IsValidAddress(address string) bool {
-	// Basic check:  Must start with "0x", be 42 characters long (including "0x"), and contain only hex characters.
-	if len(address) != 42 || !strings.HasPrefix(address, "0x") {
-		return false
-	}
-	for _, char := range address[2:] { // Skip "0x" prefix
-		if !strings.ContainsRune("0123456789abcdefABCDEF", char) {
-			return false
-		}
-	}
-	return true
-}
 
 // AccountState represents the state of a user account
 type AccountState struct {
-	Address string `json:"address"`
-	Balance uint64 `json:"balance"`
+	Address ethCommon.Address `json:"address"`
+	Balance big.Int `json:"balance"`
 }
 
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    string                   `json:"appId"`
-	Accounts map[string]*AccountState `json:"accounts"`
+	AppID    common.ApplicationIdType `json:"appId"`
+	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
 	Nonce    uint64                   `json:"nonce"`
 }
 
 // TransferInstruction represents instructions for transferring funds
 type TransferInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount big.Int `json:"amount"`
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
 type WithdrawInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount big.Int `json:"amount"`
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -132,4 +120,25 @@ type PayloadInstructions struct {
 	Type     string               `json:"type"`
 	Transfer *TransferInstruction `json:"transfer,omitempty"`
 	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+}
+
+
+// PtrToNonNegativeBigInt converts a WASM pointer and length representing the a big.Int value to a Go big.Int pointer.
+// The byte slice is obtained with the (big.Int).Bytes() method, i.e. it represents the absolute value in big-endian byte order, so the value is always non-negative.
+func PtrToNonNegativeBigInt(ptr *byte, length int32) *big.Int {
+	if ptr == nil || length == 0 {
+		return big.NewInt(0)
+	}
+
+	return new(big.Int).SetBytes(unsafe.Slice(ptr, length))
+}
+
+
+// PtrToAddress converts a WASM pointer and length to a ethereum address.
+func PtrToAddress(ptr *byte, length int32) *ethCommon.Address {
+	if ptr == nil || length == 0 {
+		return nil
+	}
+	address := ethCommon.BytesToAddress(unsafe.Slice(ptr, length))
+	return &address
 }

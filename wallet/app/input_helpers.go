@@ -80,7 +80,7 @@ func ParseEtherValue(valueStr string) (*big.Int, error) {
 // ValidateAndChecksumAddress checks if the input string is a valid 
 // Ethereum address and returns it in EIP-55 checksum format.
 // It returns an empty string and an error if the address is invalid.
-func ValidateAndChecksumAddress(address string) (string, error) {
+func ValidateAndChecksumAddress(address string) (common.Address, error) {
 	// 1. Clean the input string
 	// Remove leading/trailing whitespace and ensure we're dealing with a hex string.
 	addr := strings.TrimSpace(address)
@@ -88,14 +88,11 @@ func ValidateAndChecksumAddress(address string) (string, error) {
 	// 2. Validate the length and structure
 	// A valid address is 42 characters long (including '0x').
 	if !common.IsHexAddress(addr) {
-		return "", fmt.Errorf("invalid address format: not a valid hex address or incorrect length")
+		return common.Address{}, fmt.Errorf("invalid address format: not a valid hex address or incorrect length")
 	}
 
-	// The String() method on the common.Address type automatically returns 
-	// the address in EIP-55 checksum format if it's mixed-case, or all lowercase 
-	// if the original address was not mixed-case.
 
-	checksummed := common.HexToAddress(addr).String()
+	checksummed := common.HexToAddress(addr)
 	
 	return checksummed, nil
 }

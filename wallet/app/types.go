@@ -162,7 +162,7 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64, ctx context.Context) error {
+func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, blockNumber uint64, ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()

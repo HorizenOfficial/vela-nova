@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes/pkg/common"
 	wasm "github.com/horizen-pes/pkg/wasm"
 	wasmCommon "github.com/horizen-pes/pkg/wasm/common"
@@ -25,19 +28,19 @@ type PayloadInstructions struct {
 }
 
 type TransferInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount *big.Int            `json:"amount"`
 }
 
 type WithdrawInstruction struct {
-	To     string `json:"to"`
-	Amount uint64 `json:"amount"`
+	To     ethCommon.Address `json:"to"`
+	Amount *big.Int            `json:"amount"`
 }
 
 type AppState struct {
-	AppID    string `json:"appId"`
-	Accounts map[string]struct {
-		Balance uint64 `json:"balance"`
+	AppID    common.ApplicationIdType `json:"appId"`
+	Accounts map[ethCommon.Address] struct {
+		Balance *big.Int `json:"balance"`
 	} `json:"accounts"`
 	Nonce uint64 `json:"nonce"`
 }
@@ -52,7 +55,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 
 	// Test LoadModule
 	ctx := context.Background()
-	appId := "test-app"
+	appId := common.NewApplicationId(1)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
@@ -72,13 +75,13 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 func TestWasmtimeRuntime_Deposit(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance uint64 `json:"balance"`
+		Balance *big.Int `json:"balance"`
 	}
 
 	type TestStateData struct {
-		AppId    string                      `json:"appId"`
-		Accounts map[string]TestAccountState `json:"accounts"`
-		Nonce    uint64                      `json:"nonce"`
+		AppId    common.ApplicationIdType               `json:"appId"`
+		Accounts map[ethCommon.Address]TestAccountState `json:"accounts"`
+		Nonce    uint64                                 `json:"nonce"`
 	}
 
 	// Build and load the compiled WASM module
@@ -90,9 +93,9 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 
 	// Load module first
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	value := uint64(1000000000000000000) // 1 ETH
+	appId := common.NewApplicationId(1)
+	sender :=  ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	value := big.NewInt(1000000000000000000) // 1 ETH
 
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
@@ -126,20 +129,20 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance uint64 `json:"balance"`
+		Balance *big.Int `json:"balance"`
 	}
 
 	type TestStateData struct {
-		AppId    string                      `json:"appId"`
-		Accounts map[string]TestAccountState `json:"accounts"`
+		AppId    common.ApplicationIdType              `json:"appId"`
+		Accounts map[ethCommon.Address]TestAccountState `json:"accounts"`
 		Nonce    uint64                      `json:"nonce"`
 	}
 
 	type TestTransferEventData struct {
 		Type   string `json:"type"`
-		From   string `json:"from,omitempty"`
-		To     string `json:"to,omitempty"`
-		Amount uint64 `json:"amount"`
+		From   ethCommon.Address `json:"from,omitempty"`
+		To     ethCommon.Address `json:"to,omitempty"`
+		Amount *big.Int `json:"amount"`
 	}
 
 	// Build and load the compiled WASM module
@@ -150,11 +153,11 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	recipient := fmt.Sprintf("0xadd%037x", 2)
-	depositValue := uint64(2000000000000000000) // 2 ETH
-	transferValue := uint64(500000000000000000) // 0.5 ETH
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	recipient := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
+	depositValue := big.NewInt(2000000000000000000) // 2 ETH
+	transferValue := big.NewInt(500000000000000000) // 0.5 ETH
 
 	// Load module and make a deposit first
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -202,26 +205,27 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	err = json.Unmarshal(newState, &stateData)
 	require.NoError(t, err, "New state should be valid JSON")
 
-	assert.Equal(t, depositValue-transferValue, stateData.Accounts[sender].Balance)
+	updatedBalanceSender := new(big.Int).Sub(depositValue, transferValue)
+	assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance)
 	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance)
 }
 
 func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance uint64 `json:"balance"`
+		Balance *big.Int `json:"balance"`
 	}
 
 	type TestStateData struct {
-		AppId    string                      `json:"appId"`
-		Accounts map[string]TestAccountState `json:"accounts"`
+		AppId    common.ApplicationIdType              `json:"appId"`
+		Accounts map[ethCommon.Address]TestAccountState `json:"accounts"`
 		Nonce    uint64                      `json:"nonce"`
 	}
 
 	type TestWithdrawalEventData struct {
 		Type   string `json:"type"`
-		To     string `json:"to"`
-		Amount uint64 `json:"amount"`
+		To     ethCommon.Address `json:"to"`
+		Amount *big.Int `json:"amount"`
 	}
 
 	// Build and load the compiled WASM module
@@ -232,11 +236,11 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	depositValue := uint64(1000000000000000000) // 1 ETH
-	withdrawValue := uint64(500000000000000000) // 0.5 ETH
-	withdrawAddress := "0x1234567890123456789012345678901234567890"
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	depositValue := big.NewInt(1000000000000000000) // 1 ETH
+	withdrawValue := big.NewInt(500000000000000000) // 0.5 ETH
+	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	// Load module and make a deposit first
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -283,20 +287,21 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	var stateData TestStateData
 	err = json.Unmarshal(newState, &stateData)
 	require.NoError(t, err, "New state should be valid JSON")
+	updatedBalance := new(big.Int).Sub(depositValue, withdrawValue)
 
-	assert.Equal(t, depositValue-withdrawValue, stateData.Accounts[sender].Balance)
+	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance)
 }
 
 func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance uint64 `json:"balance"`
+		Balance *big.Int `json:"balance"`
 	}
 
 	type TestDeanonymizationReport struct {
-		ApplicationId string                      `json:"applicationId"`
-		RequestId     string                      `json:"requestId"`
-		Accounts      map[string]TestAccountState `json:"accounts"`
+		ApplicationId common.ApplicationIdType                      `json:"applicationId"`
+		RequestId     common.RequestIdType                      `json:"requestId"`
+		Accounts      map[ethCommon.Address]TestAccountState `json:"accounts"`
 		Nonce         uint64                      `json:"nonce"`
 	}
 
@@ -308,9 +313,9 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	sender := fmt.Sprintf("0xadd%037x", 1)
-	value := uint64(1000000000000000000) // 1 ETH
+	appId := common.NewApplicationId(1)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	value := big.NewInt(1000000000000000000) // 1 ETH
 
 	// Load module and make a deposit first to have some state
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -335,12 +340,12 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance uint64 `json:"balance"`
+		Balance *big.Int `json:"balance"`
 	}
 
 	type TestStateData struct {
-		AppId    string                      `json:"appId"`
-		Accounts map[string]TestAccountState `json:"accounts"`
+		AppId    common.ApplicationIdType                      `json:"appId"`
+		Accounts map[ethCommon.Address]TestAccountState `json:"accounts"`
 		Nonce    uint64                      `json:"nonce"`
 	}
 
@@ -352,9 +357,9 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "payment-app"
-	user1 := fmt.Sprintf("0xadd%037x", 1)
-	user2 := fmt.Sprintf("0xadd%037x", 2)
+	appId := common.NewApplicationId(1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 
 	t.Log("Step 1: Load module")
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -362,13 +367,13 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.NotNil(t, state)
 
 	t.Log("Step 2: Make deposit for user1")
-	depositValue := uint64(2000000000000000000) // 2 ETH
+	depositValue := big.NewInt(2000000000000000000) // 2 ETH
 	state, events, failure := runtime.Deposit(ctx, appId, user1, depositValue, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 
 	t.Log("Step 3: Transfer from user1 to user2")
-	transferValue := uint64(500000000000000000) // 0.5 ETH
+	transferValue := big.NewInt(500000000000000000) // 0.5 ETH
 	transferPayload := PayloadInstructions{
 		Type: "transfer",
 		Transfer: &TransferInstruction{
@@ -386,8 +391,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	t.Log("Step 4: Withdraw from user2")
 	// Create withdrawal payload
-	withdrawValue := uint64(250000000000000000) // 0.25 ETH
-	withdrawAddress := "0x1234567890123456789012345678901234567890"
+	withdrawValue := big.NewInt(250000000000000000) // 0.25 ETH
+	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	withdrawPayload := PayloadInstructions{
 		Type: "withdraw",
 		Withdraw: &WithdrawInstruction{
@@ -412,8 +417,10 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	err = json.Unmarshal(state, &stateData)
 	require.NoError(t, err)
 
-	assert.Equal(t, depositValue-transferValue, stateData.Accounts[user1].Balance)
-	assert.Equal(t, transferValue-withdrawValue, stateData.Accounts[user2].Balance)
+	user1UpdatedBalance := new(big.Int).Sub(depositValue, transferValue)
+	user2UpdatedBalance := new(big.Int).Sub(transferValue, withdrawValue)
+	assert.Equal(t, user1UpdatedBalance, stateData.Accounts[user1].Balance)
+	assert.Equal(t, user2UpdatedBalance, stateData.Accounts[user2].Balance)
 
 	t.Log("Full workflow completed successfully!")
 }
@@ -434,7 +441,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			appId := fmt.Sprintf("concurrent-app-%d", id)
+			appId := common.NewApplicationId(int64(id))
 			_, err := runtime.LoadModule(ctx, appId, wasmBytes)
 			if err != nil {
 				errors <- err
@@ -458,7 +465,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "large-state-app"
+	appId := common.NewApplicationId(1)
 
 	// Load module and make many deposits to create large state
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -467,8 +474,8 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	// Make 100 deposits to create a large state
 	// Tested up to 6k, after 6k app is very slow and failing randomly: TODO check this!
 	for i := range 100 {
-		user := fmt.Sprintf("0xadd%037x", i)
-		value := uint64(1000000000000000000) // 1 ETH
+		user := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
+		value := big.NewInt(1000000000000000000) // 1 ETH
 		newState, _, failure := runtime.Deposit(ctx, appId, user, value, state, wasmBytes)
 		require.Nil(t, failure)
 		state = newState
@@ -478,14 +485,14 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	transferPayload := PayloadInstructions{
 		Type: "transfer",
 		Transfer: &TransferInstruction{
-			To:     fmt.Sprintf("0xadd%037x", 1),
-			Amount: uint64(500000000000000000),
+			To:     ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1)),
+			Amount: big.NewInt(500000000000000000),
 		},
 	}
 	payloadBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	sender := fmt.Sprintf("0xadd%037x", 0)
+	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 0))
 	_, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	assert.Len(t, events, 2)
@@ -497,7 +504,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "invalid-app"
+	appId := common.NewApplicationId(1)
 	invalidWasm := []byte("invalid wasm bytes")
 
 	_, err := runtime.LoadModule(ctx, appId, invalidWasm)
@@ -510,7 +517,7 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "empty-app"
+	appId := common.NewApplicationId(1)
 	emptyWasm := []byte{}
 
 	_, err := runtime.LoadModule(ctx, appId, emptyWasm)
@@ -526,25 +533,28 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	user1 := fmt.Sprintf("0xadd%037x", 1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	appId := common.NewApplicationId(1)
 
 	t.Run("NilWasmBytes", func(t *testing.T) {
-		_, err := runtime.LoadModule(ctx, "test-app", nil)
+		_, err := runtime.LoadModule(ctx, appId, nil)
 		assert.Error(t, err)
 	})
 
-	t.Run("EmptyAppId", func(t *testing.T) {
-		_, err := runtime.LoadModule(ctx, "", wasmBytes)
+	t.Run("InvalidAppId", func(t *testing.T) {
+		appId := common.ApplicationIdType(math.MaxInt64 + 1) // Invalid app ID
+		_, err := runtime.LoadModule(ctx, appId, wasmBytes)
 		// This might succeed depending on implementation, but state should be testable
 		if err == nil {
-			// Verify we can't use empty app ID for operations
-			_, _, err = runtime.Deposit(ctx, "", user1, 1000, []byte("{}"), wasmBytes)
+			// Verify we can't use invalid app ID for operations
+			_, _, err = runtime.Deposit(ctx, appId, user1, big.NewInt(1000), []byte("{}"), wasmBytes)
 			assert.Error(t, err)
 		}
 	})
 
 	t.Run("NilState", func(t *testing.T) {
-		_, _, err := runtime.Deposit(ctx, "test-app", user1, 1000, nil, wasmBytes)
+		appId := common.NewApplicationId(1)
+		_, _, err := runtime.Deposit(ctx, appId, user1, big.NewInt(1000), nil, wasmBytes)
 		assert.Error(t, err)
 	})
 }
@@ -557,9 +567,9 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	user1 := fmt.Sprintf("0xadd%037x", 1)
-	user2 := fmt.Sprintf("0xadd%037x", 2)
+	appId := common.NewApplicationId(1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -605,15 +615,16 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	user1 := fmt.Sprintf("0xadd%037x", 1)
-	user2 := fmt.Sprintf("0xadd%037x", 2)
-	value := uint64(12345678901234567890) // # fits in uint64, > max int64
+	appId := common.NewApplicationId(1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
+	value := new (big.Int).SetUint64(12345678901234567890) // # fits in uint64, > max int64
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, failure := runtime.Deposit(ctx, appId, user1, value/2, state, wasmBytes)
+	deposit := new(big.Int).Div(value, big.NewInt(2))
+	state, _, failure := runtime.Deposit(ctx, appId, user1, deposit, state, wasmBytes)
 	require.Nil(t, failure)
 
 	// Try to transfer without enough funds
@@ -636,7 +647,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "memory-test-app"
+	appId := common.NewApplicationId(1)
 
 	// Create an extremely large payload
 	largePayload := make([]byte, 10*1024*1024) // 10MB
@@ -651,7 +662,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	user1 := fmt.Sprintf("0xadd%037x", 1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	_, _, _, err = runtime.ProcessRequest(ctx, appId, user1, largePayload, state, wasmBytes)
 	// should not panic but return an error that the payload does not conform to the expected format
 	require.Error(t, err)
@@ -666,13 +677,13 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "test-app"
-	user1 := fmt.Sprintf("0xadd%037x", 1)
+	appId := common.NewApplicationId(1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 
 	// Use corrupted state
 	corruptedState := []byte("corrupted state data")
 
-	state, events, err := runtime.Deposit(ctx, appId, user1, 1000, corruptedState, wasmBytes)
+	state, events, err := runtime.Deposit(ctx, appId, user1, big.NewInt(1000), corruptedState, wasmBytes)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to parse application state")
 	require.Equal(t, []byte(nil), state)
@@ -687,11 +698,10 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "multiple-load-test-app"
 
 	// Load same module multiple times (TODO this will change)
 	for i := 0; i < 5; i++ {
-		_, err := runtime.LoadModule(ctx, fmt.Sprintf("%s-%d", appId, i), wasmBytes)
+		_, err := runtime.LoadModule(ctx, common.NewApplicationId(int64(i)), wasmBytes)
 		require.NoError(t, err)
 	}
 }
@@ -704,14 +714,14 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "zero-value-app"
-	user1 := fmt.Sprintf("0xadd%037x", 1)
+	appId := common.NewApplicationId(1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
 	// Test zero value deposit
-	newState, events, failure := runtime.Deposit(ctx, appId, user1, 0, state, wasmBytes)
+	newState, events, failure := runtime.Deposit(ctx, appId, user1, big.NewInt(0), state, wasmBytes)
 
 	require.Nil(t, failure)
 	require.Len(t, events, 0, "Zero value deposit should not generate any events")
@@ -727,7 +737,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	defer runtime.Close()
 
 	ctx := context.Background()
-	appId := "invalid-instruction-app"
+	appId := common.NewApplicationId(1)
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -738,7 +748,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	payloadBytes, err := json.Marshal(invalidPayload)
 	require.NoError(t, err)
 
-	user1 := fmt.Sprintf("0xadd%037x", 1)
+	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	_, _, _, err = runtime.ProcessRequest(ctx, appId, user1, payloadBytes, state, wasmBytes)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Unsupported instruction type")

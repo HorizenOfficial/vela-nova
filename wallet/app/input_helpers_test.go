@@ -105,24 +105,24 @@ func TestValidateAndChecksumAddress(t *testing.T) {
 	input = "0x12396eE1F85b76b1e33BE56d6bd0c6545d47BDEA"
 	address, err := ValidateAndChecksumAddress(input)
 	require.NoError(t, err)
-	require.Equal(t, input, address)
+	require.Equal(t, input, address.String())
 
 	address, err = ValidateAndChecksumAddress(strings.ToUpper(input))
 	require.NoError(t, err)
-	require.Equal(t, input, address)
+	require.Equal(t, input, address.String())
 
 	address, err = ValidateAndChecksumAddress(strings.ToLower(input))
 	require.NoError(t, err)
-	require.Equal(t, input, address)
+	require.Equal(t, input, address.String())
 
 	//With spaces
 	address, err = ValidateAndChecksumAddress("  0x12396eE1F85b76b1e33BE56d6bd0c6545d47BDEA  ")
 	require.NoError(t, err)
-	require.Equal(t, input, address)
+	require.Equal(t, input, address.String())
 
 	//Without 0x
 	address, err = ValidateAndChecksumAddress("12396eE1F85b76b1e33BE56d6bd0c6545d47BDEA")
 	require.NoError(t, err)
-	require.Equal(t, input, address)
+	require.Equal(t, input, address.String())
 
 }
