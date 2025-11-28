@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
@@ -41,6 +42,7 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 	}, blockchainClient).Command()
 
 	cmd.Flags().Set("amount", "pippo")
+	cmd.Flags().Set("max-value-fee", "pippo")
 
 	cmd.Run(nil, nil)
 
@@ -82,9 +84,10 @@ func TestDepositCmd(t *testing.T) {
 	}, blockchainClient).Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	// To be honest, it should be a StateUpdate but for the test it is enough, for now
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
 
 	cmd.Run(nil, nil)
 
@@ -126,6 +129,7 @@ func TestDepositCmdFailure(t *testing.T) {
 	}, blockchainClient).Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.FailNextRequest(t, testHelper)
 

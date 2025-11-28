@@ -22,6 +22,7 @@ func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Cli
 
 type RequestReportCommand struct {
 	*app.ChainCommand
+	maxFeeValue string
 }
 
 
@@ -31,6 +32,12 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		Short: `requests a deanonymization report of the balances of Nova app`,
 		Long:  `requests a deanonymization report of the balances of Nova app`,
 		Run: func(cmd *cobra.Command, args []string) {
+
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
+				return
+			}
 
 			if c.BlockchainClient == nil {
 				//create blockchain client
@@ -52,7 +59,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			
 			value := big.NewInt(0)
 			requestType := common.Deanonymize
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, value)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, value, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to generate a deanonymization report: %v\n", err)
 				return
@@ -69,6 +76,8 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 
 		},
 	}
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	_ = cmd.MarkFlagRequired("max-value-fee")
 	return cmd
 }
 

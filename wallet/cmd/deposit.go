@@ -10,12 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 type DepositCommand struct {
 	*app.ChainCommand
-	value string
+	value       string
+	maxFeeValue string
 }
-
 
 func NewDepositCommand(config *app.Config, blockchainClient blockchain.Client) *DepositCommand {
 	cmd := &DepositCommand{
@@ -30,48 +29,55 @@ func (c *DepositCommand) Command() *cobra.Command {
 		Use:   "deposit",
 		Short: `deposit funds into the PES system`,
 		Long:  `deposit funds into the PES system`,
-		Run: func(cmd *cobra.Command, args []string)  {
+		Run: func(cmd *cobra.Command, args []string) {
 
 			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
 			}
+
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
+				return
+			}
+
 			if c.BlockchainClient == nil {
 				//create blockchain client
 				if err := c.InitChainClient(); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return 
+					return
 
 				}
-			} 
+			}
 			defer c.CloseClient()
 
 			ctx := context.Background()
 			var payload []byte
-			
+
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.value, err)
-				return 
+				return
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
-
 
 			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
 				fmt.Printf("Deposit failed: %v\n", err)
 				return
 			}
-			
+
 			fmt.Println("Deposit completed successfully")
 
-			
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	_ = cmd.MarkFlagRequired("max-value-fee")
+
 	return cmd
 }
-

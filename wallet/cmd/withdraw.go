@@ -16,6 +16,7 @@ import (
 type WithdrawCommand struct {
 	*app.ChainCommand
 	value string
+	maxFeeValue string
 	receiver string
 }
 
@@ -38,6 +39,12 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
+				return
+			}
+
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
 				return
 			}
 
@@ -69,7 +76,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0))
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to withdraw amount %s: %v\n", c.value, err)
 				return 
@@ -90,6 +97,8 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to withdraw (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
 	cmd.Flags().StringVarP(&c.receiver, "to", "", "", "The address that will receive the withdrawal amount")
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	_ = cmd.MarkFlagRequired("max-value-fee")
 	return cmd
 }
 

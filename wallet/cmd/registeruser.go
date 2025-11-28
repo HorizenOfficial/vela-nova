@@ -21,6 +21,7 @@ func NewRegisterUserCommand(config *app.Config, blockchainClient blockchain.Clie
 
 type RegisterUserCommand struct {
 	*app.ChainCommand
+	maxFeeValue string
 }
 
 
@@ -30,6 +31,12 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 		Short: `register the association [address, encryption key (P521)] of the wallet into the PES system`,
 		Long:  `register the association [address, encryption key (P521)] of the wallet into the PES system`,
 		Run: func(cmd *cobra.Command, args []string) {
+
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
+				return
+			}
 
 			if c.BlockchainClient == nil {
 				//create blockchain client
@@ -50,7 +57,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			value := big.NewInt(0)
 		
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, payload, value)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, payload, value, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v\n", err)
 				return
@@ -68,6 +75,9 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 
 
 		},
+	
 	}
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	_ = cmd.MarkFlagRequired("max-value-fee")
 	return cmd
 }
