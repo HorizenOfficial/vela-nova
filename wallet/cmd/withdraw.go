@@ -97,8 +97,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to withdraw (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
 	cmd.Flags().StringVarP(&c.receiver, "to", "", "", "The address that will receive the withdrawal amount")
-	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
-	_ = cmd.MarkFlagRequired("max-value-fee")
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	return cmd
 }
 

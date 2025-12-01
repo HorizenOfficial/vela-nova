@@ -65,7 +65,6 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 			fmt.Println("Deploy app completed successfully")
 		},
 	}
-	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
-	_ = cmd.MarkFlagRequired("max-value-fee")
+	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	return cmd
 }

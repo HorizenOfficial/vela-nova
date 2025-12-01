@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDepositCmdInvalidInput(t *testing.T) {
+func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -42,7 +42,7 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 	}, blockchainClient).Command()
 
 	cmd.Flags().Set("amount", "pippo")
-	cmd.Flags().Set("max-value-fee", "pippo")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	cmd.Run(nil, nil)
 
@@ -56,6 +56,48 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 
 	fmt.Println(output)
 	assert.Contains(t, output, "invalid amount")
+
+}
+
+func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
+	// Redirect stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
+	// Execute the command
+	cmd := NewDepositCommand(&app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
+	}, blockchainClient).Command()
+
+	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "pippo")
+
+	cmd.Run(nil, nil)
+
+	// Restore stdout
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	fmt.Println(output)
+	assert.Contains(t, output, "invalid max fee amount")
 
 }
 
@@ -146,4 +188,47 @@ func TestDepositCmdFailure(t *testing.T) {
 	fmt.Println(output)
 	assert.Contains(t, output, "Deposit failed: internal error (code 2)")
 
+}
+
+func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
+	// Redirect stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
+
+	cmd := NewDepositCommand(&app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
+	}, blockchainClient).Command()
+
+	// Only sete amount; max-value-fee should use default value (100 wei)
+	cmd.Flags().Set("amount", "333 wei")
+
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
+
+	cmd.Run(nil, nil)
+
+	// Restore stdout
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	fmt.Println(output)
+	assert.Contains(t, output, "Deposit completed successfully")
 }
