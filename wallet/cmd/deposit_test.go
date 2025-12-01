@@ -214,7 +214,7 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 		BlockchainPollingTimeout:  10,
 	}, blockchainClient).Command()
 
-	// Only sete amount; max-value-fee should use default value (100 wei)
+	// Only set amount; max-value-fee should use default value (100 wei)
 	cmd.Flags().Set("amount", "333 wei")
 
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))

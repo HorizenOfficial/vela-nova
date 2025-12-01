@@ -12,14 +12,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 type WithdrawCommand struct {
 	*app.ChainCommand
-	value string
+	value       string
 	maxFeeValue string
-	receiver string
+	receiver    string
 }
-
 
 func NewWithdrawCommand(config *app.Config, blockchainClient blockchain.Client) *WithdrawCommand {
 	cmd := &WithdrawCommand{
@@ -34,7 +32,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 		Use:   "withdraw",
 		Short: `withdraw funds from the PES system`,
 		Long:  `withdraw funds from the PES system and send them to a receiver address`,
-		Run: func(cmd *cobra.Command, args []string)  {
+		Run: func(cmd *cobra.Command, args []string) {
 
 			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {
@@ -58,9 +56,9 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				//create blockchain client
 				if err := c.InitChainClient(); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return 
+					return
 				}
-			} 
+			}
 			defer c.CloseClient()
 
 			payload := runtimeapp.PayloadInstructions{
@@ -72,14 +70,14 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting withdraw payload: %v\n", err)
-				return 
+				return
 			}
 
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to withdraw amount %s: %v\n", c.value, err)
-				return 
+				return
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
@@ -89,15 +87,13 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				fmt.Printf("Withdrawal failed: %v\n", err)
 				return
 			}
-			
+
 			fmt.Println("Withdrawal completed successfully")
 
-			
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to withdraw (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
 	cmd.Flags().StringVarP(&c.receiver, "to", "", "", "The address that will receive the withdrawal amount")
-	cmd.Flags().StringVar(&c.maxFeeValue, "max-value-fee", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	return cmd
 }
-
