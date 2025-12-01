@@ -95,13 +95,13 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 	sender :=  ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	value := big.NewInt(1000000000000000000) // 1 ETH
+	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
 
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
 	// Test Deposit
-	newState, events, failure := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
+	newState, events, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.NoError(t, err, "Deposit should succeed")
 	require.NotNil(t, newState, "New state should not be nil")
@@ -115,7 +115,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	err = json.Unmarshal(event.Data, &eventData)
 	require.NoError(t, err, "Event data should be valid JSON")
 	assert.Equal(t, "deposit", eventData.Type)
-	assert.Equal(t, value, eventData.Amount)
+	assert.Equal(t, depositAmount, eventData.Amount)
 
 	// Verify the state was updated
 	var stateData TestStateData
@@ -123,7 +123,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.NoError(t, err, "New state should be valid JSON")
 
 	require.Contains(t, stateData.Accounts, sender)
-	assert.Equal(t, value, stateData.Accounts[sender].Balance)
+	assert.Equal(t, depositAmount, stateData.Accounts[sender].Balance)
 }
 
 func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
@@ -156,14 +156,14 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	recipient := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
-	depositValue := big.NewInt(2000000000000000000) // 2 ETH
+	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
 	transferValue := big.NewInt(500000000000000000) // 0.5 ETH
 
 	// Load module and make a deposit first
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
+	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 
 	// Create transfer payload
@@ -205,7 +205,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	err = json.Unmarshal(newState, &stateData)
 	require.NoError(t, err, "New state should be valid JSON")
 
-	updatedBalanceSender := new(big.Int).Sub(depositValue, transferValue)
+	updatedBalanceSender := new(big.Int).Sub(depositAmount, transferValue)
 	assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance)
 	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance)
 }
@@ -238,7 +238,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	depositValue := big.NewInt(1000000000000000000) // 1 ETH
+	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
 	withdrawValue := big.NewInt(500000000000000000) // 0.5 ETH
 	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
@@ -246,7 +246,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositValue, initialState, wasmBytes)
+	stateAfterDeposit, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 
 	// Create withdrawal payload
@@ -287,7 +287,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	var stateData TestStateData
 	err = json.Unmarshal(newState, &stateData)
 	require.NoError(t, err, "New state should be valid JSON")
-	updatedBalance := new(big.Int).Sub(depositValue, withdrawValue)
+	updatedBalance := new(big.Int).Sub(depositAmount, withdrawValue)
 
 	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance)
 }
@@ -315,13 +315,13 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	value := big.NewInt(1000000000000000000) // 1 ETH
+	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
 
 	// Load module and make a deposit first to have some state
 	initialState, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err, "LoadModule should succeed")
 
-	stateWithData, _, failure := runtime.Deposit(ctx, appId, sender, value, initialState, wasmBytes)
+	stateWithData, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 
 	// Test GenerateDeanonymizationReport
@@ -334,7 +334,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	require.NoError(t, err, "Report should be valid JSON")
 
 	require.Contains(t, reportData.Accounts, sender)
-	assert.Equal(t, value, reportData.Accounts[sender].Balance)
+	assert.Equal(t, depositAmount, reportData.Accounts[sender].Balance)
 }
 
 func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
@@ -367,8 +367,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.NotNil(t, state)
 
 	t.Log("Step 2: Make deposit for user1")
-	depositValue := big.NewInt(2000000000000000000) // 2 ETH
-	state, events, failure := runtime.Deposit(ctx, appId, user1, depositValue, state, wasmBytes)
+	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
+	state, events, failure := runtime.Deposit(ctx, appId, user1, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 
@@ -417,7 +417,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	err = json.Unmarshal(state, &stateData)
 	require.NoError(t, err)
 
-	user1UpdatedBalance := new(big.Int).Sub(depositValue, transferValue)
+	user1UpdatedBalance := new(big.Int).Sub(depositAmount, transferValue)
 	user2UpdatedBalance := new(big.Int).Sub(transferValue, withdrawValue)
 	assert.Equal(t, user1UpdatedBalance, stateData.Accounts[user1].Balance)
 	assert.Equal(t, user2UpdatedBalance, stateData.Accounts[user2].Balance)
@@ -475,8 +475,8 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	// Tested up to 6k, after 6k app is very slow and failing randomly: TODO check this!
 	for i := range 100 {
 		user := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
-		value := big.NewInt(1000000000000000000) // 1 ETH
-		newState, _, failure := runtime.Deposit(ctx, appId, user, value, state, wasmBytes)
+		depositAmount := big.NewInt(1000000000000000000) // 1 ETH
+		newState, _, failure := runtime.Deposit(ctx, appId, user, depositAmount, state, wasmBytes)
 		require.Nil(t, failure)
 		state = newState
 	}
@@ -618,12 +618,12 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
-	value := new (big.Int).SetUint64(12345678901234567890) // # fits in uint64, > max int64
+	depositAmount := new (big.Int).SetUint64(12345678901234567890) // # fits in uint64, > max int64
 
 	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	deposit := new(big.Int).Div(value, big.NewInt(2))
+	deposit := new(big.Int).Div(depositAmount, big.NewInt(2))
 	state, _, failure := runtime.Deposit(ctx, appId, user1, deposit, state, wasmBytes)
 	require.Nil(t, failure)
 
@@ -632,7 +632,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 		Type: "transfer",
 		Transfer: &TransferInstruction{
 			To:     user2,
-			Amount: value,
+			Amount: depositAmount,
 		},
 	}
 	payloadBytes, _ := json.Marshal(transferPayload)
