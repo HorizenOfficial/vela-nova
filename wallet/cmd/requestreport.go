@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Client) *RequestReportCommand {
 	return &RequestReportCommand{
 		ChainCommand: app.NewChainCommand(config, blockchainClient),
@@ -22,8 +21,8 @@ func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Cli
 
 type RequestReportCommand struct {
 	*app.ChainCommand
+	maxFeeValue string
 }
-
 
 func (c *RequestReportCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -32,13 +31,19 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		Long:  `requests a deanonymization report of the balances of Nova app`,
 		Run: func(cmd *cobra.Command, args []string) {
 
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
+				return
+			}
+
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err :=c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return 
+					return
 				}
-			} 
+			}
 			defer c.CloseClient()
 
 			payload := runtimeapp.ReportPayloadInstructions{} //empty for now
@@ -47,12 +52,12 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)
-				return 
+				return
 			}
-			
+
 			depositAmount := big.NewInt(0)
 			requestType := common.Deanonymize
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to generate a deanonymization report: %v\n", err)
 				return
@@ -66,9 +71,8 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 			fmt.Printf("Deanonymization request completed successfully. Report id: %s_%s\n", NOVA_APPLICATION_ID, requestID)
 
-
 		},
 	}
+	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	return cmd
 }
-

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestRequestReportCmd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the authority to be the testHelper manager account
-	tx := testHelper.AddAuthority(NOVA_APPLICATION_ID, testHelper.ManagerAccount.From)
+	tx := testHelper.AddAuthority(big.NewInt(1), testHelper.ManagerAccount.From) // TODO ML NOVA_APPLICATION_ID should be used but there are consistency problems, will be fixed, already created a task but adding this TODO to not forget that we need to take care about this here as well
 	testHelper.WaitMined(tx)
 
 	t.Run("Command successful", func(t *testing.T) { 
@@ -49,8 +50,9 @@ func TestRequestReportCmd(t *testing.T) {
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
 		}, blockchainClient).Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
 
-		go testutil.CompleteNextRequest(t, testHelper)
+		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(80), big.NewInt(20))
 		cmd.Run(nil, nil)
 
 		// Restore stdout
@@ -82,6 +84,7 @@ func TestRequestReportCmd(t *testing.T) {
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
 		}, blockchainClient).Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.FailNextRequest(t, testHelper)
 		cmd.Run(nil, nil)

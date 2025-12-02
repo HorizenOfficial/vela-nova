@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 func NewRegisterUserCommand(config *app.Config, blockchainClient blockchain.Client) *RegisterUserCommand {
 	return &RegisterUserCommand{
 		ChainCommand: app.NewChainCommand(config, blockchainClient),
@@ -21,8 +20,8 @@ func NewRegisterUserCommand(config *app.Config, blockchainClient blockchain.Clie
 
 type RegisterUserCommand struct {
 	*app.ChainCommand
+	maxFeeValue string
 }
-
 
 func (c *RegisterUserCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -31,14 +30,20 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 		Long:  `register the association [address, encryption key (P521)] of the wallet into the PES system`,
 		Run: func(cmd *cobra.Command, args []string) {
 
+			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+			if err != nil {
+				fmt.Printf("Error: invalid max fee amount: %v\n", err)
+				return
+			}
+
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				 if err :=c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return 
+					return
 
-				 }
-			} 
+				}
+			}
 			defer c.CloseClient()
 
 			if c.Config.KeyP521 == nil {
@@ -47,17 +52,17 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			}
 			ctx := context.Background()
 			payload := c.Config.KeyP521.PublicKey().Bytes()
+
 			depositAmount := big.NewInt(0)
-		
+
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION,  NOVA_APPLICATION_ID, requestType, payload, depositAmount)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v\n", err)
 				return
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
-
 
 			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
 			if err != nil {
@@ -66,8 +71,8 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			}
 			fmt.Println("Public key registered successfully")
 
-
 		},
 	}
+	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	return cmd
 }

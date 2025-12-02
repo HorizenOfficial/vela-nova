@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
@@ -30,8 +31,9 @@ func TestDeployAppCommand_Success(t *testing.T) {
 
 	deployCmd := NewDeployAppCommand(config, blockchainClient)
 	cmd := deployCmd.Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 	cmd.Run(nil, []string{"1"})
 
 	// Restore stdout

@@ -11,8 +11,8 @@ import (
 
 //export load_module
 func load_module(appId int64) *byte {
-	stateBytes := app.LoadModule(appId)
-	return utils.StringToPtr(stateBytes)
+	result := app.LoadModule(appId)
+	return utils.SerializeAndWriteResult(result)
 }
 
 //export deposit
@@ -35,7 +35,6 @@ func process_request(appId int64, senderPtr *byte, senderLen int32, payloadPtr *
 	result := app.ProcessRequest(sender, payloadJSON, stateJSON)
 	return utils.SerializeAndWriteResult(result)
 }
-
 
 //export generate_deanonymization_report
 func generate_deanonymization_report(payloadPtr *byte, payloadLen int32, statePtr *byte, stateLen int32) *byte {

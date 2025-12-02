@@ -42,9 +42,10 @@ func TestIntegration_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, state)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(state, &stateData))
@@ -61,12 +62,14 @@ func TestIntegration_Deposit(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1_000_000_000_000_000_000)
 
-	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	newState, events, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
@@ -86,10 +89,13 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	depositAmount := big.NewInt(2_000_000_000_000_000_000)
 	transferValue := big.NewInt(500_000_000_000_000_000)
 
-	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
+  
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	payload := app.PayloadInstructions{
 		Type:     "transfer",
@@ -98,10 +104,11 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
+	newState, events, withdrawals, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
@@ -122,10 +129,13 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawValue := big.NewInt(500_000_000_000_000_000)
 	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
-	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
+  
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	payload := app.PayloadInstructions{
 		Type:     "withdraw",
@@ -134,12 +144,13 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
+	newState, events, withdrawals, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
 	assert.Equal(t, withdrawAddress, withdrawals[0].DestinationAddress)
 	assert.Equal(t, withdrawValue, withdrawals[0].Amount)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
@@ -164,14 +175,18 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1_000_000_000_000_000_000)
 
-	state, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
-	state, _, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
+  
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	reportBytes, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	reportBytes, fuel, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
 
 	var report reportStruct
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
