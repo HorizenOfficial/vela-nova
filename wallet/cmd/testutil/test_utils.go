@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	"github.com/horizen-pes/pkg/blockchain"
@@ -15,14 +16,14 @@ func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.Bl
 
 }
 
-func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
 		request, _, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			err = blockchainClient.MarkRequestCompleted(context.Background(), request.RequestID)
+			err = blockchainClient.MarkRequestCompleted(context.Background(), request.RequestID, refundAmount, applicationFees)
 			require.NoError(t, err)
 			return
 		}

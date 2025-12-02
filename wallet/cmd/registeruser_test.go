@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
@@ -36,8 +37,9 @@ func TestRegisterUserCmd(t *testing.T) {
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
 	cmd.Run(nil, nil)
 
@@ -77,6 +79,7 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
 	}, blockchainClient).Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.FailNextRequest(t, testHelper)
 
@@ -118,6 +121,7 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 		BlockchainPollingInterval: 1,
 		BlockchainPollingTimeout:  2,
 	}, blockchainClient).Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	cmd.Run(nil, nil)
 

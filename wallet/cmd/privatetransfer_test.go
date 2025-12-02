@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
@@ -39,8 +40,9 @@ func TestPrivateTransfer(t *testing.T) {
 	}, client).Command()
 	cmd.Flags().Set("amount", "1 ETH")
 	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
 	cmd.Run(nil, nil)
 

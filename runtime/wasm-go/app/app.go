@@ -12,17 +12,21 @@ import (
 
 // --- High-Level Application Logic ---
 
-func LoadModule(appId int64) []byte {
+func LoadModule(appId int64) wasmCommon.LoadModuleResult {
 	initialState := &ApplicationInternalState{
 		AppID:    appId,
 		Accounts: make(map[ethCommon.Address]*AccountState),
-		Nonce:    0,
 	}
 	stateJSON, err := json.Marshal(initialState)
 	if err != nil {
-		return []byte(wasmCommon.WasmSerializationError)
+		return wasmCommon.LoadModuleResult{
+			Error: fmt.Sprintf("failed to marshal initial state: %v", err),
+		}
 	}
-	return stateJSON
+	return wasmCommon.LoadModuleResult{
+		State: stateJSON,
+		Fuel:  big.NewInt(5),
+	}
 }
 
 func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string) wasmCommon.DepositResult {
@@ -80,7 +84,7 @@ func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string
 	if err != nil {
 		return wasmCommon.DepositResult{Error: "Failed to serialize new state"}
 	}
-	return wasmCommon.DepositResult{State: newStateBytes, Events: events}
+	return wasmCommon.DepositResult{State: newStateBytes, Events: events, Fuel: big.NewInt(35)}
 }
 
 func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string) wasmCommon.ProcessResult {
@@ -223,6 +227,7 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 		State:       newStateBytes,
 		Events:      events,
 		Withdrawals: withdrawals,
+		Fuel: big.NewInt(50),
 	}
 }
 
@@ -253,7 +258,7 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 	if err != nil {
 		return wasmCommon.DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
 	}
-	return wasmCommon.DeanonymizationResult{Report: reportBytes}
+	return wasmCommon.DeanonymizationResult{Report: reportBytes, Fuel: big.NewInt(20)}
 }
 
 // AccountState represents the state of a user account
