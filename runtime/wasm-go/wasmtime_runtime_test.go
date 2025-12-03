@@ -756,12 +756,12 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	// Test zero value deposit
+	// Test zero depositAmount deposit
 	newState, events, fuel, failure := runtime.Deposit(ctx, appId, user1, big.NewInt(0), state, wasmBytes)
 
 	require.Nil(t, failure)
-	require.Len(t, events, 0, "Zero value deposit should not generate any events")
-	require.NotNil(t, state, "State should not be nil after zero value deposit")
+	require.Len(t, events, 0, "Zero depositAmount deposit should not generate any events")
+	require.NotNil(t, state, "State should not be nil after zero depositAmount deposit")
 	require.Equal(t, state, newState)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 }
