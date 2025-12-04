@@ -23,6 +23,8 @@ type Config struct {
 	RpcUrl string
 	ProcessorEndpointAddress *ethCommon.Address
 	TeeAuthenticatorAddress *ethCommon.Address
+	AuthorityServiceURL string
+	AuthorityServiceChainID uint64
 	// BlockchainPollingInterval is the interval at which to poll the blockchain for events
 	BlockchainPollingInterval int64
 	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain 
@@ -97,6 +99,8 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 			}
 		}
 		rpcUrl := config.MustGetString("rpcUrl")
+		authorityURL := config.GetString("AuthorityServiceURL", "")
+		authorityChainID := config.GetUint64("AuthorityServiceChainID", 0)
 
 		var processorEndpointAddress ethCommon.Address
 		if processorAddress := config.MustGetString("ProcessorAddress"); processorAddress != "" {
@@ -120,6 +124,8 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 				RpcUrl: rpcUrl,
 				ProcessorEndpointAddress: &processorEndpointAddress,
 				TeeAuthenticatorAddress: &teeAuthenticatorAddress,
+				AuthorityServiceURL: authorityURL,
+				AuthorityServiceChainID: authorityChainID,
 				BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
 				BlockchainPollingTimeout: config.GetInt64("BlockchainPollingTimeout", 60),
 			}, nil

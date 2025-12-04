@@ -3,5 +3,7 @@ keySecp256k1=
 rpcUrl=
 ProcessorAddress=
 TeeAuthenticatorAddress=
+AuthorityServiceURL=
+AuthorityServiceChainID=
 BlockchainPollingInterval=
 BlockchainPollingTimeout=
