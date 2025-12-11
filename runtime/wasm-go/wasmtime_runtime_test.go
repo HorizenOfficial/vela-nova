@@ -50,7 +50,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	// Test LoadModule
@@ -89,7 +89,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	// Load module first
@@ -152,7 +152,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -238,7 +238,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -318,7 +318,7 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -365,7 +365,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -446,7 +446,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -478,7 +478,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -519,7 +519,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -533,7 +533,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -550,7 +550,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -587,7 +587,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -639,7 +639,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -674,7 +674,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_LargePayload(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -706,7 +706,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -728,7 +728,7 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -744,7 +744,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -769,7 +769,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()

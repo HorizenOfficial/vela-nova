@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/horizen-pes/pkg/logger"
 	systemTests "github.com/horizen-pes/pkg/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -40,11 +41,25 @@ func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment")
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger())
 	defer suite.Cleanup()
 
 	// Build and load wasm bytecode
 	wasmBytecode := buildAndLoadWasmModule(t)
 
 	systemTests.ExecTestAppFullSystemFlow(t, suite, wasmBytecode)
+}
+
+func newTestLogger() logger.Logger {
+	testLogger := logger.NewLogger(
+		&logger.Config{
+			Kind:         "zerolog",
+			ConsoleColor: false, // colors can print escape chars on tty
+			Console:      true,
+			ConsoleLevel: "trace",
+			//FileName:     "qqq.log",
+			//FileLevel:    "info",
+		},
+	)
+	return testLogger
 }

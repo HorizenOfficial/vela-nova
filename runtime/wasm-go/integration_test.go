@@ -12,6 +12,7 @@ import (
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/common"
+	"github.com/horizen-pes/pkg/logger"
 	"github.com/horizen-pes/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func readWasm(t *testing.T) []byte {
 
 func TestIntegration_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -54,7 +55,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 
 func TestIntegration_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -79,7 +80,7 @@ func TestIntegration_Deposit(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -118,7 +119,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -158,7 +159,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime()
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	type reportStruct struct {
@@ -189,4 +190,18 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
 	require.Contains(t, report.Accounts, sender)
 	assert.Equal(t, value, report.Accounts[sender].Balance)
+}
+
+func newTestLogger() logger.Logger {
+	testLogger := logger.NewLogger(
+		&logger.Config{
+			Kind:         "zerolog",
+			ConsoleColor: false, // colors can print escape chars on tty
+			Console:      true,
+			ConsoleLevel: "trace",
+			//FileName:     "qqq.log",
+			//FileLevel:    "info",
+		},
+	)
+	return testLogger
 }
