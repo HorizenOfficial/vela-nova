@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,19 @@ func TestDownloadReportWithoutDecryptSavesReport(t *testing.T) {
 	reportIDBytes := bytes.Repeat([]byte{0x01}, 32)
 	reportIDHex := hex.EncodeToString(reportIDBytes)
 	encData := hex.EncodeToString([]byte("hello"))
+
+	// Mock rpc chain ID endpoint
+	rpcSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var req struct {
+			ID     any    `json:"id"`
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		// Return chain ID 42
+		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":1,"result":"0x2a"}`)
+	}))
+	defer rpcSrv.Close()
 
 	// Mock authority service
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +63,9 @@ func TestDownloadReportWithoutDecryptSavesReport(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &app.Config{
-		KeySecp:                 keySecp,
-		AuthorityServiceURL:     ts.URL,
-		AuthorityServiceChainID: 42,
+		KeySecp:             keySecp,
+		AuthorityServiceURL: ts.URL,
+		RpcUrl:              rpcSrv.URL,
 	}
 
 	tmpDir := t.TempDir()

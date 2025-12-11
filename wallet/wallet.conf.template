@@ -4,6 +4,5 @@ rpcUrl=
 ProcessorAddress=
 TeeAuthenticatorAddress=
 AuthorityServiceURL=
-AuthorityServiceChainID=
 BlockchainPollingInterval=
 BlockchainPollingTimeout=

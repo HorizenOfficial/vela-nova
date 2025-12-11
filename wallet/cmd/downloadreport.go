@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/spf13/cobra"
@@ -69,7 +71,21 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 }
 
 func (c *DownloadReportCommand) run(ctx context.Context) error {
-	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, c.Config.AuthorityServiceChainID, NOVA_APPLICATION_ID, c.Config.KeySecp)
+	if strings.TrimSpace(c.Config.RpcUrl) == "" {
+		return fmt.Errorf("rpcUrl not configured to auto-detect chain ID")
+	}
+	ethc, err := ethclient.DialContext(ctx, c.Config.RpcUrl)
+	if err != nil {
+		return fmt.Errorf("dialing rpc to fetch chain id: %w", err)
+	}
+	defer ethc.Close()
+	id, err := ethc.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching chain id: %w", err)
+	}
+	chainID := id.Uint64()
+
+	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, NOVA_APPLICATION_ID, c.Config.KeySecp)
 
 	nonceResp, err := client.FetchNonce(ctx)
 	if err != nil {

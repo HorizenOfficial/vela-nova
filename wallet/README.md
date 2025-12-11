@@ -44,12 +44,10 @@ novaw generatekeys
 
 **[Do not share the keys with anyone!]**
 
-To fetch a deanonymization report from the authority service, configure `AuthorityServiceURL` and `AuthorityServiceChainID` in `wallet.conf` and run:
+To fetch a deanonymization report from the authority service, configure `rpcUrl` (used to auto-detect chain ID) and `AuthorityServiceURL` in `wallet.conf` and run:
 
 ```
 novaw downloadreport --report-id <hexReportId>
 ```
-
-
 
 
