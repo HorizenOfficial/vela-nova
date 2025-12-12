@@ -6,14 +6,14 @@ go 1.23.0
 // This prevents "works on my machine" problems that can arise from subtle differences between minor Go versions
 toolchain go1.24.3
 
-//replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.10
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.12
 
 // Can be useful for local developments
-replace github.com/horizen-pes => ../../../horizen-pes
+//replace github.com/horizen-pes => ../../../horizen-pes
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.10
+	github.com/horizen-pes v0.0.12
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -38,9 +38,12 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/supranational/blst v0.3.14 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
