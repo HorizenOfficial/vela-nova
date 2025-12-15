@@ -52,10 +52,11 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 			}
 			ctx := context.Background()
 			payload := c.Config.KeyP521.PublicKey().Bytes()
-			value := big.NewInt(0)
+
+			depositAmount := big.NewInt(0)
 
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, value, maxFeeValue)
+			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v\n", err)
 				return

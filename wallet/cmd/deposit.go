@@ -12,7 +12,7 @@ import (
 
 type DepositCommand struct {
 	*app.ChainCommand
-	value       string
+	depositAmount string
 	maxFeeValue string
 }
 
@@ -31,7 +31,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 		Long:  `deposit funds into the PES system`,
 		Run: func(cmd *cobra.Command, args []string) {
 
-			amount, err := app.ParseEtherValue(c.value)
+			amount, err := app.ParseEtherValue(c.depositAmount)
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
@@ -59,8 +59,8 @@ func (c *DepositCommand) Command() *cobra.Command {
 			requestType := common.Process
 			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
 			if err != nil {
-				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.value, err)
-				return
+				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.depositAmount, err)
+				return 
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
@@ -75,7 +75,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 
 		},
 	}
-	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
+	cmd.Flags().StringVarP(&c.depositAmount, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 
 	return cmd

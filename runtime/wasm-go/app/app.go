@@ -29,14 +29,14 @@ func LoadModule(appId int64) wasmCommon.LoadModuleResult {
 	}
 }
 
-func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string) wasmCommon.DepositResult {
+func DepositFunds(senderPtr *ethCommon.Address, depositAmount *big.Int, stateJSON string) wasmCommon.DepositResult {
 	if senderPtr == nil {
 		return wasmCommon.DepositResult{Error: "Sender address is missing"}
 	}
 
 	sender := *senderPtr
 	//This should never happens but just in case
-	if value == nil {
+	if depositAmount == nil {
 		return wasmCommon.DepositResult{Error: "value is nil"}
 	}
 
@@ -48,7 +48,7 @@ func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string
 	var events []common.PlainEvent
 
 	// Handle deposit
-	if value.Sign() > 0 {
+	if depositAmount.Sign() > 0 {
 		// Ensure sender account exists
 		if currentState.Accounts[sender] == nil {
 			currentState.Accounts[sender] = &AccountState{
@@ -58,13 +58,13 @@ func DepositFunds(senderPtr *ethCommon.Address, value *big.Int, stateJSON string
 		}
 
 		// Add deposit to sender's balance
-		currentState.Accounts[sender].Balance.Add(currentState.Accounts[sender].Balance, value)
+		currentState.Accounts[sender].Balance.Add(currentState.Accounts[sender].Balance, depositAmount)
 		currentState.Nonce++
 
 		// Create deposit event
 		eventData := wasmCommon.DepositEvent{
 			Type:    "deposit",
-			Amount:  value,
+			Amount:  depositAmount,
 			Balance: currentState.Accounts[sender].Balance,
 			Nonce:   currentState.Nonce,
 		}
