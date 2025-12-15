@@ -32,6 +32,7 @@ func Execute() {
 	rootCmd.AddCommand(NewDecryptReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
 	rootCmd.AddCommand(NewRequestReportCommand(config, nil).Command())
+	rootCmd.AddCommand(NewDownloadReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDeployAppCommand(config, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
