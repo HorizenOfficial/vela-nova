@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,9 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
 	"github.com/spf13/cobra"
-	"math/big"
 )
 
 type DownloadReportCommand struct {
@@ -74,16 +71,6 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 }
 
 func (c *DownloadReportCommand) run(ctx context.Context) error {
-	type decryptedReportOutput struct {
-		ApplicationID    common.ApplicationIdType `json:"applicationId"`
-		RequestID        common.RequestIdType     `json:"requestId"`
-		ReportData       json.RawMessage          `json:"reportData,omitempty"`
-		ReportDataBase64 string                   `json:"reportDataBase64,omitempty"`
-		Authority        string                   `json:"authority,omitempty"`
-		RefundAmount     *big.Int                 `json:"refundAmount,omitempty"`
-		ApplicationFee   *big.Int                 `json:"applicationFee,omitempty"`
-	}
-
 	if strings.TrimSpace(c.Config.RpcUrl) == "" {
 		return fmt.Errorf("rpcUrl not configured to auto-detect chain ID")
 	}
@@ -124,24 +111,7 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 			return err
 		}
 
-		// Try to render report data as pretty JSON; fall back to base64 if it is not valid JSON.
-		output := decryptedReportOutput{
-			ApplicationID:  decrypted.ApplicationID,
-			RequestID:      decrypted.RequestID,
-			Authority:      report.Authority.Hex(),
-			RefundAmount:   report.RefundAmount,
-			ApplicationFee: report.ApplicationFee,
-		}
-		if len(decrypted.ReportDataBytes) > 0 {
-			var pretty json.RawMessage
-			if err := json.Unmarshal(decrypted.ReportDataBytes, &pretty); err == nil {
-				output.ReportData = pretty
-			} else {
-				output.ReportDataBase64 = base64.StdEncoding.EncodeToString(decrypted.ReportDataBytes)
-			}
-		}
-
-		dataToWrite, err = json.MarshalIndent(output, "", "  ")
+		dataToWrite, err = json.MarshalIndent(decrypted, "", "  ")
 		if err != nil {
 			return fmt.Errorf("encoding decrypted report: %w", err)
 		}
