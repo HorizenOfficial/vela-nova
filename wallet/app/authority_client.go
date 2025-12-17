@@ -70,6 +70,13 @@ func (c *AuthorityClient) FetchReport(ctx context.Context, reportIDHex string, n
 		return nil, fmt.Errorf("secp key not configured")
 	}
 
+	// Some UIs prefix the report ID with "<appId>_" (e.g., "1_<hex>"); strip it if present.
+	if parts := strings.SplitN(reportIDHex, "_", 2); len(parts) == 2 {
+		if app, err := strconv.ParseUint(parts[0], 10, 64); err == nil && app == uint64(c.AppID) {
+			reportIDHex = parts[1]
+		}
+	}
+
 	reportID, err := authorityapi.ParseRequestID(reportIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("invalid report id: %w", err)
