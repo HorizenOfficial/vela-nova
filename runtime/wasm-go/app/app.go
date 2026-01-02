@@ -74,8 +74,9 @@ func DepositFunds(senderPtr *ethCommon.Address, depositAmount *big.Int, stateJSO
 		}
 
 		events = append(events, common.PlainEvent{
-			UserID: sender,
-			Data:   eventDataBytes,
+			UserID:       sender,
+			EventSubType: "deposit",
+			Data:         eventDataBytes,
 		})
 	}
 
@@ -114,12 +115,11 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 				return wasmCommon.ProcessResult{Error: "Transfer instruction is missing"}
 			}
 
-
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[sender] == nil {
 				return wasmCommon.ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender.Hex())}
 			}
-			if currentState.Accounts[sender].Balance.Cmp( instructions.Transfer.Amount) < 0 {
+			if currentState.Accounts[sender].Balance.Cmp(instructions.Transfer.Amount) < 0 {
 				return wasmCommon.ProcessResult{Error: "Insufficient balance for transfer"}
 			}
 
@@ -132,7 +132,7 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 			}
 
 			// Execute transfer
-			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Transfer.Amount) 
+			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Transfer.Amount)
 			currentState.Accounts[instructions.Transfer.To].Balance.Add(currentState.Accounts[instructions.Transfer.To].Balance, instructions.Transfer.Amount)
 			currentState.Nonce++
 
@@ -162,13 +162,15 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 			}
 
 			events = append(events, common.PlainEvent{
-				UserID: sender,
-				Data:   senderEventDataBytes,
+				UserID:       sender,
+				EventSubType: "transfer_sent",
+				Data:         senderEventDataBytes,
 			})
 
 			events = append(events, common.PlainEvent{
-				UserID: instructions.Transfer.To,
-				Data:   recipientEventDataBytes,
+				UserID:       instructions.Transfer.To,
+				EventSubType: "transfer_received",
+				Data:         recipientEventDataBytes,
 			})
 
 		case "withdraw":
@@ -186,7 +188,7 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 			}
 
 			// Execute withdrawal
-			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance,instructions.Withdraw.Amount)
+			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Withdraw.Amount)
 			currentState.Nonce++
 
 			// Create withdrawal
@@ -209,8 +211,9 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 			}
 
 			events = append(events, common.PlainEvent{
-				UserID: sender,
-				Data:   withdrawEventDataBytes,
+				UserID:       sender,
+				EventSubType: "withdrawal",
+				Data:         withdrawEventDataBytes,
 			})
 
 		default:
@@ -227,7 +230,7 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 		State:       newStateBytes,
 		Events:      events,
 		Withdrawals: withdrawals,
-		Fuel: big.NewInt(50),
+		Fuel:        big.NewInt(50),
 	}
 }
 
@@ -264,12 +267,12 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 // AccountState represents the state of a user account
 type AccountState struct {
 	Address ethCommon.Address `json:"address"`
-	Balance *big.Int `json:"balance"`
+	Balance *big.Int          `json:"balance"`
 }
 
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID   int64                                `json:"appId"`
+	AppID    int64                               `json:"appId"`
 	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
 	Nonce    uint64                              `json:"nonce"`
 }
@@ -277,13 +280,13 @@ type ApplicationInternalState struct {
 // TransferInstruction represents instructions for transferring funds
 type TransferInstruction struct {
 	To     ethCommon.Address `json:"to"`
-	Amount *big.Int `json:"amount"`
+	Amount *big.Int          `json:"amount"`
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
 type WithdrawInstruction struct {
 	To     ethCommon.Address `json:"to"`
-	Amount *big.Int `json:"amount"`
+	Amount *big.Int          `json:"amount"`
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -295,7 +298,7 @@ type PayloadInstructions struct {
 
 type UnencryptedDeanonymizationReportData struct {
 	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	Nonce    uint64                              `json:"nonce"`
 }
 
 // ReportPayloadInstructions represents a specific information on how to generate a report

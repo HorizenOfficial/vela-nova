@@ -47,6 +47,7 @@ func FindEvent(blockchainClient blockchain.Client, privKey *cryptotypes.PrivateK
 			NOVA_APPLICATION_ID,
 			fromBlock,
 			toBlock,
+			"",
 			EventFilter,
 			true,
 		)
