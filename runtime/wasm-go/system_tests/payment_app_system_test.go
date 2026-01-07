@@ -41,7 +41,7 @@ func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger(), newTestLogger())
 	defer suite.Cleanup()
 
 	// Build and load wasm bytecode
