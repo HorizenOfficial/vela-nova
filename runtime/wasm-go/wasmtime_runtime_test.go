@@ -113,6 +113,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	// Verify the event
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
+	assert.Equal(t, "deposit", event.EventSubType)
 
 	var eventData wasmCommon.DepositEvent
 	err = json.Unmarshal(event.Data, &eventData)
@@ -160,7 +161,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	recipient := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
-	transferValue := big.NewInt(500000000000000000) // 0.5 ETH
+	transferValue := big.NewInt(500000000000000000)  // 0.5 ETH
 
 	// Load module and make a deposit first
 	initialState, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -245,7 +246,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
-	withdrawValue := big.NewInt(500000000000000000) // 0.5 ETH
+	withdrawValue := big.NewInt(500000000000000000)  // 0.5 ETH
 	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	// Load module and make a deposit first
@@ -279,6 +280,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	// Verify withdrawal event
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
+	assert.Equal(t, "withdrawal", event.EventSubType)
 
 	var eventData TestWithdrawalEventData
 	err = json.Unmarshal(event.Data, &eventData)
