@@ -61,9 +61,10 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
+			qqq, _ := runtimeapp.HexToAddress(receiver.Hex())
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: receiver, Amount: amount},
+				Withdraw: &runtimeapp.WithdrawInstruction{To: qqq, Amount: amount},
 			}
 
 			ctx := context.Background()
