@@ -61,10 +61,15 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			qqq, _ := runtimeapp.HexToAddress(receiver.Hex())
+			receiverAddr, err := runtimeapp.HexToAddress(receiver.Hex())
+			if err != nil {
+				fmt.Printf("Error: invalid receiver address, could not convert to byte array: %v\n", err)
+				return
+			}
+
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: qqq, Amount: amount},
+				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: amount},
 			}
 
 			ctx := context.Background()
