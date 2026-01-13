@@ -137,6 +137,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawAddrHex := "0x1234567890123456789012345678901234567890"
 	ethWithdrawAddr := ethCommon.HexToAddress(withdrawAddrHex)
 	withdrawAddress, err := app.HexToAddress(withdrawAddrHex)
+	require.NoError(t, err)
 
 	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
