@@ -5,44 +5,105 @@ import (
 	"unsafe"
 )
 
+// Note: The TinyGo WASM module acts as a self-contained environment running on a single logical thread.
+// Concurrency for calls to the WASM module must be handled on the host side (e.g., using Go's sync.Mutex
+// in the calling Go code or better, using a single wasmtime.Instance for every call), as TinyGo's 'sync'
+// package is not fully supported within the WASM environment for inter-module synchronization.
+
+// allocatedMemory holds references to memory allocated by the guest, preventing the Go garbage
+// collector from reclaiming it while it's in use by the host. The map key is the pointer address.
+var allocatedMemory = make(map[uintptr][]byte)
+
+// TODO - When TinyGo compiles go into wasm, it configures the WebAssembly linear memory to an initial size
+// of 2 pages (128KB), and marks a position in that memory as the heap base. All memory beyond that is used for the
+// Go heap. Allocations within Go (compiled to %.wasm) are managed by calling memory.grow. The instruction is executed
+// within the Wasm instance, but the actual memory growth happens in Wasmtime’s engine, which allocates more memory pages.
+// A freeMap could be used to track memory blocks that have been freed and are available for reuse, avoiding the need
+// to always request new memory pages from the WASM runtime, this is good for performances.
+// The drawback is risk of mem fragmentation, and the fact that the application retains the maximum memory envelope
+// it has ever needed.
+// var freeList = make(map[int32][][]byte)
+
+// total memory (in bytes) currently allocated
+var cumulative_alloc_size int64
+
 // --- WASM Memory Management Functions ---
-
-// allocate exports a function to allocate memory.
-
-// TODO:
-// The slice created here is a local variable.
-// Once this function returns, there are no references to `data` inside the guest,
-// so the Go GC is free to reclaim it at any time during later guest execution.
-//
-// That means the host may end up with a pointer into memory that could be freed
-// or moved by the GC, causing nondeterministic crashes or corrupted data.
-//
-// To prevent this, production code should keep a global reference to the slice
-// (e.g., store it in a global `map[int32][]byte` keyed by the returned pointer)
-// until the host explicitly calls `deallocate()`. This pins the slice in memory
-// and ensures the GC will not reclaim it prematurely
 
 //export allocate
 func allocate(size int32) int32 {
-	// Allocate memory and return pointer address value
+	println("Calling allocate with size =", size)
+	if size <= 0 {
+		// Return a null pointer for zero or negative size.
+		// The caller should check for zero-length data, but this makes the guest allocator more robust.
+		return 0
+	}
+	// Allocate a byte slice of the desired size.
 	data := make([]byte, size)
-	return int32(uintptr(unsafe.Pointer(&data[0])))
+
+	// Get a pointer to the slice's underlying data.
+	ptr := &data[0]
+
+	// Convert to uintptr (valid on wasm32, which has 4GB address space max).
+	uptr := uintptr(unsafe.Pointer(ptr))
+
+	// Store a reference to the slice in our global map to "pin" it and preventing GC from acting
+	allocatedMemory[uptr] = data
+	println("map=", allocatedMemory)
+
+	cumulative_alloc_size += int64(size)
+
+	// Return the pointer address as an int32 to the host.
+	// Go Wasmtime runtime receives the signed int32 bit pattern and casts them to uintptr when accessing memory
+	println("Returning allocate on ptr =", ptr, ", (decimal=", int32(uptr), ") tot allocated=", cumulative_alloc_size)
+	return int32(uptr)
 }
 
-// deallocate exports a function to deallocate memory.
-// TODO:
-// Since Go has a garbage collector, we normally don’t need manual free().
-// However, if allocate() stores slices in a global map to keep them alive,
-// then deallocate() must remove the corresponding entry so the GC can
-// eventually reclaim the memory.
-//
-// In this no-op implementation, nothing is freed, so memory referenced by
-// the global map (if implemented) would leak. In a correct implementation,
-// deallocate() should delete the slice from the global map, dropping the
-// reference and allowing the GC to reclaim it.
-//
 //export deallocate
 func deallocate(ptr *byte, size int32) {
+	println("Calling deallocate on ptr =", ptr, ", with size =", size)
+
+	if ptr == nil {
+		println("deallocate called with nil ptr")
+		return
+	}
+
+	if allocatedMemory == nil {
+		println("allocatedMemory map is nil")
+		return
+	}
+
+	// Get the uintptr from the pointer.
+	uptr := uintptr(unsafe.Pointer(ptr))
+	println("uptr =", uptr)
+
+	b, ok := allocatedMemory[uptr]
+	if !ok {
+		// we exit even if delete on a map would be a no op, but we also do not decrement the counter
+		println("allocation not in map!")
+		return
+	}
+
+	// Delete the reference from the map. This unpins the memory, making it eligible for garbage collection.
+	delete(allocatedMemory, uptr)
+
+	if int32(len(b)) != size {
+		// do not update the counter, that would be incorrect anyway. We could add more counters for errors and stats in future
+		println("unexpected allocated size!")
+		return
+	}
+
+	cumulative_alloc_size -= int64(size)
+	println("Returning, tot allocated=", cumulative_alloc_size)
+}
+
+// Note: if we call directly this function from the host, the ABI C interface foresees that
+// for multiple return values, the values are stored into a pointer passed as the first parameter by the caller.
+//
+//export get_allocated_memory_stats
+func GetAllocatedMemoryStats() (map_size, total_bytes int64) {
+	map_size = int64(len(allocatedMemory))
+	total_bytes = cumulative_alloc_size
+	return
 }
 
 // --- Helper Functions for Data Translation ---
@@ -67,7 +128,6 @@ func StringToPtr(data []byte) *byte {
 	dataBytes := (*byte)(unsafe.Pointer(uintptr(ptrVal)))
 	destination := unsafe.Slice(dataBytes, n)
 
-	//destination := unsafe.Slice(ptr, n)
 	binary.LittleEndian.PutUint32(destination[:4], uint32(dataLength))
 	copy(destination[4:], data)
 

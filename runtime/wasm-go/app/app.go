@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+
+	"github.com/horizen-pes-nova/payment-app/utils"
 )
 
 // --- High-Level Application Logic ---
@@ -262,4 +264,12 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) Deanonymizatio
 		return DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
 	}
 	return DeanonymizationResult{Report: reportBytes, Fuel: big.NewInt(20)}
+}
+
+func GetAllocatedMemoryStats() MemoryStats {
+	map_size, total_bytes := utils.GetAllocatedMemoryStats()
+	return MemoryStats{
+		MapSize:              map_size,
+		CumulativeMemorySize: total_bytes,
+	}
 }

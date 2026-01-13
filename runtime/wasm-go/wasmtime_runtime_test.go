@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Local helper types to avoid importing the app submodule
+// Local helper types to avoid importing the app submodule (internal types)
 // They mirror the JSON shapes expected by the WASM app.
 type PayloadInstructions struct {
 	Type     string               `json:"type"`
@@ -37,10 +37,11 @@ type WithdrawInstruction struct {
 	Amount *big.Int          `json:"amount"`
 }
 
-type AppState struct {
+type ApplicationInternalState struct {
 	AppID    common.ApplicationIdType `json:"appId"`
 	Accounts map[ethCommon.Address]struct {
-		Balance *big.Int `json:"balance"`
+		Address ethCommon.Address `json:"address"`
+		Balance *big.Int          `json:"balance"`
 	} `json:"accounts"`
 	Nonce uint64 `json:"nonce"`
 }
@@ -63,7 +64,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Verify the state is valid JSON
-	var stateData AppState
+	var stateData ApplicationInternalState
 	err = json.Unmarshal(state, &stateData)
 	require.NoError(t, err, "State should be valid JSON")
 
