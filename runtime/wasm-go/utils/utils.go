@@ -2,13 +2,7 @@ package utils
 
 import (
 	"encoding/binary"
-	"encoding/json"
-	"math/big"
 	"unsafe"
-
-	appCommon "github.com/horizen-pes/pkg/wasm/common"
-	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/common"
 )
 
 // --- WASM Memory Management Functions ---
@@ -78,67 +72,4 @@ func StringToPtr(data []byte) *byte {
 	copy(destination[4:], data)
 
 	return dataBytes
-}
-
-// SerializeAndWriteResult handles common serialization and returns a WASM pointer.
-func SerializeAndWriteResult(result any) *byte {
-	reportJSON, err := json.Marshal(result)
-	if err != nil {
-		return StringToPtr([]byte(appCommon.WasmSerializationError))
-	}
-	return StringToPtr(reportJSON)
-}
-
-
-// AccountState represents the state of a user account
-type AccountState struct {
-	Address ethCommon.Address `json:"address"`
-	Balance big.Int `json:"balance"`
-}
-
-// ApplicationInternalState represents the internal state of the application
-type ApplicationInternalState struct {
-	AppID    common.ApplicationIdType `json:"appId"`
-	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
-}
-
-// TransferInstruction represents instructions for transferring funds
-type TransferInstruction struct {
-	To     ethCommon.Address `json:"to"`
-	Amount big.Int `json:"amount"`
-}
-
-// WithdrawInstruction represents instructions for withdrawing funds
-type WithdrawInstruction struct {
-	To     ethCommon.Address `json:"to"`
-	Amount big.Int `json:"amount"`
-}
-
-// PayloadInstructions represents the deserialized payload instructions
-type PayloadInstructions struct {
-	Type     string               `json:"type"`
-	Transfer *TransferInstruction `json:"transfer,omitempty"`
-	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
-}
-
-
-// PtrToNonNegativeBigInt converts a WASM pointer and length representing the a big.Int value to a Go big.Int pointer.
-// The byte slice is obtained with the (big.Int).Bytes() method, i.e. it represents the absolute value in big-endian byte order, so the value is always non-negative.
-func PtrToNonNegativeBigInt(ptr *byte, length int32) *big.Int {
-	if ptr == nil || length == 0 {
-		return big.NewInt(0)
-	}
-
-	return new(big.Int).SetBytes(unsafe.Slice(ptr, length))
-}
-
-
-// PtrToAddress converts a WASM pointer and length to a ethereum address.
-func PtrToAddress(ptr *byte, length int32) *ethCommon.Address {
-	if ptr == nil || length == 0 {
-		return nil
-	}
-	address := ethCommon.BytesToAddress(unsafe.Slice(ptr, length))
-	return &address
 }
