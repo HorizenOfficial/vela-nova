@@ -31,6 +31,10 @@ func TestParseEtherValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(34445), value)
 
+	input = "WEI 34445 "
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+
 	input = "34445"
 	_, err = ParseEtherValue(input)
 	require.Error(t, err)
@@ -64,7 +68,7 @@ func TestParseEtherValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(1e9), value)
 
-	input = "  5.0 GWEI  "
+	input = "  5.0     GWEI  "
 	value, err = ParseEtherValue(input)
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(5e9), value)
@@ -77,6 +81,24 @@ func TestParseEtherValue(t *testing.T) {
 	_, err = ParseEtherValue(input)
 	require.Error(t, err)
 
+	input = "0.002 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(2e15), value)
+
+	input = "0.00200 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(2e15), value)
+
+	input = ".5 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(5e17), value)
+
+	input = "1.5.4 ETH"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
 }
 
 func TestValidateAndChecksumAddress(t *testing.T) {
