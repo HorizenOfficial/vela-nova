@@ -34,12 +34,14 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "pippo")
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -76,12 +78,14 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "pippo")
@@ -118,12 +122,14 @@ func TestDepositCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -163,12 +169,14 @@ func TestDepositCmdFailure(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -207,12 +215,14 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	// Only set amount; max-value-fee should use default value (100 wei)
 	cmd.Flags().Set("amount", "333 wei")
