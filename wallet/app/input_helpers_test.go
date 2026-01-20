@@ -44,10 +44,6 @@ func TestParseEtherValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(15e17), value)
 
-	input = "1.5 Wei"
-	_, err = ParseEtherValue(input)
-	require.Error(t, err)
-
 	input = "100 Gwei"
 	value, err = ParseEtherValue(input)
 	require.NoError(t, err)
@@ -99,6 +95,26 @@ func TestParseEtherValue(t *testing.T) {
 	input = "1.5.4 ETH"
 	value, err = ParseEtherValue(input)
 	require.Error(t, err)
+
+	// Smallest valid ETH value (1 wei)
+	input = "0.000000000000000001 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(1), value)
+
+	// Below 1 wei
+	input = "0.0000000000000000001 ETH"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+
+	input = "0.2000000001 Gwei"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+	
+	input = "1.5 Wei"
+	_, err = ParseEtherValue(input)
+	require.Error(t, err)
+
 }
 
 func TestValidateAndChecksumAddress(t *testing.T) {
