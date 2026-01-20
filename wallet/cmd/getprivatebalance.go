@@ -15,21 +15,13 @@ import (
 )
 
 type GetPrivateBalanceCommand struct {
-	*app.AppCommand
-	customClient   blockchain.Client
-	subgraphClient subgraph.Client
+	*app.ChainCommand
 }
 
 func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
-	appCmd := app.NewAppCommand(config)
-	var sgClient subgraph.Client
-	if appCmd.Config != nil && appCmd.Config.SubgraphURL != "" {
-		sgClient = subgraph.NewClient(appCmd.Config.SubgraphURL)
-	}
+	chainCmd := app.NewChainCommand(config, customClient)
 	return &GetPrivateBalanceCommand{
-		AppCommand:     appCmd,
-		customClient:   customClient,
-		subgraphClient: sgClient,
+		ChainCommand: chainCmd,
 	}
 }
 
@@ -73,19 +65,17 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
-			blockchainClient := c.customClient
+			blockchainClient := c.BlockchainClient
 			if blockchainClient == nil {
-				//init blockchain client
-				blockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
-				err := blockchainClient.Connect(context.Background())
-				if err != nil {
+				if err := c.InitChainClient(); err != nil {
 					log.Fatalf("Error connecting to rpc node: %v", err)
 					return
 				}
+				blockchainClient = c.BlockchainClient
 			}
 			defer blockchainClient.Close()
 
-			if c.subgraphClient == nil {
+			if c.SubgraphClient == nil {
 				log.Fatal("subgraph client not initialized (missing SubgraphURL)")
 			}
 
@@ -95,7 +85,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := FindEvent(context.Background(), c.subgraphClient, teePubKey, c.Config.KeyP521)
+			event, err := FindEvent(context.Background(), c.SubgraphClient, teePubKey, c.Config.KeyP521)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}

@@ -57,7 +57,7 @@ func TestGetPrivateBalance(t *testing.T) {
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client)
-	cmd.subgraphClient = sgClient
+	cmd.SubgraphClient = sgClient
 	cmd.Command().Run(nil, nil)
 
 	// Restore stdout
@@ -103,7 +103,7 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client)
-	cmd.subgraphClient = sgClient
+	cmd.SubgraphClient = sgClient
 	cmd.Command().Run(nil, nil)
 
 	// Restore stdout
