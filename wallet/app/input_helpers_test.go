@@ -115,6 +115,9 @@ func TestParseEtherValue(t *testing.T) {
 	_, err = ParseEtherValue(input)
 	require.Error(t, err)
 
+	input = "-1 Wei"
+	_, err = ParseEtherValue(input)
+	require.Error(t, err)
 }
 
 func TestValidateAndChecksumAddress(t *testing.T) {
