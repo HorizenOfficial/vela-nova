@@ -57,7 +57,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 			var payload []byte
 
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.depositAmount, err)
 				return 
@@ -65,7 +65,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Deposit failed: %v\n", err)
 				return

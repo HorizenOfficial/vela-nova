@@ -49,7 +49,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			requestType := common.Deploy
 
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(context.Background(), PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, []byte{}, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(context.Background(), PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, []byte{}, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deploy app: %v", err)
 				return
@@ -57,7 +57,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Deploy app failed: %v\n", err)
 				return

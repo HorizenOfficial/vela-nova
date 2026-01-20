@@ -76,13 +76,13 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 
 			//submit request
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return
 			}
 			fmt.Printf("Waiting for confirmation from PES for requestID: %s\n", requestID)
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Private transfer failed: %v\n", err)
 				return
