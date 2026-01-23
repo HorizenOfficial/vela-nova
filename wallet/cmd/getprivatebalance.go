@@ -46,9 +46,8 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		*privKey,
 		NOVA_APPLICATION_ID,
 		"",
-		10,
+		1,
 		EventFilter,
-		true,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("can't retrieve events: %w", err)
