@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
 
 	"github.com/horizen-pes-nova/payment-app/utils"
 )
@@ -23,17 +22,18 @@ func LoadModule(appId int64) LoadModuleResult {
 	}
 	return LoadModuleResult{
 		State: stateJSON,
-		Fuel:  big.NewInt(5),
+		Fuel:  NewUint256(5),
 	}
 }
 
-func DepositFunds(senderPtr *Address, depositAmount *big.Int, stateJSON string) DepositResult {
+func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositResult {
 	if senderPtr == nil {
 		return DepositResult{Error: "Sender address is nil"}
 	}
+	fmt.Printf("DepositFunds called with address %s, value %s\n", senderPtr.String(), value.String())
 
 	//This should never happens but just in case
-	if depositAmount == nil {
+	if value == nil {
 		return DepositResult{Error: "value is nil"}
 	}
 
@@ -46,24 +46,26 @@ func DepositFunds(senderPtr *Address, depositAmount *big.Int, stateJSON string) 
 
 	var events []PlainEvent
 
-	// Handle deposit
-	if depositAmount.Sign() > 0 {
+	// Handle deposit only if value > 0
+	if !value.IsZero() {
 		// Ensure sender account exists
 		if currentState.Accounts[senderHex] == nil {
 			currentState.Accounts[senderHex] = &AccountState{
 				Address: *senderPtr,
-				Balance: big.NewInt(0),
+				Balance: NewUint256(0),
 			}
 		}
 
 		// Add deposit to sender's balance
-		currentState.Accounts[senderHex].Balance.Add(currentState.Accounts[senderHex].Balance, depositAmount)
+		if currentState.Accounts[senderHex].Balance.AddOverflow(*currentState.Accounts[senderHex].Balance, *value) {
+			return DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, currentState.Accounts[senderHex].Balance)}
+		}
 		currentState.Nonce++
 
 		// Create deposit event
 		eventData := DepositEvent{
 			Type:    "deposit",
-			Amount:  depositAmount,
+			Amount:  value,
 			Balance: currentState.Accounts[senderHex].Balance,
 			Nonce:   currentState.Nonce,
 		}
@@ -84,7 +86,7 @@ func DepositFunds(senderPtr *Address, depositAmount *big.Int, stateJSON string) 
 	if err != nil {
 		return DepositResult{Error: "Failed to serialize new state"}
 	}
-	return DepositResult{State: newStateBytes, Events: events, Fuel: big.NewInt(35)}
+	return DepositResult{State: newStateBytes, Events: events, Fuel: NewUint256(35)}
 }
 
 func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessResult {
@@ -116,12 +118,15 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 			if instructions.Transfer == nil {
 				return ProcessResult{Error: "Transfer instruction is missing"}
 			}
+			if instructions.Transfer.Amount == nil {
+				return ProcessResult{Error: "Transfer amount is nil"}
+			}
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
 				return ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender.Hex())}
 			}
-			if currentState.Accounts[senderHex].Balance.Cmp(instructions.Transfer.Amount) < 0 {
+			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Transfer.Amount) < 0 {
 				return ProcessResult{Error: "Insufficient balance for transfer"}
 			}
 
@@ -129,13 +134,13 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 			if currentState.Accounts[instructions.Transfer.To.Hex()] == nil {
 				currentState.Accounts[instructions.Transfer.To.Hex()] = &AccountState{
 					Address: instructions.Transfer.To,
-					Balance: big.NewInt(0),
+					Balance: NewUint256(0),
 				}
 			}
 
 			// Execute transfer
-			currentState.Accounts[senderHex].Balance.Sub(currentState.Accounts[senderHex].Balance, instructions.Transfer.Amount)
-			currentState.Accounts[instructions.Transfer.To.Hex()].Balance.Add(currentState.Accounts[instructions.Transfer.To.Hex()].Balance, instructions.Transfer.Amount)
+			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Transfer.Amount)
+			currentState.Accounts[instructions.Transfer.To.Hex()].Balance.Add(*currentState.Accounts[instructions.Transfer.To.Hex()].Balance, *instructions.Transfer.Amount)
 			currentState.Nonce++
 
 			// Create events for both parties
@@ -179,18 +184,21 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 			if instructions.Withdraw == nil {
 				return ProcessResult{Error: "Withdraw instruction is missing"}
 			}
+			if instructions.Withdraw.Amount == nil {
+				return ProcessResult{Error: "Withdraw amount is nil"}
+			}
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
 				return ProcessResult{Error: "Account does not exist"}
 			}
 
-			if currentState.Accounts[senderHex].Balance.Cmp(instructions.Withdraw.Amount) < 0 {
+			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Withdraw.Amount) < 0 {
 				return ProcessResult{Error: "Insufficient balance for withdrawal"}
 			}
 
 			// Execute withdrawal
-			currentState.Accounts[senderHex].Balance.Sub(currentState.Accounts[senderHex].Balance, instructions.Withdraw.Amount)
+			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Withdraw.Amount)
 			currentState.Nonce++
 
 			// Create withdrawal
@@ -232,7 +240,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 		State:       newStateBytes,
 		Events:      events,
 		Withdrawals: withdrawals,
-		Fuel:        big.NewInt(50),
+		Fuel:        NewUint256(50),
 	}
 }
 
@@ -263,7 +271,7 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) Deanonymizatio
 	if err != nil {
 		return DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
 	}
-	return DeanonymizationResult{Report: reportBytes, Fuel: big.NewInt(20)}
+	return DeanonymizationResult{Report: reportBytes, Fuel: NewUint256(20)}
 }
 
 func GetAllocatedMemoryStats() MemoryStats {
