@@ -71,7 +71,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			//build payload with type transfer
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "transfer",
-				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: amount},
+				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
 			}
 			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)

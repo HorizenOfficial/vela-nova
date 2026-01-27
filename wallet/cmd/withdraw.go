@@ -69,7 +69,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: amount},
+				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
 			}
 
 			ctx := context.Background()
