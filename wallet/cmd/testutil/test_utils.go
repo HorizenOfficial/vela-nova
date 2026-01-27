@@ -58,6 +58,10 @@ func (s StubSubgraphClient) GetRequestCompletedByID(_ context.Context, _ common.
 	return s.Result, s.Err
 }
 
+func (StubSubgraphClient) HealthCheck(context.Context) error {
+	return nil
+}
+
 func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
 	return nil, nil
 }
