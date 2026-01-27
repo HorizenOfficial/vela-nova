@@ -100,6 +100,7 @@ func PtrToUint256(ptr *byte, length int32) *Uint256 {
 	}
 	// just to be on the very safe side and avoid panics. Should never happen
 	if length > MaxBigIntBytes {
+		println("Unexpected length for a big.Int ptr mem: truncating from", length, "to", MaxBigIntBytes)
 		length = MaxBigIntBytes
 	}
 
