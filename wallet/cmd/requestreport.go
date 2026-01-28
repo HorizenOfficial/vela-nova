@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-
 	"math/big"
 
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
@@ -37,9 +35,10 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 				}
@@ -47,8 +46,6 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			defer c.CloseClient()
 
 			payload := runtimeapp.ReportPayloadInstructions{} //empty for now
-
-			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)

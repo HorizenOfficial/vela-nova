@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"math/big"
@@ -53,9 +52,10 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
@@ -68,7 +68,6 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				Type:     "transfer",
 				Transfer: &runtimeapp.TransferInstruction{To: to, Amount: amount},
 			}
-			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				log.Fatalf("Error encrypting private transfer payload: %v", err)

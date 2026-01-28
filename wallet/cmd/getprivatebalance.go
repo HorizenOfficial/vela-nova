@@ -64,9 +64,10 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := cmd.Context()
 			blockchainClient := c.BlockchainClient
 			if blockchainClient == nil {
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					log.Fatalf("Error connecting to rpc node: %v", err)
 					return
 				}
@@ -78,13 +79,13 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatal("subgraph client not initialized (missing SubgraphURL)")
 			}
 
-			teePubKey, err := blockchainClient.GetTeePublicKey(context.Background())
+			teePubKey, err := blockchainClient.GetTeePublicKey(ctx)
 			if err != nil {
 				log.Fatalf("failed to get TEE public key: %v", err)
 			}
 
 			//find event
-			event, err := FindEvent(context.Background(), c.SubgraphClient, teePubKey, c.Config.KeyP521)
+			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}

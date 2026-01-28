@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-
 	"math/big"
 
 	"github.com/horizen-pes-nova/wallet/app"
@@ -36,9 +34,10 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
@@ -50,7 +49,6 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				fmt.Println("Error: P521 key not found in the wallet")
 				return
 			}
-			ctx := context.Background()
 			payload := c.Config.KeyP521.PublicKey().Bytes()
 
 			depositAmount := big.NewInt(0)

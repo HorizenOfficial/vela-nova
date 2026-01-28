@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -100,6 +101,11 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 		rpcUrl := config.MustGetString("rpcUrl")
 		authorityURL := config.GetString("AuthorityServiceURL", "")
 		subgraphURL := config.GetString("SubgraphURL", "")
+		if subgraphURL != "" {
+			if _, err := url.ParseRequestURI(subgraphURL); err != nil {
+				return nil, fmt.Errorf("subgraph url is not valid: %w", err)
+			}
+		}
 
 		var processorEndpointAddress ethCommon.Address
 		if processorAddress := config.MustGetString("ProcessorAddress"); processorAddress != "" {
@@ -152,7 +158,7 @@ func NewChainCommand(config *Config, blockchainClient blockchain.Client) *ChainC
 	}
 }
 
-func (c *ChainCommand) InitChainClient() error {
+func (c *ChainCommand) InitChainClient(ctx context.Context) error {
 	if c.BlockchainClient == nil {
 		//create blockchain client
 		// Check that required config fields are set
@@ -160,7 +166,7 @@ func (c *ChainCommand) InitChainClient() error {
 			return fmt.Errorf("missing required configuration fields to create blockchain client")
 		}
 		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
-		err := c.BlockchainClient.Connect(context.Background())
+		err := c.BlockchainClient.Connect(ctx)
 		if err != nil {
 			return err
 		}

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 
@@ -52,9 +51,10 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 				}
@@ -65,8 +65,6 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				Type:     "withdraw",
 				Withdraw: &runtimeapp.WithdrawInstruction{To: receiver, Amount: amount},
 			}
-
-			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting withdraw payload: %v\n", err)

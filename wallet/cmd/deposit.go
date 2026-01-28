@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/horizen-pes-nova/wallet/app"
@@ -43,17 +42,16 @@ func (c *DepositCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
 				}
 			}
 			defer c.CloseClient()
-
-			ctx := context.Background()
 			var payload []byte
 
 			requestType := common.Process

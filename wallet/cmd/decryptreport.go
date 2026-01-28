@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -29,13 +28,7 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 		Short: `decrypt a deanonymization report specifying file that contains it`,
 		Long:  `decrypt a deanonymization report specifying file that contains it`,
 		Run: func(cmd *cobra.Command, args []string) {
-			var ctx context.Context
-			if cmd != nil {
-				ctx = cmd.Context()
-			}
-			if ctx == nil {
-				ctx = context.Background()
-			}
+			ctx := cmd.Context()
 
 			readJson, err := os.ReadFile(c.filePath)
 			if err != nil {
@@ -48,7 +41,7 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 				}
