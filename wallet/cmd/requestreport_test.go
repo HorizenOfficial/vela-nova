@@ -17,15 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
-
 func TestRequestReportCmd(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
- 
 	Key1 := &cryptotypes.PrivateKeySecp256k1{PrivateKey: testHelper.ManagerPrivKey}
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
@@ -34,22 +31,23 @@ func TestRequestReportCmd(t *testing.T) {
 	tx := testHelper.AddAuthority(big.NewInt(1), testHelper.ManagerAccount.From) // TODO ML NOVA_APPLICATION_ID should be used but there are consistency problems, will be fixed, already created a task but adding this TODO to not forget that we need to take care about this here as well
 	testHelper.WaitMined(tx)
 
-	t.Run("Command successful", func(t *testing.T) { 
+	t.Run("Command successful", func(t *testing.T) {
 		// Redirect stdout
 		old := os.Stdout
 		r, w, err := os.Pipe()
 		require.NoError(t, err)
 		os.Stdout = w
 
-
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		cmd := NewRequestReportCommand(&app.Config{
-			KeySecp:                   Key1, 
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
 			KeyP521:                   key2,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient).Command()
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientOK()
+		cmd := reportCmd.Command()
 		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(80), big.NewInt(20))
@@ -68,8 +66,7 @@ func TestRequestReportCmd(t *testing.T) {
 
 	})
 
-
-	t.Run("Command failed", func(t *testing.T) { 
+	t.Run("Command failed", func(t *testing.T) {
 		// Redirect stdout
 		old := os.Stdout
 		r, w, err := os.Pipe()
@@ -78,12 +75,14 @@ func TestRequestReportCmd(t *testing.T) {
 
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		cmd := NewRequestReportCommand(&app.Config{
-			KeySecp:                   Key1, 
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
 			KeyP521:                   key2,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient).Command()
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientFailure()
+		cmd := reportCmd.Command()
 		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.FailNextRequest(t, testHelper)
@@ -102,6 +101,4 @@ func TestRequestReportCmd(t *testing.T) {
 
 	})
 
-
 }
-

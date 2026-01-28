@@ -26,18 +26,20 @@ func TestPrivateTransfer(t *testing.T) {
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	var teeKey, _ = crypto.GeneratePrivateKeyP521()
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())	
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	client := testutil.SetupNewBlockChainClient(testHelper)
-	
+
 	// Execute the command
-	cmd := NewPrivateTransferCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+	transferCmd := NewPrivateTransferCommand(&app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, client).Command()
+	}, client)
+	transferCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := transferCmd.Command()
 	cmd.Flags().Set("amount", "1 ETH")
 	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -53,7 +55,7 @@ func TestPrivateTransfer(t *testing.T) {
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	output := buf.String()
-	
+
 	fmt.Println(output)
 	assert.Contains(t, output, "Private transfer completed successfully")
 

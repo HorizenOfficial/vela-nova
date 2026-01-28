@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-
 	"math/big"
 
 	"github.com/horizen-pes-nova/wallet/app"
@@ -36,9 +34,10 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
@@ -50,13 +49,12 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				fmt.Println("Error: P521 key not found in the wallet")
 				return
 			}
-			ctx := context.Background()
 			payload := c.Config.KeyP521.PublicKey().Bytes()
 
 			depositAmount := big.NewInt(0)
 
 			requestType := common.AssociateKey
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, depositAmount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v\n", err)
 				return
@@ -64,7 +62,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Register user failed: %v\n", err)
 				return

@@ -7,7 +7,9 @@ import (
 
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/blockchain/testutil"
+	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/common/apperrors"
+	"github.com/horizen-pes/pkg/subgraph"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,4 +46,38 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 		}
 
 	}
+}
+
+// StubSubgraphClient returns canned RequestCompleted responses for tests.
+type StubSubgraphClient struct {
+	Result *subgraph.RequestCompleted
+	Err    error
+}
+
+func (s StubSubgraphClient) GetRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+	return s.Result, s.Err
+}
+
+func (StubSubgraphClient) HealthCheck(context.Context) error {
+	return nil
+}
+
+func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func SubgraphClientOK() subgraph.Client {
+	return StubSubgraphClient{Result: &subgraph.RequestCompleted{Status: common.RequestResultOK}}
+}
+
+func SubgraphClientFailure() subgraph.Client {
+	return StubSubgraphClient{Result: &subgraph.RequestCompleted{
+		Status:       common.RequestResultFailed,
+		ErrorCode:    2,
+		ErrorMessage: "internal error",
+	}}
+}
+
+func SubgraphClientEmpty() subgraph.Client {
+	return StubSubgraphClient{}
 }

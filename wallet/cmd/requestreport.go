@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-
 	"math/big"
 
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
@@ -37,9 +35,10 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 				}
@@ -47,8 +46,6 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			defer c.CloseClient()
 
 			payload := runtimeapp.ReportPayloadInstructions{} //empty for now
-
-			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)
@@ -57,14 +54,14 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 
 			depositAmount := big.NewInt(0)
 			requestType := common.Deanonymize
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to generate a deanonymization report: %v\n", err)
 				return
 			}
 
 			fmt.Println("Waiting for confirmation from PES")
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Deanonymization request failed: %v\n", err)
 				return

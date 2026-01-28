@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
+	"github.com/horizen-pes/pkg/subgraph"
 	"github.com/magiconair/properties"
 )
 
@@ -24,6 +26,7 @@ type Config struct {
 	ProcessorEndpointAddress *ethCommon.Address
 	TeeAuthenticatorAddress  *ethCommon.Address
 	AuthorityServiceURL      string
+	SubgraphURL              string
 	// BlockchainPollingInterval is the interval at which to poll the blockchain for events
 	BlockchainPollingInterval int64
 	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain
@@ -97,6 +100,12 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 		}
 		rpcUrl := config.MustGetString("rpcUrl")
 		authorityURL := config.GetString("AuthorityServiceURL", "")
+		subgraphURL := config.GetString("SubgraphURL", "")
+		if subgraphURL != "" {
+			if _, err := url.ParseRequestURI(subgraphURL); err != nil {
+				return nil, fmt.Errorf("subgraph url is not valid: %w", err)
+			}
+		}
 
 		var processorEndpointAddress ethCommon.Address
 		if processorAddress := config.MustGetString("ProcessorAddress"); processorAddress != "" {
@@ -121,6 +130,7 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 			ProcessorEndpointAddress:  &processorEndpointAddress,
 			TeeAuthenticatorAddress:   &teeAuthenticatorAddress,
 			AuthorityServiceURL:       authorityURL,
+			SubgraphURL:               subgraphURL,
 			BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
 			BlockchainPollingTimeout:  config.GetInt64("BlockchainPollingTimeout", 60),
 		}, nil
@@ -132,13 +142,23 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 type ChainCommand struct {
 	*AppCommand
 	BlockchainClient blockchain.Client
+	SubgraphClient   subgraph.Client
 }
 
 func NewChainCommand(config *Config, blockchainClient blockchain.Client) *ChainCommand {
-	return &ChainCommand{AppCommand: NewAppCommand(config), BlockchainClient: blockchainClient}
+	appCmd := NewAppCommand(config)
+	var sgClient subgraph.Client
+	if appCmd.Config != nil && appCmd.Config.SubgraphURL != "" {
+		sgClient = subgraph.NewClient(appCmd.Config.SubgraphURL)
+	}
+	return &ChainCommand{
+		AppCommand:       appCmd,
+		BlockchainClient: blockchainClient,
+		SubgraphClient:   sgClient,
+	}
 }
 
-func (c *ChainCommand) InitChainClient() error {
+func (c *ChainCommand) InitChainClient(ctx context.Context) error {
 	if c.BlockchainClient == nil {
 		//create blockchain client
 		// Check that required config fields are set
@@ -146,7 +166,7 @@ func (c *ChainCommand) InitChainClient() error {
 			return fmt.Errorf("missing required configuration fields to create blockchain client")
 		}
 		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
-		err := c.BlockchainClient.Connect(context.Background())
+		err := c.BlockchainClient.Connect(ctx)
 		if err != nil {
 			return err
 		}
@@ -161,18 +181,20 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, blockNumber uint64, ctx context.Context) error {
+func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()
 
 	timeoutCh := time.After(time.Duration(c.Config.BlockchainPollingTimeout) * time.Second)
 
-	toBlock := blockNumber + 1
 	for {
 		select {
 		case <-ticker.C:
-			result, err := c.BlockchainClient.GetRequestCompletedEvent(ctx, requestID, 0, toBlock)
+			if c.SubgraphClient == nil {
+				return fmt.Errorf("subgraph client not initialized")
+			}
+			result, err := c.SubgraphClient.GetRequestCompletedByID(ctx, requestID)
 			if err != nil {
 				fmt.Printf("Error getting request completion event: %v. Retrying\n", err)
 				continue
