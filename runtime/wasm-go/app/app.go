@@ -30,12 +30,13 @@ func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositR
 	if senderPtr == nil {
 		return DepositResult{Error: "Sender address is nil"}
 	}
-	fmt.Printf("DepositFunds called with address %s, value %s\n", senderPtr.String(), value.String())
 
 	//This should never happens but just in case
 	if value == nil {
 		return DepositResult{Error: "value is nil"}
 	}
+
+	fmt.Printf("DepositFunds called with address %s, value %s\n", senderPtr.String(), value.String())
 
 	senderHex := senderPtr.Hex()
 
@@ -124,15 +125,17 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
-				return ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender.Hex())}
+				return ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", senderHex)}
 			}
 			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Transfer.Amount) < 0 {
 				return ProcessResult{Error: "Insufficient balance for transfer"}
 			}
 
+			recipientHex := instructions.Transfer.To.Hex()
+
 			// Ensure recipient account exists
-			if currentState.Accounts[instructions.Transfer.To.Hex()] == nil {
-				currentState.Accounts[instructions.Transfer.To.Hex()] = &AccountState{
+			if currentState.Accounts[recipientHex] == nil {
+				currentState.Accounts[recipientHex] = &AccountState{
 					Address: instructions.Transfer.To,
 					Balance: NewUint256(0),
 				}
@@ -140,7 +143,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 
 			// Execute transfer
 			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Transfer.Amount)
-			currentState.Accounts[instructions.Transfer.To.Hex()].Balance.Add(*currentState.Accounts[instructions.Transfer.To.Hex()].Balance, *instructions.Transfer.Amount)
+			currentState.Accounts[recipientHex].Balance.Add(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount)
 			currentState.Nonce++
 
 			// Create events for both parties
@@ -160,7 +163,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 				Type:    "transfer_received",
 				From:    sender,
 				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[instructions.Transfer.To.Hex()].Balance,
+				Balance: currentState.Accounts[recipientHex].Balance,
 				Nonce:   currentState.Nonce,
 			}
 			recipientEventDataBytes, err := json.Marshal(recipientEventData)

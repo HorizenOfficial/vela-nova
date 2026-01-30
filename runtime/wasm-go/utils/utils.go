@@ -67,11 +67,6 @@ func deallocate(ptr *byte, size int32) {
 		return
 	}
 
-	if allocatedMemory == nil {
-		println("allocatedMemory map is nil")
-		return
-	}
-
 	// Get the uintptr from the pointer.
 	uptr := uintptr(unsafe.Pointer(ptr))
 	println("uptr =", uptr)

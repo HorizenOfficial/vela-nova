@@ -92,12 +92,34 @@ func SerializeAndWriteResult(result any) *byte {
 	return utils.StringToPtr(reportJSON)
 }
 
-// PtrToUint256 converts a WASM pointer and length representing a big integer value to a Uint256 pointer.
-// The byte slice is obtained with the (big.Int).Bytes() method, i.e. it represents the absolute value in big-endian byte order, so the value is always non-negative.
+// PtrToUint256 converts a WASM pointer and length into a Uint256.
+//
+// The input bytes must come from (*big.Int).Bytes(), i.e.:
+//   - big-endian
+//   - absolute value only (non-negative)
+//
+// Semantics:
+//   - (nil, 0) represents the value 0
+//   - Any other (ptr, length) combination with ptr == nil or length < 0 is invalid
+//   - If length > 32, the value is interpreted modulo 2^256 (least-significant bytes kept)
+//
+// The function returns nil on invalid input.
 func PtrToUint256(ptr *byte, length int32) *Uint256 {
-	if ptr == nil || length <= 0 {
+	// Validate length
+	if length < 0 {
+		return nil
+	}
+
+	// (nil, 0) => zero
+	if ptr == nil && length == 0 {
 		return NewUint256(0)
 	}
+
+	// Any other nil/non-nil mismatch is invalid
+	if ptr == nil || length == 0 {
+		return nil
+	}
+
 	// just to be on the very safe side and avoid panics. Should never happen
 	if length > MaxBigIntBytes {
 		println("Unexpected length for a big.Int ptr mem: truncating from", length, "to", MaxBigIntBytes)
@@ -168,7 +190,7 @@ type ReportPayloadInstructions struct {
 // Wasm module, which then deserializes it into its own identical local struct.
 // This maintains a clean separation between the two environments.
 // The Wasm module is a separate, sandboxed program and should not import types directly from
-// the host application's packages, even if they are defined exacltly the same way.
+// the host application's packages, even if they are defined exactly the same way.
 // Moreover we do use analogous but different types, for instance ethereum addresses in the Host
 // and [20]byte array type in the guest (this is because tinygo does not support the full standard
 // go runtime needed by go-ethereum).

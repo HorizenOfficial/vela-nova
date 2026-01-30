@@ -149,7 +149,7 @@ func (z Uint256) MarshalJSON() ([]byte, error) {
 func (z *Uint256) UnmarshalJSON(data []byte) error {
 	var s string
 
-	// 1. Determine if input is a JSON string or raw number by peeking the first non-whitespace char using a recursive for loop
+	// 1. Determine if input is a JSON string or raw number by peeking the first non-whitespace char
 	trimmedData := data
 	for len(trimmedData) > 0 && (trimmedData[0] == ' ' || trimmedData[0] == '\t' || trimmedData[0] == '\n' || trimmedData[0] == '\r') {
 		trimmedData = trimmedData[1:]
