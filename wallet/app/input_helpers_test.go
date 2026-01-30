@@ -31,6 +31,10 @@ func TestParseEtherValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(34445), value)
 
+	input = "WEI 34445 "
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+
 	input = "34445"
 	_, err = ParseEtherValue(input)
 	require.Error(t, err)
@@ -39,10 +43,6 @@ func TestParseEtherValue(t *testing.T) {
 	value, err = ParseEtherValue(input)
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(15e17), value)
-
-	input = "1.5 Wei"
-	_, err = ParseEtherValue(input)
-	require.Error(t, err)
 
 	input = "100 Gwei"
 	value, err = ParseEtherValue(input)
@@ -64,7 +64,7 @@ func TestParseEtherValue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(1e9), value)
 
-	input = "  5.0 GWEI  "
+	input = "  5.0     GWEI  "
 	value, err = ParseEtherValue(input)
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(5e9), value)
@@ -77,6 +77,47 @@ func TestParseEtherValue(t *testing.T) {
 	_, err = ParseEtherValue(input)
 	require.Error(t, err)
 
+	input = "0.002 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(2e15), value)
+
+	input = "0.00200 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(2e15), value)
+
+	input = ".5 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(5e17), value)
+
+	input = "1.5.4 ETH"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+
+	// Smallest valid ETH value (1 wei)
+	input = "0.000000000000000001 ETH"
+	value, err = ParseEtherValue(input)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(1), value)
+
+	// Below 1 wei
+	input = "0.0000000000000000001 ETH"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+
+	input = "0.2000000001 Gwei"
+	value, err = ParseEtherValue(input)
+	require.Error(t, err)
+	
+	input = "1.5 Wei"
+	_, err = ParseEtherValue(input)
+	require.Error(t, err)
+
+	input = "-1 Wei"
+	_, err = ParseEtherValue(input)
+	require.Error(t, err)
 }
 
 func TestValidateAndChecksumAddress(t *testing.T) {

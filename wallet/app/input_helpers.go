@@ -14,6 +14,7 @@ import (
 // into its equivalent value in Wei as a *big.Int.
 // Examples: "1 ETH" -> 10^18 Wei, "10 Gwei" -> 10^10 Wei, "500 Wei" -> 500 Wei.
 // It handles optional whitespace and case-insensitive units.
+// This implementation avoids using floating-point arithmetic to prevent rounding errors.
 func ParseEtherValue(valueStr string) (*big.Int, error) {
 	// Regular expression to capture the numeric part and the unit.
 	// It allows for optional whitespace around the number and unit.
@@ -41,10 +42,10 @@ func ParseEtherValue(valueStr string) (*big.Int, error) {
 	switch unit {
 	case "ETH", "ETHER":
 		// 10^18
-		multiplier = big.NewInt(0).Exp(big.NewInt(10), big.NewInt(18), nil)
+		multiplier = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	case "GWEI":
 		// 10^9
-		multiplier = big.NewInt(0).Exp(big.NewInt(10), big.NewInt(9), nil)
+		multiplier = new(big.Int).Exp(big.NewInt(10), big.NewInt(9), nil)
 	case "WEI":
 		// 10^0 = 1
 		multiplier = big.NewInt(1)
@@ -53,28 +54,58 @@ func ParseEtherValue(valueStr string) (*big.Int, error) {
 		return nil, fmt.Errorf("unsupported unit: %s", unit)
 	}
 
-	// Use big.Float to handle potential floating point input (e.g., "1.5 ETH")
-	// The Ethereum community often uses decimals for ETH and Gwei.
-	amountFloat, _, err := big.ParseFloat(amountStr, 10, 0, big.ToNearestEven)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse numeric part '%s': %w", amountStr, err)
+	// Split the amount string into integer and fractional parts to avoid float arithmetic
+	var integerPartStr, fractionalPartStr string
+	if strings.Contains(amountStr, ".") {
+		parts := strings.SplitN(amountStr, ".", 2)
+		integerPartStr, fractionalPartStr = parts[0], parts[1]
+		if integerPartStr == "" {
+			integerPartStr = "0" // Handle cases like ".5 ETH"
+		}
+	} else {
+		integerPartStr = amountStr
+		fractionalPartStr = "0"
 	}
 
-	// Convert the multiplier to big.Float for the multiplication
-	multiplierFloat := new(big.Float).SetInt(multiplier)
-
-	// Calculate total Wei as a big.Float: amountFloat * multiplierFloat
-	weiFloat := new(big.Float).Mul(amountFloat, multiplierFloat)
-
-	//Check if the is a fractional aprt even in wei
-	weiInt, _ := weiFloat.Int(nil)
-	fInt := new(big.Float).SetInt(weiInt)
-
-    // If the original float is not equal to its integer part, it has a fraction
-    if weiFloat.Cmp(fInt) != 0 {
-		return nil, fmt.Errorf("cannot accept values smaller than wei '%v'", weiFloat)
+	// Parse the integer part of the amount
+	integerPart, ok := new(big.Int).SetString(integerPartStr, 10)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse integer part '%s' from '%s'", integerPartStr, valueStr)
 	}
-	return weiInt, nil
+
+	// Calculate the total wei from the integer part
+	weiFromIntegerPart := new(big.Int).Mul(integerPart, multiplier)
+
+	// If there's no fractional part (or it's "0"), we're done.
+	if fractionalPartStr == "0" || strings.Trim(fractionalPartStr, "0") == "" {
+		return weiFromIntegerPart, nil
+	}
+
+	// Parse the fractional part of the amount
+	fractionalPart, ok := new(big.Int).SetString(fractionalPartStr, 10)
+	if !ok {
+		// This case is unlikely given the regex, but good for safety
+		return nil, fmt.Errorf("failed to parse fractional part '%s' from '%s'", fractionalPartStr, valueStr)
+	}
+
+	// Calculate the value from the fractional part using integer arithmetic.
+	// This is done by (fractionalPart * multiplier) / (10^numDecimalPlaces).
+	// We use DivMod to check for any remainder, which would mean the value is
+	// smaller than 1 Wei and thus not representable as an integer amount of Wei.
+	numDecimalPlaces := len(fractionalPartStr)
+	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(numDecimalPlaces)), nil)
+
+	numerator := new(big.Int).Mul(fractionalPart, multiplier)
+	weiFromFractionalPart, remainder := new(big.Int).DivMod(numerator, divisor, new(big.Int))
+
+	if remainder.Cmp(big.NewInt(0)) != 0 {
+		return nil, fmt.Errorf("value '%s' has a fractional wei part, which is not allowed", valueStr)
+	}
+
+	// Add the integer and fractional parts together for the total Wei value
+	totalWei := new(big.Int).Add(weiFromIntegerPart, weiFromFractionalPart)
+
+	return totalWei, nil
 }
 
 // ValidateAndChecksumAddress checks if the input string is a valid 

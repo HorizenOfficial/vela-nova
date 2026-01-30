@@ -37,13 +37,7 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 		Short: "download a deanonymization report from the authority service",
 		Long:  "download a deanonymization report from the authority service, optionally decrypting it after download",
 		Run: func(cmd *cobra.Command, args []string) {
-			var ctx context.Context
-			if cmd != nil {
-				ctx = cmd.Context()
-			}
-			if ctx == nil {
-				ctx = context.Background()
-			}
+			ctx := cmd.Context()
 			if c.reportID == "" {
 				fmt.Println("Error: report id is required")
 				return
@@ -113,7 +107,7 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 	var dataToWrite []byte
 	if c.decrypt {
 		if c.BlockchainClient == nil {
-			if err := c.InitChainClient(); err != nil {
+			if err := c.InitChainClient(ctx); err != nil {
 				return fmt.Errorf("connecting to rpc node: %w", err)
 			}
 		}

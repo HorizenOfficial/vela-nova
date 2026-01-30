@@ -30,6 +30,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	}
 
 	deployCmd := NewDeployAppCommand(config, blockchainClient)
+	deployCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := deployCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
 

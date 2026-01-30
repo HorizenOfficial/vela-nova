@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/horizen-pes-nova/wallet/app"
@@ -43,21 +42,20 @@ func (c *DepositCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
 				}
 			}
 			defer c.CloseClient()
-
-			ctx := context.Background()
 			var payload []byte
 
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.depositAmount, err)
 				return 
@@ -65,7 +63,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 
 			fmt.Println("Waiting for confirmation from PES")
 
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Deposit failed: %v\n", err)
 				return

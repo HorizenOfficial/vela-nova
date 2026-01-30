@@ -3,42 +3,26 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
+	"github.com/horizen-pes/pkg/subgraph"
 	"github.com/stretchr/testify/assert"
 )
 
-// create a test blockchain client with only the GetUserEvents method defined
+// Test blockchain client that returns a fixed TEE public key.
 type TestGetPrivateBalanceBlockChainClient struct {
-	blockchain.MockClient
-	eventToReturn []byte
-	blockToReturn uint64
-	lastToBlock   uint64
+	*blockchain.MockClient
+	teePub *cryptotypes.PublicKeyP521
 }
 
-// /rewrite GetUserEvents
-func (c *TestGetPrivateBalanceBlockChainClient) GetUserEvents(ctx context.Context, privKey cryptotypes.PrivateKeyP521, applicationId common.ApplicationIdType, fromBlock uint64, toBlock uint64, eventSubType string, filter func([]byte) bool, stopAtFirst bool) ([][]byte, error) {
-	if fromBlock < toBlock {
-		return [][]byte{}, fmt.Errorf("fromBlock should be greater than toBlock: %d, %d", fromBlock, toBlock)
-	}
-	//check that the blocks are searched with continuity
-	if c.lastToBlock != 0 && fromBlock != c.lastToBlock-1 {
-		return [][]byte{}, fmt.Errorf("when searching again, no block should be skipped: %d, %d", fromBlock, c.lastToBlock)
-	}
-	c.lastToBlock = toBlock
-	//mocked function: the event is at the given block
-	if fromBlock >= c.blockToReturn && toBlock <= c.blockToReturn && filter(c.eventToReturn) {
-		return [][]byte{c.eventToReturn}, nil
-	}
-	return [][]byte{}, nil
+func (c *TestGetPrivateBalanceBlockChainClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
+	return c.teePub, nil
 }
 
 func TestGetPrivateBalance(t *testing.T) {
@@ -49,23 +33,32 @@ func TestGetPrivateBalance(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
+	teeKey, _ := crypto.GeneratePrivateKeyP521()
+	teePub := teeKey.PublicKey()
 
 	//prepare args
 	mockEvent := []byte(`{"` + BALANCE_JSON_KEY + `": 12345}`)
+	encrypted, _ := crypto.Encrypt(teeKey, key2.PublicKey(), mockEvent)
 
 	client := &TestGetPrivateBalanceBlockChainClient{
-		*blockchain.NewMockClient(),
-		mockEvent,
-		3, //the event is returned when searching in the block 3
-		0,
+		MockClient: blockchain.NewMockClient(),
+		teePub:     teePub,
 	}
+
+	sgClient := subgraph.NewMockClient().WithUserEvents(NOVA_APPLICATION_ID, []subgraph.UserEvent{
+		{
+			ApplicationID: NOVA_APPLICATION_ID,
+			EncryptedData: encrypted,
+		},
+	})
 	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
-	}, client).Command()
-	cmd.Run(nil, nil)
+	}, client)
+	cmd.SubgraphClient = sgClient
+	cmd.Command().Run(nil, nil)
 
 	// Restore stdout
 	w.Close()
@@ -86,23 +79,32 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
+	teeKey, _ := crypto.GeneratePrivateKeyP521()
+	teePub := teeKey.PublicKey()
 
 	//prepare args
 	mockEvent := []byte("NOT A VALID JSON EVENT")
+	encrypted, _ := crypto.Encrypt(teeKey, key2.PublicKey(), mockEvent)
 
 	client := &TestGetPrivateBalanceBlockChainClient{
-		*blockchain.NewMockClient(),
-		mockEvent, //since the event is not valid, it will be filtered out and we'll arrive at the end without events, returning 0
-		3,         //the event is returned when searching in the block 3
-		0,
+		MockClient: blockchain.NewMockClient(),
+		teePub:     teePub,
 	}
+
+	sgClient := subgraph.NewMockClient().WithUserEvents(NOVA_APPLICATION_ID, []subgraph.UserEvent{
+		{
+			ApplicationID: NOVA_APPLICATION_ID,
+			EncryptedData: encrypted,
+		},
+	})
 	// Execute the command
 	cmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
-	}, client).Command()
-	cmd.Run(nil, nil)
+	}, client)
+	cmd.SubgraphClient = sgClient
+	cmd.Command().Run(nil, nil)
 
 	// Restore stdout
 	w.Close()

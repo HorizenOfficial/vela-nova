@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"math/big"
@@ -53,9 +52,10 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				return
 			}
 
+			ctx := cmd.Context()
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				if err := c.InitChainClient(); err != nil {
+				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
 
@@ -73,7 +73,6 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				Type:     "transfer",
 				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
 			}
-			ctx := context.Background()
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				log.Fatalf("Error encrypting private transfer payload: %v", err)
@@ -81,13 +80,13 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 
 			//submit request
 			requestType := common.Process
-			requestID, blockNumber, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return
 			}
 			fmt.Printf("Waiting for confirmation from PES for requestID: %s\n", requestID)
-			err = c.WaitForRequestCompleted(requestID, blockNumber, ctx)
+			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Private transfer failed: %v\n", err)
 				return

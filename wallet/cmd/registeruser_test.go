@@ -31,12 +31,14 @@ func TestRegisterUserCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
@@ -73,12 +75,14 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.FailNextRequest(t, testHelper)
@@ -115,12 +119,14 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 1,
 		BlockchainPollingTimeout:  2,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientEmpty()
+	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	cmd.Run(nil, nil)

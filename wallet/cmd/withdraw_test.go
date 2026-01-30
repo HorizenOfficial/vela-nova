@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestWithdrawCmd(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
@@ -38,12 +37,14 @@ func TestWithdrawCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewWithdrawCommand(&app.Config{
+	withdrawCmd := NewWithdrawCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	withdrawCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := withdrawCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -86,12 +87,14 @@ func TestWithdrawCmdFailure(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewWithdrawCommand(&app.Config{
+	withdrawCmd := NewWithdrawCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	withdrawCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := withdrawCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "100 wei")
