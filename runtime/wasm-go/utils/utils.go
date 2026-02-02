@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/binary"
+	"math"
 	"unsafe"
 )
 
@@ -117,9 +118,16 @@ func StringToPtr(data []byte) *byte {
 	if dataLength == 0 {
 		return nil
 	}
+	if dataLength > math.MaxInt32-4 {
+		println("data len exceeds max int size, dataLength=", dataLength)
+		return nil
+	}
 
 	n := 4 + dataLength // 4 bytes for length + actual data length
 	ptrVal := allocate(int32(n))
+	// note: we do not check for ptrVal == 0 because we already check size to be non negative, and
+	// an OOM would have panicked already in allocate()
+
 	dataBytes := (*byte)(unsafe.Pointer(uintptr(ptrVal)))
 	destination := unsafe.Slice(dataBytes, n)
 
