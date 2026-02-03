@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -632,7 +633,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 		payloadBytes, _ := json.Marshal(negativePayload)
 		_, _, _, fuel, err := runtime.ProcessRequest(ctx, appId, user1, payloadBytes, state, wasmBytes)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Account does not exist")
+		assert.Contains(t, strings.ToLower(err.Error()), fmt.Sprintf("account %s does not exist!", strings.ToLower(user1.String())))
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 	})
 }
