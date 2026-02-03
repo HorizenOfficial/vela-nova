@@ -1,0 +1,277 @@
+package app
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"unsafe"
+
+	"github.com/horizen-pes-nova/payment-app/utils"
+)
+
+const AddressLength = 20
+
+const (
+	MaxBigIntBytes  = 64
+	MaxAddressBytes = AddressLength
+)
+
+type Address [AddressLength]byte
+
+// HexToAddress converts a hex string to Address with validation.
+func HexToAddress(s string) (Address, error) {
+	if strings.HasPrefix(s, "0x") || strings.HasPrefix(s, "0X") {
+		s = s[2:]
+	}
+	if len(s) != AddressLength*2 {
+		return Address{}, fmt.Errorf("invalid address length: got %d hex chars, want %d", len(s), AddressLength*2)
+	}
+
+	data, err := hex.DecodeString(s)
+	if err != nil {
+		return Address{}, err
+	}
+
+	var address Address
+	copy(address[:], data)
+	return address, nil
+}
+
+func BytesToAddress(b []byte) Address {
+	var a Address
+	a.SetBytes(b)
+	return a
+}
+
+func (a *Address) SetBytes(b []byte) {
+	if len(b) > AddressLength {
+		b = b[len(b)-AddressLength:]
+	}
+	copy(a[AddressLength-len(b):], b)
+}
+
+// Bytes returns a copy of address bytes (safe, immutable to caller)
+func (a Address) Bytes() []byte {
+	b := make([]byte, AddressLength)
+	copy(b, a[:])
+	return b
+}
+
+func (a Address) Hex() string {
+	return "0x" + hex.EncodeToString(a[:])
+}
+
+func (a *Address) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	addr, err := HexToAddress(s)
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
+	}
+	*a = addr
+	return nil
+}
+
+func (a Address) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.Hex())
+}
+
+func (a Address) String() string {
+	return a.Hex()
+}
+
+// SerializeAndWriteResult handles common serialization and returns a WASM pointer.
+func SerializeAndWriteResult(result any) *byte {
+	reportJSON, err := json.Marshal(result)
+	if err != nil {
+		return utils.StringToPtr([]byte(WasmSerializationError))
+	}
+	return utils.StringToPtr(reportJSON)
+}
+
+// PtrToUint256 converts a WASM pointer and length into a Uint256.
+//
+// The input bytes must come from (*big.Int).Bytes(), i.e.:
+//   - big-endian
+//   - absolute value only (non-negative)
+//
+// Semantics:
+//   - (nil, 0) represents the value 0
+//   - Any other (ptr, length) combination with ptr == nil or length < 0 is invalid
+//   - If length > 32, the value is interpreted modulo 2^256 (least-significant bytes kept)
+//
+// The function returns nil on invalid input.
+func PtrToUint256(ptr *byte, length int32) *Uint256 {
+	// Validate length
+	if length < 0 {
+		return nil
+	}
+
+	// (nil, 0) => zero
+	if ptr == nil && length == 0 {
+		return NewUint256(0)
+	}
+
+	// Any other nil/non-nil mismatch is invalid
+	if ptr == nil || length == 0 {
+		return nil
+	}
+
+	// just to be on the very safe side and avoid panics. Should never happen
+	if length > MaxBigIntBytes {
+		println("Unexpected length for a big.Int ptr mem: truncating from", length, "to", MaxBigIntBytes)
+		length = MaxBigIntBytes
+	}
+
+	return new(Uint256).SetBytes(unsafe.Slice(ptr, length))
+}
+
+// PtrToAddress converts a WASM pointer and length to a ethereum address.
+func PtrToAddress(ptr *byte, length int32) *Address {
+	if ptr == nil || length <= 0 || length > MaxAddressBytes {
+		return nil
+	}
+	var address Address
+	address.SetBytes(unsafe.Slice(ptr, length))
+	return &address
+}
+
+// ----- module internal types
+
+// AccountState represents the state of a user account
+type AccountState struct {
+	Address Address  `json:"address"`
+	Balance *Uint256 `json:"balance"`
+}
+
+// ApplicationInternalState represents the internal state of the application
+type ApplicationInternalState struct {
+	AppID    int64                    `json:"appId"`
+	Accounts map[string]*AccountState `json:"accounts"`
+	Nonce    uint64                   `json:"nonce"`
+}
+
+// WithdrawInstruction represents instructions for withdrawing funds
+type WithdrawInstruction struct {
+	To     Address  `json:"to"`
+	Amount *Uint256 `json:"amount"`
+}
+
+// TransferInstruction represents instructions for transferring funds
+type TransferInstruction struct {
+	To     Address  `json:"to"`
+	Amount *Uint256 `json:"amount"`
+}
+
+// PayloadInstructions represents the deserialized payload instructions
+type PayloadInstructions struct {
+	Type     string               `json:"type"`
+	Transfer *TransferInstruction `json:"transfer,omitempty"`
+	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+}
+
+type UnencryptedDeanonymizationReportData struct {
+	Accounts map[string]*AccountState `json:"accounts"`
+	Nonce    uint64                   `json:"nonce"`
+}
+
+// ReportPayloadInstructions represents a specific information on how to generate a report
+// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
+// we can omit empty accounts
+type ReportPayloadInstructions struct {
+}
+
+// --- Local replacements for Host types ---
+// This is a deliberate design choice required by the WebAssembly architecture.
+// The application communicates by serializing the host-side struct to JSON, passing it to the
+// Wasm module, which then deserializes it into its own identical local struct.
+// This maintains a clean separation between the two environments.
+// The Wasm module is a separate, sandboxed program and should not import types directly from
+// the host application's packages, even if they are defined exactly the same way.
+// Moreover we do use analogous but different types, for instance ethereum addresses in the Host
+// and [20]byte array type in the guest (this is because tinygo does not support the full standard
+// go runtime needed by go-ethereum).
+// Similarly we use math/big.Int in the host and Uint256 type in the guest.
+// ---
+
+// LoadModuleResult is a local replacemente for wasmCommon.LoadModuleResult
+type LoadModuleResult struct {
+	State []byte   `json:"state"`
+	Fuel  *Uint256 `json:"fuel"`
+	Error string   `json:"error,omitempty"`
+}
+
+// DepositResult is a local replacement for wasmCommon.DepositResult
+type DepositResult struct {
+	State  []byte       `json:"state"`
+	Events []PlainEvent `json:"events"`
+	Fuel   *Uint256     `json:"fuel"`
+	Error  string       `json:"error,omitempty"`
+}
+
+// ProcessResult is a local replacement for wasmCommon.ProcessResult
+type ProcessResult struct {
+	State       []byte       `json:"state"`
+	Events      []PlainEvent `json:"events"`
+	Withdrawals []Withdrawal `json:"withdrawals"`
+	Fuel        *Uint256     `json:"fuel"`
+	Error       string       `json:"error,omitempty"`
+}
+
+// DeanonymizationResult is a local replacement for wasmCommon.DeanonymizationResult
+type DeanonymizationResult struct {
+	Report []byte   `json:"report"`
+	Fuel   *Uint256 `json:"fuel"`
+	Error  string   `json:"error,omitempty"`
+}
+
+// PlainEvent is a local replacement for common.PlainEvent
+type PlainEvent struct {
+	UserID       Address `json:"userId"`
+	EventSubType string  `json:"eventSubType"`
+	Data         []byte  `json:"data"`
+}
+
+// Withdrawal is a local replacement for common.Withdrawal
+type Withdrawal struct {
+	DestinationAddress Address  `json:"destinationAddress"`
+	Amount             *Uint256 `json:"amount"`
+}
+
+type DepositEvent struct {
+	Type    string   `json:"type"`
+	Amount  *Uint256 `json:"amount"`
+	Balance *Uint256 `json:"balance"`
+	Nonce   uint64   `json:"nonce"`
+}
+
+type SenderEvent struct {
+	Type    string   `json:"type"`
+	To      Address  `json:"to"`
+	Amount  *Uint256 `json:"amount"`
+	Balance *Uint256 `json:"balance"`
+	Nonce   uint64   `json:"nonce"`
+}
+
+type RecipientEvent struct {
+	Type    string   `json:"type"`
+	From    Address  `json:"from"`
+	Amount  *Uint256 `json:"amount"`
+	Balance *Uint256 `json:"balance"`
+	Nonce   uint64   `json:"nonce"`
+}
+
+// WithdrawalEvent is a local replacement for wasmCommon.WithdrawalEvent
+type WithdrawalEvent SenderEvent
+
+const (
+	WasmSerializationError = `{"error":"wasm serialization error"}`
+)
+
+type MemoryStats struct {
+	MapSize              int64 `json:"mapSize"`
+	CumulativeMemorySize int64 `json:"cumulativeMemorySize"`
+}

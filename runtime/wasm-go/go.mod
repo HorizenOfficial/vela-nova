@@ -6,14 +6,14 @@ go 1.23.0
 // This prevents "works on my machine" problems that can arise from subtle differences between minor Go versions
 toolchain go1.24.3
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.14
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.15
 
 // Can be useful for local developments
 //replace github.com/horizen-pes => ../../../horizen-pes
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.12
+	github.com/horizen-pes v0.0.15
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -32,10 +32,12 @@ require (
 	github.com/ethereum/c-kzg-4844/v2 v2.1.0 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.2.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/hf/nsm v0.0.0-20220930140112-cd181bd646b9 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -49,6 +51,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect

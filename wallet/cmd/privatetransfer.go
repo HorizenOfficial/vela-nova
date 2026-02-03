@@ -63,10 +63,15 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
+			toAddr, err := runtimeapp.HexToAddress(to.Hex())
+			if err != nil {
+				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
+			}
+
 			//build payload with type transfer
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "transfer",
-				Transfer: &runtimeapp.TransferInstruction{To: to, Amount: amount},
+				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {

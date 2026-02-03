@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Local helper types to avoid importing the app submodule
+// Local helper types to avoid importing the app submodule (internal types)
 // They mirror the JSON shapes expected by the WASM app.
 type PayloadInstructions struct {
 	Type     string               `json:"type"`
@@ -37,10 +37,11 @@ type WithdrawInstruction struct {
 	Amount *big.Int          `json:"amount"`
 }
 
-type AppState struct {
+type ApplicationInternalState struct {
 	AppID    common.ApplicationIdType `json:"appId"`
 	Accounts map[ethCommon.Address]struct {
-		Balance *big.Int `json:"balance"`
+		Address ethCommon.Address `json:"address"`
+		Balance *big.Int          `json:"balance"`
 	} `json:"accounts"`
 	Nonce uint64 `json:"nonce"`
 }
@@ -63,7 +64,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Verify the state is valid JSON
-	var stateData AppState
+	var stateData ApplicationInternalState
 	err = json.Unmarshal(state, &stateData)
 	require.NoError(t, err, "State should be valid JSON")
 
@@ -104,8 +105,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 
 	// Test Deposit
 	newState, events, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
-	require.Nil(t, failure)
-	require.NoError(t, err, "Deposit should succeed")
+	require.Nil(t, failure, "Deposit should succeed")
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
@@ -763,7 +763,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 
 	require.Nil(t, failure)
 	require.Len(t, events, 0, "Zero depositAmount deposit should not generate any events")
-	require.NotNil(t, state, "State should not be nil after zero depositAmount deposit")
+	require.NotNil(t, newState, "State should not be nil after zero depositAmount deposit")
 	require.Equal(t, state, newState)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 }

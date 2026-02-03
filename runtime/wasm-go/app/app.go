@@ -3,78 +3,80 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/common"
-	wasmCommon "github.com/horizen-pes/pkg/wasm/common"
+	"github.com/horizen-pes-nova/payment-app/utils"
 )
 
 // --- High-Level Application Logic ---
 
-func LoadModule(appId int64) wasmCommon.LoadModuleResult {
+func LoadModule(appId int64) LoadModuleResult {
 	initialState := &ApplicationInternalState{
 		AppID:    appId,
-		Accounts: make(map[ethCommon.Address]*AccountState),
+		Accounts: make(map[string]*AccountState),
 	}
 	stateJSON, err := json.Marshal(initialState)
 	if err != nil {
-		return wasmCommon.LoadModuleResult{
+		return LoadModuleResult{
 			Error: fmt.Sprintf("failed to marshal initial state: %v", err),
 		}
 	}
-	return wasmCommon.LoadModuleResult{
+	return LoadModuleResult{
 		State: stateJSON,
-		Fuel:  big.NewInt(5),
+		Fuel:  NewUint256(5),
 	}
 }
 
-func DepositFunds(senderPtr *ethCommon.Address, depositAmount *big.Int, stateJSON string) wasmCommon.DepositResult {
+func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositResult {
 	if senderPtr == nil {
-		return wasmCommon.DepositResult{Error: "Sender address is missing"}
+		return DepositResult{Error: "Sender address is nil"}
 	}
 
-	sender := *senderPtr
 	//This should never happens but just in case
-	if depositAmount == nil {
-		return wasmCommon.DepositResult{Error: "value is nil"}
+	if value == nil {
+		return DepositResult{Error: "value is nil"}
 	}
+
+	fmt.Printf("DepositFunds called with address %s, value %s\n", senderPtr.String(), value.String())
+
+	senderHex := senderPtr.Hex()
 
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
-		return wasmCommon.DepositResult{Error: "Failed to parse application state"}
+		return DepositResult{Error: "Failed to parse application state"}
 	}
 
-	var events []common.PlainEvent
+	var events []PlainEvent
 
-	// Handle deposit
-	if depositAmount.Sign() > 0 {
+	// Handle deposit only if value > 0
+	if !value.IsZero() {
 		// Ensure sender account exists
-		if currentState.Accounts[sender] == nil {
-			currentState.Accounts[sender] = &AccountState{
-				Address: sender,
-				Balance: big.NewInt(0),
+		if currentState.Accounts[senderHex] == nil {
+			currentState.Accounts[senderHex] = &AccountState{
+				Address: *senderPtr,
+				Balance: NewUint256(0),
 			}
 		}
 
 		// Add deposit to sender's balance
-		currentState.Accounts[sender].Balance.Add(currentState.Accounts[sender].Balance, depositAmount)
+		if currentState.Accounts[senderHex].Balance.AddOverflow(*currentState.Accounts[senderHex].Balance, *value) {
+			return DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, currentState.Accounts[senderHex].Balance)}
+		}
 		currentState.Nonce++
 
 		// Create deposit event
-		eventData := wasmCommon.DepositEvent{
+		eventData := DepositEvent{
 			Type:    "deposit",
-			Amount:  depositAmount,
-			Balance: currentState.Accounts[sender].Balance,
+			Amount:  value,
+			Balance: currentState.Accounts[senderHex].Balance,
 			Nonce:   currentState.Nonce,
 		}
 		eventDataBytes, err := json.Marshal(eventData)
 		if err != nil {
-			return wasmCommon.DepositResult{Error: "Failed to serialize event data"}
+			return DepositResult{Error: "Failed to serialize event data"}
 		}
 
-		events = append(events, common.PlainEvent{
-			UserID:       sender,
+		events = append(events, PlainEvent{
+			UserID:       *senderPtr,
 			EventSubType: "deposit",
 			Data:         eventDataBytes,
 		})
@@ -83,91 +85,99 @@ func DepositFunds(senderPtr *ethCommon.Address, depositAmount *big.Int, stateJSO
 	// Serialize the updated state
 	newStateBytes, err := json.Marshal(&currentState)
 	if err != nil {
-		return wasmCommon.DepositResult{Error: "Failed to serialize new state"}
+		return DepositResult{Error: "Failed to serialize new state"}
 	}
-	return wasmCommon.DepositResult{State: newStateBytes, Events: events, Fuel: big.NewInt(35)}
+	return DepositResult{State: newStateBytes, Events: events, Fuel: NewUint256(35)}
 }
 
-func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string) wasmCommon.ProcessResult {
+func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessResult {
 	if senderPtr == nil {
-		return wasmCommon.ProcessResult{Error: "Sender address is missing"}
+		return ProcessResult{Error: "Sender address is missing"}
 	}
+
 	sender := *senderPtr
+	senderHex := sender.Hex()
+
 	// Deserialize current state
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
-		return wasmCommon.ProcessResult{Error: "Failed to parse application state"}
+		return ProcessResult{Error: "Failed to parse application state"}
 	}
 
-	var events []common.PlainEvent
-	var withdrawals []common.Withdrawal
+	var events []PlainEvent
+	var withdrawals []Withdrawal
 
 	// Process payload instructions if payload is not empty
 	if payloadJSON != "" {
 		var instructions PayloadInstructions
 		if err := json.Unmarshal([]byte(payloadJSON), &instructions); err != nil {
-			return wasmCommon.ProcessResult{Error: "Failed to parse payload instructions"}
+			return ProcessResult{Error: "Failed to parse payload instructions"}
 		}
 
 		switch instructions.Type {
 		case "transfer":
 			if instructions.Transfer == nil {
-				return wasmCommon.ProcessResult{Error: "Transfer instruction is missing"}
+				return ProcessResult{Error: "Transfer instruction is missing"}
+			}
+			if instructions.Transfer.Amount == nil {
+				return ProcessResult{Error: "Transfer amount is nil"}
 			}
 
 			// Validate sender account exists and has sufficient balance
-			if currentState.Accounts[sender] == nil {
-				return wasmCommon.ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", sender.Hex())}
+			if currentState.Accounts[senderHex] == nil {
+				return ProcessResult{Error: fmt.Sprintf("Account does not exist: %s", senderHex)}
 			}
-			if currentState.Accounts[sender].Balance.Cmp(instructions.Transfer.Amount) < 0 {
-				return wasmCommon.ProcessResult{Error: "Insufficient balance for transfer"}
+			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Transfer.Amount) < 0 {
+				return ProcessResult{Error: "Insufficient balance for transfer"}
 			}
 
+			recipientHex := instructions.Transfer.To.Hex()
+
 			// Ensure recipient account exists
-			if currentState.Accounts[instructions.Transfer.To] == nil {
-				currentState.Accounts[instructions.Transfer.To] = &AccountState{
+			if currentState.Accounts[recipientHex] == nil {
+				currentState.Accounts[recipientHex] = &AccountState{
 					Address: instructions.Transfer.To,
-					Balance: big.NewInt(0),
+					Balance: NewUint256(0),
 				}
 			}
 
 			// Execute transfer
-			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Transfer.Amount)
-			currentState.Accounts[instructions.Transfer.To].Balance.Add(currentState.Accounts[instructions.Transfer.To].Balance, instructions.Transfer.Amount)
+			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Transfer.Amount)
+			currentState.Accounts[recipientHex].Balance.Add(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount)
 			currentState.Nonce++
 
 			// Create events for both parties
-			senderEventData := wasmCommon.SenderEvent{
+			senderEventData := SenderEvent{
 				Type:    "transfer_sent",
 				To:      instructions.Transfer.To,
 				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[sender].Balance,
+				Balance: currentState.Accounts[senderHex].Balance,
 				Nonce:   currentState.Nonce,
 			}
 			senderEventDataBytes, err := json.Marshal(senderEventData)
 			if err != nil {
-				return wasmCommon.ProcessResult{Error: "Failed to serialize sender event data"}
+				return ProcessResult{Error: "Failed to serialize sender event data"}
 			}
 
-			recipientEventData := wasmCommon.RecipientEvent{
+			recipientEventData := RecipientEvent{
 				Type:    "transfer_received",
 				From:    sender,
 				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[instructions.Transfer.To].Balance,
+				Balance: currentState.Accounts[recipientHex].Balance,
 				Nonce:   currentState.Nonce,
 			}
 			recipientEventDataBytes, err := json.Marshal(recipientEventData)
 			if err != nil {
-				return wasmCommon.ProcessResult{Error: "Failed to serialize recipient event data"}
+				return ProcessResult{Error: "Failed to serialize recipient event data"}
 			}
 
-			events = append(events, common.PlainEvent{
+			events = append(events, PlainEvent{
 				UserID:       sender,
 				EventSubType: "transfer_sent",
 				Data:         senderEventDataBytes,
 			})
 
-			events = append(events, common.PlainEvent{
+			events = append(events, PlainEvent{
 				UserID:       instructions.Transfer.To,
 				EventSubType: "transfer_received",
 				Data:         recipientEventDataBytes,
@@ -175,76 +185,79 @@ func ProcessRequest(senderPtr *ethCommon.Address, payloadJSON, stateJSON string)
 
 		case "withdraw":
 			if instructions.Withdraw == nil {
-				return wasmCommon.ProcessResult{Error: "Withdraw instruction is missing"}
+				return ProcessResult{Error: "Withdraw instruction is missing"}
+			}
+			if instructions.Withdraw.Amount == nil {
+				return ProcessResult{Error: "Withdraw amount is nil"}
 			}
 
 			// Validate sender account exists and has sufficient balance
-			if currentState.Accounts[sender] == nil {
-				return wasmCommon.ProcessResult{Error: "Account does not exist"}
+			if currentState.Accounts[senderHex] == nil {
+				return ProcessResult{Error: "Account does not exist"}
 			}
 
-			if currentState.Accounts[sender].Balance.Cmp(instructions.Withdraw.Amount) < 0 {
-				return wasmCommon.ProcessResult{Error: "Insufficient balance for withdrawal"}
+			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Withdraw.Amount) < 0 {
+				return ProcessResult{Error: "Insufficient balance for withdrawal"}
 			}
 
 			// Execute withdrawal
-			currentState.Accounts[sender].Balance.Sub(currentState.Accounts[sender].Balance, instructions.Withdraw.Amount)
+			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Withdraw.Amount)
 			currentState.Nonce++
 
 			// Create withdrawal
-			withdrawals = append(withdrawals, common.Withdrawal{
+			withdrawals = append(withdrawals, Withdrawal{
 				DestinationAddress: instructions.Withdraw.To,
 				Amount:             instructions.Withdraw.Amount,
 			})
 
 			// Create event for sender
-			withdrawEventData := wasmCommon.WithdrawalEvent{
+			withdrawEventData := WithdrawalEvent{
 				Type:    "withdrawal",
 				To:      instructions.Withdraw.To,
 				Amount:  instructions.Withdraw.Amount,
-				Balance: currentState.Accounts[sender].Balance,
+				Balance: currentState.Accounts[senderHex].Balance,
 				Nonce:   currentState.Nonce,
 			}
 			withdrawEventDataBytes, err := json.Marshal(withdrawEventData)
 			if err != nil {
-				return wasmCommon.ProcessResult{Error: "Failed to serialize withdraw event data"}
+				return ProcessResult{Error: "Failed to serialize withdraw event data"}
 			}
 
-			events = append(events, common.PlainEvent{
+			events = append(events, PlainEvent{
 				UserID:       sender,
 				EventSubType: "withdrawal",
 				Data:         withdrawEventDataBytes,
 			})
 
 		default:
-			return wasmCommon.ProcessResult{Error: "Unsupported instruction type"}
+			return ProcessResult{Error: "Unsupported instruction type"}
 		}
 	}
 
 	// Serialize the updated state
 	newStateBytes, err := json.Marshal(currentState)
 	if err != nil {
-		return wasmCommon.ProcessResult{Error: "Failed to serialize new state"}
+		return ProcessResult{Error: "Failed to serialize new state"}
 	}
-	return wasmCommon.ProcessResult{
+	return ProcessResult{
 		State:       newStateBytes,
 		Events:      events,
 		Withdrawals: withdrawals,
-		Fuel:        big.NewInt(50),
+		Fuel:        NewUint256(50),
 	}
 }
 
-func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.DeanonymizationResult {
+func GenerateDeanonymizationReport(payloadJSON, stateJSON string) DeanonymizationResult {
 	// Deserialize payload
 	var payload ReportPayloadInstructions
 	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
-		return wasmCommon.DeanonymizationResult{Error: fmt.Sprintf("Failed to parse payload: %s", payloadJSON)}
+		return DeanonymizationResult{Error: fmt.Sprintf("Failed to parse payload: %s", payloadJSON)}
 	}
 
 	// Deserialize current state
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
-		return wasmCommon.DeanonymizationResult{Error: "Failed to parse application state"}
+		return DeanonymizationResult{Error: "Failed to parse application state"}
 	}
 
 	// Create deanonymization report
@@ -259,50 +272,15 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) wasmCommon.Dea
 	// Serialize the report
 	reportBytes, err := json.Marshal(report)
 	if err != nil {
-		return wasmCommon.DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
+		return DeanonymizationResult{Error: "Failed to serialize deanonymization report"}
 	}
-	return wasmCommon.DeanonymizationResult{Report: reportBytes, Fuel: big.NewInt(20)}
+	return DeanonymizationResult{Report: reportBytes, Fuel: NewUint256(20)}
 }
 
-// AccountState represents the state of a user account
-type AccountState struct {
-	Address ethCommon.Address `json:"address"`
-	Balance *big.Int          `json:"balance"`
-}
-
-// ApplicationInternalState represents the internal state of the application
-type ApplicationInternalState struct {
-	AppID    int64                               `json:"appId"`
-	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
-	Nonce    uint64                              `json:"nonce"`
-}
-
-// TransferInstruction represents instructions for transferring funds
-type TransferInstruction struct {
-	To     ethCommon.Address `json:"to"`
-	Amount *big.Int          `json:"amount"`
-}
-
-// WithdrawInstruction represents instructions for withdrawing funds
-type WithdrawInstruction struct {
-	To     ethCommon.Address `json:"to"`
-	Amount *big.Int          `json:"amount"`
-}
-
-// PayloadInstructions represents the deserialized payload instructions
-type PayloadInstructions struct {
-	Type     string               `json:"type"`
-	Transfer *TransferInstruction `json:"transfer,omitempty"`
-	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
-}
-
-type UnencryptedDeanonymizationReportData struct {
-	Accounts map[ethCommon.Address]*AccountState `json:"accounts"`
-	Nonce    uint64                              `json:"nonce"`
-}
-
-// ReportPayloadInstructions represents a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
-// we can omit empty accounts
-type ReportPayloadInstructions struct {
+func GetAllocatedMemoryStats() MemoryStats {
+	map_size, total_bytes := utils.GetAllocatedMemoryStats()
+	return MemoryStats{
+		MapSize:              map_size,
+		CumulativeMemorySize: total_bytes,
+	}
 }
