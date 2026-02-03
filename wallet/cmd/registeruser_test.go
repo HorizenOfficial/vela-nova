@@ -43,7 +43,7 @@ func TestRegisterUserCmd(t *testing.T) {
 
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -87,7 +87,7 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 
 	go testutil.FailNextRequest(t, testHelper)
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -129,7 +129,7 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

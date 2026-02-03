@@ -17,7 +17,7 @@ func TestGenerateKeysCmd(t *testing.T) {
 
 	// Execute the command
 	cmd := NewGenerateKeysCommand().Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

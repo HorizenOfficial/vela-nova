@@ -14,7 +14,6 @@ import (
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	"github.com/spf13/cobra"
-	"math/big"
 )
 
 type DownloadReportCommand struct {
@@ -37,7 +36,10 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 		Short: "download a deanonymization report from the authority service",
 		Long:  "download a deanonymization report from the authority service, optionally decrypting it after download",
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx := cmd.Context()
+			ctx := context.Background()
+			if cmd != nil && cmd.Context() != nil {
+				ctx = cmd.Context()
+			}
 			if c.reportID == "" {
 				fmt.Println("Error: report id is required")
 				return
@@ -74,8 +76,8 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 		ReportData       json.RawMessage          `json:"reportData,omitempty"`
 		ReportDataBase64 string                   `json:"reportDataBase64,omitempty"`
 		Authority        string                   `json:"authority,omitempty"`
-		RefundAmount     *big.Int                 `json:"refundAmount,omitempty"`
-		ApplicationFee   *big.Int                 `json:"applicationFee,omitempty"`
+		RefundAmount     *common.Big              `json:"refundAmount,omitempty"`
+		ApplicationFee   *common.Big              `json:"applicationFee,omitempty"`
 	}
 
 	if strings.TrimSpace(c.Config.RpcUrl) == "" {

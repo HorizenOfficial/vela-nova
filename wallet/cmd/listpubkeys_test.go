@@ -27,7 +27,7 @@ func TestListPubKeysCmd(t *testing.T) {
 		KeySecp: key1,
 		KeyP521: key2,
 	}).Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

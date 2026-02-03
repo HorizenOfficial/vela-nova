@@ -76,7 +76,7 @@ func TestDecryptReport(t *testing.T) {
 		BlockchainPollingTimeout:  10,
 	}, client).Command()
 	cmd.Flags().Set("path", filePath)
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
