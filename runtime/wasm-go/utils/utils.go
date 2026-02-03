@@ -83,12 +83,11 @@ func deallocate(ptr *byte, size int32) {
 	delete(allocatedMemory, uptr)
 
 	if int32(len(b)) != size {
-		// do not update the counter, that would be incorrect anyway. We could add more counters for errors and stats in future
-		println("unexpected allocated size!")
-		return
+		// We could add more counters for errors and stats in future
+		println("unexpected allocated size ", size, ", expected ", len(b))
 	}
 
-	cumulative_alloc_size -= int64(size)
+	cumulative_alloc_size -= int64(len(b))
 	println("Returning, tot allocated=", cumulative_alloc_size)
 }
 
@@ -106,7 +105,8 @@ func GetAllocatedMemoryStats() (map_size, total_bytes int64) {
 
 // PtrToString converts a WASM pointer and length to a Go string.
 func PtrToString(ptr *byte, length int32) string {
-	if ptr == nil || length == 0 {
+	if ptr == nil || length <= 0 {
+		println("Invalid ptr or length, ptr =", ptr, ", length =", length)
 		return ""
 	}
 	return string(unsafe.Slice(ptr, length))
