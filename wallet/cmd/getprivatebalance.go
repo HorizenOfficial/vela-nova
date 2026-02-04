@@ -9,6 +9,7 @@ import (
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
+	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/subgraph"
 	"github.com/spf13/cobra"
@@ -53,7 +54,7 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		return nil, fmt.Errorf("can't retrieve events: %w", err)
 	}
 	if len(events) == 0 {
-		return []byte(`{"` + BALANCE_JSON_KEY + `": 0}`), nil
+		return []byte(`{"` + BALANCE_JSON_KEY + `": "0x0"}`), nil
 	}
 	return events[0], nil
 }
@@ -95,14 +96,14 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 
 			//get json from event
 			var jsonData struct {
-				Balance *big.Int
+				Balance *common.Big
 			}
 			err = json.Unmarshal(event, &jsonData)
 			if err != nil {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			eth := new(big.Float).Quo(new(big.Float).SetInt(jsonData.Balance), big.NewFloat(1e18))
+			eth := new(big.Float).Quo(new(big.Float).SetInt(jsonData.Balance.ToInt()), big.NewFloat(1e18))
 			fmt.Println(eth.Text('f', 18))
 		},
 	}
