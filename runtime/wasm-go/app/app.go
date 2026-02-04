@@ -64,9 +64,12 @@ func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositR
 			}
 		}
 
-		// Add deposit to sender's balance
+		// Add deposit to sender's balance (copy old balance by value for revert on overflow)
+		oldBalance := *currentState.Accounts[senderHex].Balance
 		if currentState.Accounts[senderHex].Balance.AddOverflow(*currentState.Accounts[senderHex].Balance, *value) {
-			return DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, currentState.Accounts[senderHex].Balance)}
+			utils.LogError("DepositFunds: overflow while adding amount %s to balance %s for account %s", value.String(), oldBalance.String(), senderHex)
+			*currentState.Accounts[senderHex].Balance = oldBalance // revert to previous balance
+			return DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, oldBalance)}
 		}
 		currentState.Nonce++
 
@@ -215,7 +218,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 		case "withdraw":
 			if instructions.Withdraw == nil {
 				utils.LogError("ProcessRequest: withdraw instruction is missing in payload")
-				return ProcessResult{Error: fmt.Sprintf("Withdraw instruction is missing in payload")}
+				return ProcessResult{Error: "Withdraw instruction is missing in payload"}
 			}
 			if instructions.Withdraw.Amount == nil {
 				return ProcessResult{Error: "Withdraw amount is nil"}
