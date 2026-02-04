@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
@@ -34,7 +35,10 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				return
 			}
 
-			ctx := cmd.Context()
+			ctx := context.Background()
+			if cmd != nil && cmd.Context() != nil {
+				ctx = cmd.Context()
+			}
 			if c.BlockchainClient == nil {
 				//create blockchain client
 				if err := c.InitChainClient(ctx); err != nil {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/big"
@@ -52,7 +53,10 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				return
 			}
 
-			ctx := cmd.Context()
+			ctx := context.Background()
+			if cmd != nil && cmd.Context() != nil {
+				ctx = cmd.Context()
+			}
 			if c.BlockchainClient == nil {
 				//create blockchain client
 				if err := c.InitChainClient(ctx); err != nil {

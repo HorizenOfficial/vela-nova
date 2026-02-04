@@ -46,7 +46,7 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	cmd.Flags().Set("amount", "pippo")
 	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -90,7 +90,7 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 	cmd.Flags().Set("amount", "333 wei")
 	cmd.Flags().Set("max-value-fee", "pippo")
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -137,7 +137,7 @@ func TestDepositCmd(t *testing.T) {
 	// To be honest, it should be a StateUpdate but for the test it is enough, for now
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -183,7 +183,7 @@ func TestDepositCmdFailure(t *testing.T) {
 
 	go testutil.FailNextRequest(t, testHelper)
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -229,7 +229,7 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

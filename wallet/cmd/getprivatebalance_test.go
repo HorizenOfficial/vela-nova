@@ -52,13 +52,14 @@ func TestGetPrivateBalance(t *testing.T) {
 		},
 	})
 	// Execute the command
-	cmd := NewGetPrivateBalanceCommand(&app.Config{
+	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client)
-	cmd.SubgraphClient = sgClient
-	cmd.Command().Run(nil, nil)
+	getPrivateBalanceCmd.SubgraphClient = sgClient
+	cmd := getPrivateBalanceCmd.Command()
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -98,13 +99,14 @@ func TestGetPrivateBalance_BalanceZero(t *testing.T) {
 		},
 	})
 	// Execute the command
-	cmd := NewGetPrivateBalanceCommand(&app.Config{
+	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(&app.Config{
 		KeySecp: key1,
 		KeyP521: key2,
 		RpcUrl:  "https://base-sepolia.drpc.org",
 	}, client)
-	cmd.SubgraphClient = sgClient
-	cmd.Command().Run(nil, nil)
+	getPrivateBalanceCmd.SubgraphClient = sgClient
+	cmd := getPrivateBalanceCmd.Command()
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/logger"
 	systemTests "github.com/horizen-pes/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -53,13 +54,15 @@ func TestWasmtimePaymentAppFullSystemFlow(t *testing.T) {
 func newTestLogger() logger.Logger {
 	testLogger := logger.NewLogger(
 		&logger.Config{
-			Kind:         "zerolog",
+			Kind:         "zeronetwork",
 			ConsoleColor: false, // colors can print escape chars on tty
-			Console:      true,
+			Console:      false,
 			ConsoleLevel: "trace",
 			//FileName:     "qqq.log",
-			//FileLevel:    "info",
-		},
+			FileLevel:        "trace",
+			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
+			RemoteLogNetwork: "tcp",
+			NetworkLevel:     "trace"},
 	)
 	return testLogger
 }

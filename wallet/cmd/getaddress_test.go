@@ -24,7 +24,7 @@ func TestGetAddressCmd(t *testing.T) {
 	cmd := NewGetAddressCommand(&app.Config{
 		KeySecp: key,
 	}).Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

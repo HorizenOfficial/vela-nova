@@ -24,7 +24,7 @@ func TestGetPublicBalanceCmd(t *testing.T) {
 		KeySecp: key,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}).Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

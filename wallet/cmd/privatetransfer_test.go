@@ -46,7 +46,7 @@ func TestPrivateTransfer(t *testing.T) {
 
 	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

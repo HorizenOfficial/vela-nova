@@ -2,15 +2,16 @@ module github.com/horizen-pes-nova/wallet
 
 go 1.23.0
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.15
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
 
 // Can be useful for local developments
 //replace github.com/horizen-pes => ../../horizen-pes
+
 replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.15
+	github.com/horizen-pes v0.0.18
 	github.com/horizen-pes-nova/payment-app v0.0.0
 	github.com/magiconair/properties v1.8.10
 	github.com/spf13/cobra v1.9.1
@@ -67,6 +68,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
+	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
@@ -85,6 +88,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
@@ -96,6 +100,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect

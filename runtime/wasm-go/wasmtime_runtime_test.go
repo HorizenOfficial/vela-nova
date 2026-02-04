@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -29,19 +30,19 @@ type PayloadInstructions struct {
 
 type TransferInstruction struct {
 	To     ethCommon.Address `json:"to"`
-	Amount *big.Int          `json:"amount"`
+	Amount *common.Big       `json:"amount"`
 }
 
 type WithdrawInstruction struct {
 	To     ethCommon.Address `json:"to"`
-	Amount *big.Int          `json:"amount"`
+	Amount *common.Big       `json:"amount"`
 }
 
 type ApplicationInternalState struct {
 	AppID    common.ApplicationIdType `json:"appId"`
 	Accounts map[ethCommon.Address]struct {
 		Address ethCommon.Address `json:"address"`
-		Balance *big.Int          `json:"balance"`
+		Balance *common.Big       `json:"balance"`
 	} `json:"accounts"`
 	Nonce uint64 `json:"nonce"`
 }
@@ -77,7 +78,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 func TestWasmtimeRuntime_Deposit(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance *big.Int `json:"balance"`
+		Balance *common.Big `json:"balance"`
 	}
 
 	type TestStateData struct {
@@ -119,7 +120,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	err = json.Unmarshal(event.Data, &eventData)
 	require.NoError(t, err, "Event data should be valid JSON")
 	assert.Equal(t, "deposit", eventData.Type)
-	assert.Equal(t, depositAmount, eventData.Amount)
+	assert.Equal(t, depositAmount, eventData.Amount.ToInt())
 
 	// Verify the state was updated
 	var stateData TestStateData
@@ -127,13 +128,13 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.NoError(t, err, "New state should be valid JSON")
 
 	require.Contains(t, stateData.Accounts, sender)
-	assert.Equal(t, depositAmount, stateData.Accounts[sender].Balance)
+	assert.Equal(t, depositAmount, stateData.Accounts[sender].Balance.ToInt())
 }
 
 func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance *big.Int `json:"balance"`
+		Balance *common.Big `json:"balance"`
 	}
 
 	type TestStateData struct {
@@ -146,7 +147,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		Type   string            `json:"type"`
 		From   ethCommon.Address `json:"from,omitempty"`
 		To     ethCommon.Address `json:"to,omitempty"`
-		Amount *big.Int          `json:"amount"`
+		Amount *common.Big       `json:"amount"`
 	}
 
 	// Build and load the compiled WASM module
@@ -177,7 +178,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		Type: "transfer",
 		Transfer: &TransferInstruction{
 			To:     recipient,
-			Amount: transferValue,
+			Amount: common.ToBig(transferValue),
 		},
 	}
 	payloadBytes, err := json.Marshal(transferPayload)
@@ -197,7 +198,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "transfer_sent", senderEventData.Type)
 	assert.Equal(t, recipient, senderEventData.To)
-	assert.Equal(t, transferValue, senderEventData.Amount)
+	assert.Equal(t, transferValue, senderEventData.Amount.ToInt())
 
 	// Verify recipient event
 	var recipientEventData TestTransferEventData
@@ -205,22 +206,21 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "transfer_received", recipientEventData.Type)
 	assert.Equal(t, sender, recipientEventData.From)
-	assert.Equal(t, transferValue, recipientEventData.Amount)
-
+	assert.Equal(t, transferValue, recipientEventData.Amount.ToInt())
 	// Verify the state was updated
 	var stateData TestStateData
 	err = json.Unmarshal(newState, &stateData)
 	require.NoError(t, err, "New state should be valid JSON")
 
 	updatedBalanceSender := new(big.Int).Sub(depositAmount, transferValue)
-	assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance)
-	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance)
+	assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance.ToInt())
+	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance.ToInt())
 }
 
 func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance *big.Int `json:"balance"`
+		Balance *common.Big `json:"balance"`
 	}
 
 	type TestStateData struct {
@@ -232,7 +232,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	type TestWithdrawalEventData struct {
 		Type   string            `json:"type"`
 		To     ethCommon.Address `json:"to"`
-		Amount *big.Int          `json:"amount"`
+		Amount *common.Big       `json:"amount"`
 	}
 
 	// Build and load the compiled WASM module
@@ -263,7 +263,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 		Type: "withdraw",
 		Withdraw: &WithdrawInstruction{
 			To:     withdrawAddress,
-			Amount: withdrawValue,
+			Amount: common.ToBig(withdrawValue),
 		},
 	}
 	payloadBytes, err := json.Marshal(withdrawPayload)
@@ -287,12 +287,12 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err, "Event data should be valid JSON")
 	assert.Equal(t, "withdrawal", eventData.Type)
 	assert.Equal(t, withdrawAddress, eventData.To)
-	assert.Equal(t, withdrawValue, eventData.Amount)
+	assert.Equal(t, withdrawValue, eventData.Amount.ToInt())
 
 	// Verify withdrawal
 	withdrawal := withdrawals[0]
 	assert.Equal(t, withdrawAddress, withdrawal.DestinationAddress)
-	assert.Equal(t, withdrawValue, withdrawal.Amount)
+	assert.Equal(t, withdrawValue, withdrawal.Amount.ToInt())
 
 	// Verify the state was updated
 	var stateData TestStateData
@@ -300,13 +300,13 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err, "New state should be valid JSON")
 	updatedBalance := new(big.Int).Sub(depositAmount, withdrawValue)
 
-	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance)
+	assert.Equal(t, updatedBalance, stateData.Accounts[sender].Balance.ToInt())
 }
 
 func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance *big.Int `json:"balance"`
+		Balance *common.Big `json:"balance"`
 	}
 
 	type TestDeanonymizationReport struct {
@@ -348,13 +348,13 @@ func TestWasmtimeRuntime_GenerateDeanonymizationReport(t *testing.T) {
 	require.NoError(t, err, "Report should be valid JSON")
 
 	require.Contains(t, reportData.Accounts, sender)
-	assert.Equal(t, depositAmount, reportData.Accounts[sender].Balance)
+	assert.Equal(t, depositAmount, reportData.Accounts[sender].Balance.ToInt())
 }
 
 func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	type TestAccountState struct {
-		Balance *big.Int `json:"balance"`
+		Balance *common.Big `json:"balance"`
 	}
 
 	type TestStateData struct {
@@ -394,7 +394,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 		Type: "transfer",
 		Transfer: &TransferInstruction{
 			To:     user2,
-			Amount: transferValue,
+			Amount: common.ToBig(transferValue),
 		},
 	}
 	payloadBytes, err := json.Marshal(transferPayload)
@@ -414,7 +414,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 		Type: "withdraw",
 		Withdraw: &WithdrawInstruction{
 			To:     withdrawAddress,
-			Amount: withdrawValue,
+			Amount: common.ToBig(withdrawValue),
 		},
 	}
 	payloadBytes, err = json.Marshal(withdrawPayload)
@@ -438,8 +438,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	user1UpdatedBalance := new(big.Int).Sub(depositAmount, transferValue)
 	user2UpdatedBalance := new(big.Int).Sub(transferValue, withdrawValue)
-	assert.Equal(t, user1UpdatedBalance, stateData.Accounts[user1].Balance)
-	assert.Equal(t, user2UpdatedBalance, stateData.Accounts[user2].Balance)
+	assert.Equal(t, user1UpdatedBalance, stateData.Accounts[user1].Balance.ToInt())
+	assert.Equal(t, user2UpdatedBalance, stateData.Accounts[user2].Balance.ToInt())
 
 	t.Log("Full workflow completed successfully!")
 }
@@ -507,7 +507,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 		Type: "transfer",
 		Transfer: &TransferInstruction{
 			To:     ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1)),
-			Amount: big.NewInt(500000000000000000),
+			Amount: common.ToBig(big.NewInt(500000000000000000)),
 		},
 	}
 	payloadBytes, err := json.Marshal(transferPayload)
@@ -627,13 +627,13 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 			"type": "transfer",
 			"transfer": map[string]interface{}{
 				"to":     user2,
-				"amount": uint64(500),
+				"amount": common.NewBig(uint64(500)),
 			},
 		}
 		payloadBytes, _ := json.Marshal(negativePayload)
 		_, _, _, fuel, err := runtime.ProcessRequest(ctx, appId, user1, payloadBytes, state, wasmBytes)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Account does not exist")
+		assert.Contains(t, strings.ToLower(err.Error()), fmt.Sprintf("account %s does not exist!", strings.ToLower(user1.String())))
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 	})
 }
@@ -665,7 +665,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 		Type: "transfer",
 		Transfer: &TransferInstruction{
 			To:     user2,
-			Amount: depositAmount,
+			Amount: common.ToBig(depositAmount),
 		},
 	}
 	payloadBytes, _ := json.Marshal(transferPayload)

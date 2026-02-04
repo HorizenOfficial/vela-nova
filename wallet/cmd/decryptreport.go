@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -28,7 +29,10 @@ func (c *DecryptReportCommand) Command() *cobra.Command {
 		Short: `decrypt a deanonymization report specifying file that contains it`,
 		Long:  `decrypt a deanonymization report specifying file that contains it`,
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx := cmd.Context()
+			ctx := context.Background()
+			if cmd != nil && cmd.Context() != nil {
+				ctx = cmd.Context()
+			}
 
 			readJson, err := os.ReadFile(c.filePath)
 			if err != nil {

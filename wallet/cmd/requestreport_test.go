@@ -51,7 +51,7 @@ func TestRequestReportCmd(t *testing.T) {
 		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(80), big.NewInt(20))
-		cmd.Run(nil, nil)
+		cmd.Run(cmd, nil)
 
 		// Restore stdout
 		w.Close()
@@ -86,7 +86,7 @@ func TestRequestReportCmd(t *testing.T) {
 		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.FailNextRequest(t, testHelper)
-		cmd.Run(nil, nil)
+		cmd.Run(cmd, nil)
 
 		// Restore stdout
 		w.Close()

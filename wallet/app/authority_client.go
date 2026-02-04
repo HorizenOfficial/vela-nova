@@ -195,7 +195,7 @@ func convertReportResponse(resp *authorityapi.GetReportResponse) (*common.Deanon
 		ReportID:        reportID,
 		Authority:       ethCommon.HexToAddress(resp.Authority),
 		EncryptedReport: encBytes,
-		RefundAmount:    refundAmount,
-		ApplicationFee:  applicationFee,
+		RefundAmount:    common.ToBig(refundAmount),
+		ApplicationFee:  common.ToBig(applicationFee),
 	}, nil
 }
