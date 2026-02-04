@@ -173,8 +173,11 @@ func (z Uint256) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
-// Only hex strings with "0x" prefix are accepted.
+// Only hex strings with "0x" prefix are accepted, or "null" string.
 func (z *Uint256) UnmarshalJSON(data []byte) error {
+	if z == nil {
+		return fmt.Errorf("Uint256: UnmarshalJSON on nil pointer")
+	}
 	if string(data) == "null" {
 		*z = Uint256{}
 		return nil

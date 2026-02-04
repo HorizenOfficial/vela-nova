@@ -102,7 +102,7 @@ func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositR
 	if currentState.Accounts[senderHex] != nil {
 		balanceStr = currentState.Accounts[senderHex].Balance.String()
 	} else {
-		balanceStr = "N/A"
+		balanceStr = "0"
 	}
 
 	fuel := NewUint256(35)
@@ -144,7 +144,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 				return ProcessResult{Error: "Transfer instruction is missing"}
 			}
 			if instructions.Transfer.Amount == nil {
-				utils.LogError("ProcessRequest: transfer amout is nil")
+				utils.LogError("ProcessRequest: transfer amount is nil")
 				return ProcessResult{Error: "Transfer amount is nil"}
 			}
 
@@ -215,7 +215,7 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 		case "withdraw":
 			if instructions.Withdraw == nil {
 				utils.LogError("ProcessRequest: withdraw instruction is missing in payload")
-				return ProcessResult{Error: fmt.Sprintf("Withdraw instruction is missing in payload: %s", payloadJSON)}
+				return ProcessResult{Error: fmt.Sprintf("Withdraw instruction is missing in payload")}
 			}
 			if instructions.Withdraw.Amount == nil {
 				return ProcessResult{Error: "Withdraw amount is nil"}
