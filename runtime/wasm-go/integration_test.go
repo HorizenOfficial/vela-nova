@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/horizen-cce-common-go/wasm/types"
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/common"
@@ -76,7 +77,7 @@ func TestIntegration_Deposit(t *testing.T) {
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
 	require.Contains(t, stateData.Accounts, senderHex)
-	expectedBalance := new(app.Uint256).SetBytes(depositAmount.Bytes())
+	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
 	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
 }
 
@@ -91,7 +92,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	ethSender := ethCommon.HexToAddress(senderHex)
 	recipientHex := fmt.Sprintf("0xadd%037x", 2)
 	depositAmount := big.NewInt(2_000_000_000_000_000_000)
-	transferValue := app.NewUint256(500_000_000_000_000_000)
+	transferValue := types.NewUint256(500_000_000_000_000_000)
 
 	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
@@ -101,7 +102,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	recAddress, err := app.HexToAddress(recipientHex)
+	recAddress, err := types.HexToAddress(recipientHex)
 	require.NoError(t, err)
 
 	payload := app.PayloadInstructions{
@@ -119,8 +120,8 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
-	expectedBalance := app.NewUint256(0)
-	expectedBalance.Sub(*new(app.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
+	expectedBalance := types.NewUint256(0)
+	expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
 	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
 	assert.Equal(t, transferValue.String(), stateData.Accounts[recipientHex].Balance.String())
 }
@@ -135,10 +136,10 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	senderHex := fmt.Sprintf("0xadd%037x", 1)
 	ethSender := ethCommon.HexToAddress(senderHex)
 	depositAmount := big.NewInt(1_000_000_000_000_000_000)
-	withdrawValue := app.NewUint256(500_000_000_000_000_000)
+	withdrawValue := types.NewUint256(500_000_000_000_000_000)
 	withdrawAddrHex := "0x1234567890123456789012345678901234567890"
 	ethWithdrawAddr := ethCommon.HexToAddress(withdrawAddrHex)
-	withdrawAddress, err := app.HexToAddress(withdrawAddrHex)
+	withdrawAddress, err := types.HexToAddress(withdrawAddrHex)
 	require.NoError(t, err)
 
 	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
@@ -166,8 +167,8 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(newState, &stateData))
-	expectedBalance := app.NewUint256(0)
-	expectedBalance.Sub(*new(app.Uint256).SetBytes(depositAmount.Bytes()), *withdrawValue)
+	expectedBalance := types.NewUint256(0)
+	expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *withdrawValue)
 	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
 }
 
@@ -204,7 +205,7 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	var report reportStruct
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
 	require.Contains(t, report.Accounts, sender)
-	expectedBalance := new(app.Uint256).SetBytes(depositAmount.Bytes())
+	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
 	assert.Equal(t, expectedBalance.String(), report.Accounts[sender].Balance.String())
 }
 
