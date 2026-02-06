@@ -166,22 +166,22 @@ type TransferInstruction struct {
 	Amount *Uint256 `json:"amount"`
 }
 
+// DeanonymizeInstruction represents optional instructions for deanonymization
+type DeanonymizeInstruction struct {
+}
+
 // PayloadInstructions represents the deserialized payload instructions
 type PayloadInstructions struct {
-	Type     string               `json:"type"`
-	Transfer *TransferInstruction `json:"transfer,omitempty"`
-	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+	Type        string                  `json:"type"`
+	Transfer    *TransferInstruction    `json:"transfer,omitempty"`
+	Withdraw    *WithdrawInstruction    `json:"withdraw,omitempty"`
+	Deanonymize *DeanonymizeInstruction `json:"deanonymize,omitempty"`
 }
 
-type UnencryptedDeanonymizationReportData struct {
+// DeanonymizationReport represents the structure of the deanonymization report
+type DeanonymizationReport struct {
 	Accounts map[string]*AccountState `json:"accounts"`
 	Nonce    uint64                   `json:"nonce"`
-}
-
-// ReportPayloadInstructions represents a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
-// we can omit empty accounts
-type ReportPayloadInstructions struct {
 }
 
 // --- Local replacements for Host types ---
@@ -217,15 +217,9 @@ type ProcessResult struct {
 	State       []byte       `json:"state"`
 	Events      []PlainEvent `json:"events"`
 	Withdrawals []Withdrawal `json:"withdrawals"`
+	Report      []byte       `json:"report,omitempty"` //report generated only in case of deanonymization
 	Fuel        *Uint256     `json:"fuel"`
 	Error       string       `json:"error,omitempty"`
-}
-
-// DeanonymizationResult is a local replacement for wasmCommon.DeanonymizationResult
-type DeanonymizationResult struct {
-	Report []byte   `json:"report"`
-	Fuel   *Uint256 `json:"fuel"`
-	Error  string   `json:"error,omitempty"`
 }
 
 // PlainEvent is a local replacement for common.PlainEvent

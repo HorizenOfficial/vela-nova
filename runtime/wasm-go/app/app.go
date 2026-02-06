@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/horizen-pes-nova/payment-app/utils"
+	"github.com/horizen-pes/pkg/common"
 )
 
 // --- High-Level Application Logic ---
@@ -114,7 +115,7 @@ func DepositFunds(senderPtr *Address, value *Uint256, stateJSON string) DepositR
 	return DepositResult{State: newStateBytes, Events: events, Fuel: fuel}
 }
 
-func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessResult {
+func ProcessRequest(senderPtr *Address, requestType int32, payloadJSON, stateJSON string) ProcessResult {
 	if senderPtr == nil {
 		return ProcessResult{Error: "Sender address is missing"}
 	}
@@ -132,15 +133,27 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 	var events []PlainEvent
 	var withdrawals []Withdrawal
 
-	// Process payload instructions if payload is not empty
-	if payloadJSON != "" {
-		var instructions PayloadInstructions
+	// Determine instruction type: requestType has priority over payload
+	var instructionType string
+	var instructions PayloadInstructions
+
+	// Parse payload if present (for additional options like deanonymize params)
+	if payloadJSON != "" && payloadJSON != "{}" {
 		if err := json.Unmarshal([]byte(payloadJSON), &instructions); err != nil {
 			utils.LogError("ProcessRequest: failed to parse payload instructions: %v", err)
 			return ProcessResult{Error: fmt.Sprintf("Failed to parse payload instructions: %v", err)}
 		}
+	}
 
-		switch instructions.Type {
+	// requestType takes precedence over payload type
+	if requestType == int32(common.Deanonymize) {
+		instructionType = "deanonymize"
+	} else {
+		instructionType = instructions.Type
+	}
+
+	if instructionType != "" {
+		switch instructionType {
 		case "transfer":
 			if instructions.Transfer == nil {
 				utils.LogError("ProcessRequest: transfer instruction is missing in payload")
@@ -266,9 +279,31 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 				Data:         withdrawEventDataBytes,
 			})
 
+		case "deanonymize":
+			// Generate deanonymization report
+			report := DeanonymizationReport{
+				Accounts: currentState.Accounts,
+				Nonce:    currentState.Nonce,
+			}
+
+			// Serialize the report
+			reportBytes, err := json.Marshal(report)
+			if err != nil {
+				utils.LogError("ProcessRequest: failed to serialize deanonymization report: %v", err)
+				return ProcessResult{Error: fmt.Sprintf("Failed to serialize deanonymization report: %v", err)}
+			}
+
+			utils.LogDebug("ProcessRequest: deanonymize sender=%s, accountsCount=%d, reportSize=%d",
+				senderHex, len(currentState.Accounts), len(reportBytes))
+			return ProcessResult{
+				State:  []byte(stateJSON), //we have not modified the app state, using the old one to avoid useless marshalling
+				Report: reportBytes,
+				Fuel:   NewUint256(20),
+			}
+
 		default:
-			utils.LogError("ProcessRequest: unsupported instruction type: %s", instructions.Type)
-			return ProcessResult{Error: fmt.Sprintf("Unsupported instruction type: [%s]", instructions.Type)}
+			utils.LogError("ProcessRequest: unsupported instruction type: %s", instructionType)
+			return ProcessResult{Error: fmt.Sprintf("Unsupported instruction type: [%s]", instructionType)}
 		}
 	}
 
@@ -287,42 +322,6 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 		Withdrawals: withdrawals,
 		Fuel:        fuel,
 	}
-}
-
-func GenerateDeanonymizationReport(payloadJSON, stateJSON string) DeanonymizationResult {
-	// Deserialize payload
-	var payload ReportPayloadInstructions
-	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
-		utils.LogError("GenerateDeanonymizationReport: failed to parse payload: %v", err)
-		return DeanonymizationResult{Error: fmt.Sprintf("Failed to parse payload: %s, err: %v", payloadJSON, err)}
-	}
-
-	// Deserialize current state
-	var currentState ApplicationInternalState
-	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
-		utils.LogError("GenerateDeanonymizationReport: failed to parse application state: %v", err)
-		return DeanonymizationResult{Error: fmt.Sprintf("Failed to parse application state: %v", err)}
-	}
-
-	// Create deanonymization report
-	report := UnencryptedDeanonymizationReportData{
-		Accounts: currentState.Accounts,
-		Nonce:    currentState.Nonce,
-	}
-
-	// read contents of the payload and decide how to build the report.
-	//if payload.... TODO
-
-	// Serialize the report
-	reportBytes, err := json.Marshal(report)
-	if err != nil {
-		utils.LogError("GenerateDeanonymizationReport: failed to serialize report: %v", err)
-		return DeanonymizationResult{Error: fmt.Sprintf("Failed to serialize deanonymization report: %v", err)}
-	}
-	fuel := NewUint256(20)
-	utils.LogDebug("GenerateDeanonymizationReport: accountsCount=%d, reportSize=%d, fuel=%v",
-		len(currentState.Accounts), len(reportBytes), fuel)
-	return DeanonymizationResult{Report: reportBytes, Fuel: fuel}
 }
 
 func GetAllocatedMemoryStats() MemoryStats {
