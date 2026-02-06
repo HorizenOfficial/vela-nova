@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horizen Nova Wallet</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 1px solid #333;
+      margin-bottom: 20px;
+    }
+
+    header h1 {
+      color: #00d4ff;
+      font-size: 1.8rem;
+    }
+
+    .card {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #333;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 15px;
+    }
+
+    .connect-section {
+      text-align: center;
+    }
+
+    .address {
+      font-family: monospace;
+      background: #0f0f23;
+      padding: 10px 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+      word-break: break-all;
+      font-size: 0.9rem;
+    }
+
+    .balance-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .balance-row:last-child {
+      border-bottom: none;
+    }
+
+    .balance-label {
+      color: #888;
+    }
+
+    .balance-value {
+      font-family: monospace;
+      font-size: 1.1rem;
+      color: #00d4ff;
+    }
+
+    .action-section {
+      border-bottom: 1px solid #333;
+      padding: 15px 0;
+    }
+
+    .action-section:last-child {
+      border-bottom: none;
+    }
+
+    .action-section h3 {
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      color: #ccc;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .form-row label {
+      min-width: 80px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    .form-row input {
+      flex: 1;
+      background: #0f0f23;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: #eee;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    .form-row input:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+
+    .form-row span {
+      font-size: 0.85rem;
+      color: #666;
+      min-width: 40px;
+    }
+
+    button {
+      background: #00d4ff;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #00b8e6;
+    }
+
+    button:disabled {
+      background: #444;
+      color: #888;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: #333;
+      color: #eee;
+    }
+
+    button.secondary:hover {
+      background: #444;
+    }
+
+    .btn-small {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+    }
+
+    .status-log {
+      background: #0f0f23;
+      border-radius: 8px;
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+    }
+
+    .status-log .log-entry {
+      padding: 2px 0;
+    }
+
+    .status-log .log-entry.error {
+      color: #ff6b6b;
+    }
+
+    .status-log .log-entry.success {
+      color: #51cf66;
+    }
+
+    .status-log .log-entry.info {
+      color: #888;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .action-status {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 10px;
+      font-size: 0.85rem;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #333;
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status-ok {
+      color: #51cf66;
+    }
+
+    .status-error {
+      color: #ff6b6b;
+    }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Horizen Nova Wallet</h1>
+    </header>
+
+    <!-- Connect Section -->
+    <div class="card connect-section">
+      <button id="connectBtn" onclick="connectWallet()">Connect MetaMask</button>
+      <div id="ethAddressDisplay" class="hidden" style="margin-top: 15px;">
+        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">Ethereum Address:</div>
+        <div id="addressDisplay" class="address"></div>
+      </div>
+      <div id="p521KeyDisplay" class="hidden" style="margin-top: 15px;">
+        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">P521 Public Key (derived from MetaMask):</div>
+        <div id="p521PublicKey" class="address" style="font-size: 0.75rem; word-break: break-all;"></div>
+        <div style="margin-top: 10px;">
+          <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
+            P521 Private Key:
+            <button id="togglePrivateKey" class="btn-small secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="togglePrivateKeyVisibility()">Show</button>
+          </div>
+          <div id="p521PrivateKey" class="address hidden" style="font-size: 0.75rem; word-break: break-all; background: #1a0a0a; border-color: #ff6b6b;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Balances Section -->
+    <div id="balancesCard" class="card hidden">
+      <h2>Balances</h2>
+      <div class="balance-row">
+        <span class="balance-label">Public Balance</span>
+        <span id="publicBalance" class="balance-value">-</span>
+      </div>
+      <div class="balance-row">
+        <span class="balance-label">Private Balance</span>
+        <span id="privateBalance" class="balance-value">-</span>
+      </div>
+      <div style="margin-top: 15px; text-align: center;">
+        <button class="secondary btn-small" onclick="refreshBalances()">Refresh Balances</button>
+      </div>
+    </div>
+
+    <!-- Wrong Network Alert -->
+    <div id="networkAlert" class="card hidden" style="background: #2d1f1f; border-color: #ff6b6b;">
+      <div style="color: #ff6b6b; text-align: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 10px;">&#9888;</div>
+        <div style="font-weight: 600;">Wrong Network</div>
+        <div style="color: #888; font-size: 0.85rem; margin-top: 8px;">Please switch MetaMask to Horizen Testnet (Chain ID: 2651420)</div>
+        <button class="btn-small" style="margin-top: 15px;" onclick="switchNetwork()">Switch Network</button>
+      </div>
+    </div>
+
+    <!-- No Funds Alert -->
+    <div id="noFundsAlert" class="card hidden" style="background: #2d1f1f; border-color: #ff6b6b;">
+      <div style="color: #ff6b6b; text-align: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 10px;">&#9888;</div>
+        <div style="font-weight: 600;">You must add funds to your public balance before continuing</div>
+        <div style="color: #888; font-size: 0.85rem; margin-top: 8px;">(needed to pay transaction fees)</div>
+        <div style="color: #aaa; font-size: 0.8rem; margin-top: 12px;">Send ETH to your public address <span id="alertAddress" style="font-family: monospace; color: #00d4ff;"></span> on Horizen L3 Chain</div>
+        <div style="font-size: 0.8rem; margin-top: 8px;">You can use the faucet <a href="https://horizen-testnet.hub.caldera.xyz/" target="_blank" style="color: #00d4ff;">here</a></div>
+      </div>
+    </div>
+
+    <!-- Actions Section -->
+    <div id="actionsCard" class="card hidden">
+      <h2>Actions</h2>
+
+      <!-- Register User -->
+      <div class="action-section">
+        <h3>Register User:</h3>
+        <p id="registerDescription" style="color: #888; font-size: 0.85rem; margin-bottom: 10px;">Register your P521 public key with the PES system</p>
+        <p id="alreadyRegisteredMsg" class="hidden" style="color: #51cf66; font-size: 0.85rem; margin-bottom: 10px;">Your private balance is > 0, meaning you already registered your key in the past!</p>
+        <div class="action-row">
+          <button id="registerBtn" class="btn-small action-btn" onclick="registerUser()">Register</button>
+          <span id="registerStatus" class="action-status hidden"></span>
+        </div>
+      </div>
+
+      <!-- Deposit -->
+      <div class="action-section">
+        <h3>Deposit:</h3>
+        <p style="color: #888; font-size: 0.85rem; margin-bottom: 10px;">Move funds from your public balance to the private balance</p>
+        <div class="form-row">
+          <label>Amount:</label>
+          <input type="text" id="depositAmount" placeholder="0.1">
+          <span>ETH</span>
+        </div>
+        <div class="action-row">
+          <button id="depositBtn" class="btn-small action-btn" onclick="deposit()">Deposit</button>
+          <span id="depositStatus" class="action-status hidden"></span>
+        </div>
+      </div>
+
+      <!-- Private Transfer -->
+      <div class="action-section">
+        <h3>Private Transfer:</h3>
+        <p style="color: #888; font-size: 0.85rem; margin-bottom: 10px;">IMPORTANT: <br/> Check destination user is already registered to the PES system before sending</p>
+        <div class="form-row">
+          <label>To:</label>
+          <input type="text" id="transferTo" placeholder="0x...">
+        </div>
+        <div class="form-row">
+          <label>Amount:</label>
+          <input type="text" id="transferAmount" placeholder="0.1">
+          <span>ETH</span>
+        </div>
+        <div class="action-row">
+          <button id="transferBtn" class="btn-small action-btn" onclick="privateTransfer()">Transfer</button>
+          <span id="transferStatus" class="action-status hidden"></span>
+        </div>
+      </div>
+
+      <!-- Withdraw -->
+      <div class="action-section">
+        <h3>Withdraw:</h3>
+        <p style="color: #888; font-size: 0.85rem; margin-bottom: 10px;">Move funds from private balance to the public balance</p>
+
+        <div class="form-row" style="margin-bottom: 12px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: auto;">
+            <input type="checkbox" id="withdrawToSelf" checked onchange="toggleWithdrawToField()" style="width: 16px; height: 16px; cursor: pointer;">
+            <span style="color: #ccc; font-size: 0.9rem;">Send to my public address</span>
+          </label>
+        </div>
+        <div id="withdrawToRow" class="form-row hidden">
+          <label>To:</label>
+          <input type="text" id="withdrawTo" placeholder="0x...">
+        </div>
+        <div class="form-row">
+          <label>Amount:</label>
+          <input type="text" id="withdrawAmount" placeholder="0.1">
+          <span>ETH</span>
+        </div>
+        <div class="action-row">
+          <button id="withdrawBtn" class="btn-small action-btn" onclick="withdraw()">Withdraw</button>
+          <span id="withdrawStatus" class="action-status hidden"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Log -->
+    <div class="card">
+      <h2>Status Log</h2>
+      <div id="statusLog" class="status-log">
+        <div class="log-entry info">Ready. Please connect your wallet.</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      ethersSignerFromBrowser,
+      HorizenCCEClient,
+      RequestType,
+      exportPublicKeyToHex,
+      importPublicKeyFromHex,
+      bytesToHex,
+      hexToBytes,
+      stringToBytes,
+      decrypt
+    } from './lib/index.js';
+
+    // Configuration (M3)
+    const CONFIG = {
+      RPC_URL: "https://horizen-testnet.rpc.caldera.xyz/http",
+      PROCESSOR_ADDRESS: "0x6bDFB0Ad46a64E76bB33C1acA70e9F601FB20AEf".toLowerCase(),
+      TEE_AUTHENTICATOR_ADDRESS: "0x08b1be677e3a3D90D43082473F7675B63B7bA42E".toLowerCase(),
+      SUBGRAPH_URL: "https://api.goldsky.com/api/public/project_cml7x1bnbintv01xu7tih85gl/subgraphs/horizen-cce-dev/m3/gn",
+      APPLICATION_ID: 1n,
+      PROTOCOL_VERSION: 0,
+      POLLING_INTERVAL: 5000,
+      POLLING_TIMEOUT: 180000,
+      DEFAULT_MAX_FEE: "100",
+      CHAIN_ID: 2651420,
+      CHAIN_ID_HEX: "0x28751c",
+      CHAIN_NAME: "Horizen Testnet",
+      CHAIN_CURRENCY: {
+        name: "ETH",
+        symbol: "ETH",
+        decimals: 18
+      }
+    };
+
+    // Global state
+    let signer = null;
+    let client = null;
+    let userAddress = null;
+    let p521PrivateKeyHex = null;
+    let p521KeyPair = null;  // Cached P521 key pair to avoid repeated signatures
+    let currentPublicBalance = 0n;
+    let currentPrivateBalance = 0n;
+
+    // Make functions available globally
+    window.connectWallet = connectWallet;
+    window.refreshBalances = refreshBalances;
+    window.registerUser = registerUser;
+    window.deposit = deposit;
+    window.privateTransfer = privateTransfer;
+    window.withdraw = withdraw;
+    window.switchNetwork = switchNetwork;
+    window.togglePrivateKeyVisibility = togglePrivateKeyVisibility;
+    window.toggleWithdrawToField = toggleWithdrawToField;
+
+    // Toggle P521 private key visibility
+    function togglePrivateKeyVisibility() {
+      const keyEl = document.getElementById('p521PrivateKey');
+      const btnEl = document.getElementById('togglePrivateKey');
+      if (keyEl.classList.contains('hidden')) {
+        keyEl.classList.remove('hidden');
+        btnEl.textContent = 'Hide';
+      } else {
+        keyEl.classList.add('hidden');
+        btnEl.textContent = 'Show';
+      }
+    }
+
+    // Toggle withdraw To field visibility
+    function toggleWithdrawToField() {
+      const checkbox = document.getElementById('withdrawToSelf');
+      const toRow = document.getElementById('withdrawToRow');
+      if (checkbox.checked) {
+        toRow.classList.add('hidden');
+      } else {
+        toRow.classList.remove('hidden');
+      }
+    }
+
+    // Validation helpers
+    function isValidAmount(amountStr) {
+      if (!amountStr || amountStr.trim() === '') return false;
+      const amount = parseFloat(amountStr);
+      return !isNaN(amount) && amount > 0 && isFinite(amount);
+    }
+
+    function isValidEthereumAddress(address) {
+      return address && /^0x[a-fA-F0-9]{40}$/.test(address);
+    }
+
+    // Switch to correct network
+    async function switchNetwork() {
+      try {
+        await ensureCorrectNetwork();
+        location.reload();
+      } catch (error) {
+        log(`Failed to switch network: ${error.message}`, 'error');
+      }
+    }
+
+    // Utility functions
+    function log(message, type = 'info') {
+      const logContainer = document.getElementById('statusLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function ethToWei(ethString) {
+      const eth = parseFloat(ethString);
+      if (isNaN(eth)) throw new Error('Invalid ETH amount');
+      return BigInt(Math.floor(eth * 1e18));
+    }
+
+    function weiToEth(weiBigInt) {
+      // Handle various BigInt formats from ethers.js
+      const wei = BigInt(weiBigInt.toString());
+      const divisor = BigInt(1e18);
+      const integerPart = wei / divisor;
+      const remainder = wei % divisor;
+      const decimalPart = remainder.toString().padStart(18, '0');
+      return `${integerPart}.${decimalPart}`;
+    }
+
+    function addressToBytes(address) {
+      // Remove 0x prefix and convert to bytes
+      const hex = address.startsWith('0x') ? address.slice(2) : address;
+      return hexToBytes(hex);
+    }
+
+    function amountToUint256Bytes(amountWei) {
+      // Convert BigInt to 32-byte big-endian array
+      const hex = amountWei.toString(16).padStart(64, '0');
+      return hexToBytes(hex);
+    }
+
+    // Action status helpers
+    function setActionLoading(btnId, statusId) {
+      // Disable all action buttons
+      document.querySelectorAll('.action-btn').forEach(btn => btn.disabled = true);
+      // Show spinner
+      const statusEl = document.getElementById(statusId);
+      statusEl.innerHTML = '<div class="spinner"></div><span>Processing...</span>';
+      statusEl.className = 'action-status';
+      statusEl.classList.remove('hidden');
+    }
+
+    function setActionSuccess(btnId, statusId, message = 'Done!') {
+      // Re-enable all action buttons
+      document.querySelectorAll('.action-btn').forEach(btn => btn.disabled = false);
+      // Show success message
+      const statusEl = document.getElementById(statusId);
+      statusEl.innerHTML = `<span class="status-ok">✓ ${message}</span>`;
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        statusEl.classList.add('hidden');
+      }, 5000);
+    }
+
+    function setActionError(btnId, statusId, message = 'Failed') {
+      // Re-enable all action buttons
+      document.querySelectorAll('.action-btn').forEach(btn => btn.disabled = false);
+      // Show error message
+      const statusEl = document.getElementById(statusId);
+      statusEl.innerHTML = `<span class="status-error">✗ ${message}</span>`;
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        statusEl.classList.add('hidden');
+      }, 5000);
+    }
+
+    // Check and switch to correct network
+    async function ensureCorrectNetwork() {
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      const currentChainId = parseInt(chainId, 16);
+
+      if (currentChainId !== CONFIG.CHAIN_ID) {
+        log(`Wrong network (chainId: ${currentChainId}). Switching to ${CONFIG.CHAIN_NAME}...`);
+
+        try {
+          // Try to switch to the network
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: CONFIG.CHAIN_ID_HEX }]
+          });
+          log(`Switched to ${CONFIG.CHAIN_NAME}`, 'success');
+        } catch (switchError) {
+          // Network not added, try to add it
+          if (switchError.code === 4902) {
+            log(`Adding ${CONFIG.CHAIN_NAME} to MetaMask...`);
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: CONFIG.CHAIN_ID_HEX,
+                chainName: CONFIG.CHAIN_NAME,
+                nativeCurrency: CONFIG.CHAIN_CURRENCY,
+                rpcUrls: [CONFIG.RPC_URL],
+                blockExplorerUrls: []
+              }]
+            });
+            log(`${CONFIG.CHAIN_NAME} added and selected`, 'success');
+          } else {
+            throw switchError;
+          }
+        }
+      }
+    }
+
+    // Connect wallet
+    async function connectWallet() {
+      try {
+        log('Connecting to MetaMask...');
+
+        if (!window.ethereum) {
+          throw new Error('MetaMask not detected. Please install MetaMask.');
+        }
+
+        // Ensure correct network before connecting
+        await ensureCorrectNetwork();
+
+        signer = await ethersSignerFromBrowser();
+        userAddress = await signer.getAddress();
+
+        client = new HorizenCCEClient(
+          signer,
+          false,
+          CONFIG.TEE_AUTHENTICATOR_ADDRESS,
+          CONFIG.PROCESSOR_ADDRESS
+        );
+
+        // Update UI
+        document.getElementById('connectBtn').textContent = 'Connected';
+        document.getElementById('connectBtn').disabled = true;
+        document.getElementById('addressDisplay').textContent = userAddress;
+        document.getElementById('ethAddressDisplay').classList.remove('hidden');
+        document.getElementById('balancesCard').classList.remove('hidden');
+        // Note: actionsCard visibility is controlled by refreshBalances based on public balance
+
+        log(`Wallet connected: ${userAddress}`, 'success');
+
+        // Derive and display P521 key (only once, then cached)
+        try {
+          log('Deriving P521 key from MetaMask signature...');
+          p521KeyPair = await client.getSignerKeyPair();
+          const p521PublicKeyHex = await exportPublicKeyToHex(p521KeyPair.publicKey);
+          document.getElementById('p521PublicKey').textContent = p521PublicKeyHex;
+
+          // Export private key as JWK and convert to hex
+          const privateKeyJwk = await crypto.subtle.exportKey('jwk', p521KeyPair.privateKey);
+          // The 'd' field contains the private key in base64url format
+          const dBase64Url = privateKeyJwk.d;
+          // Convert base64url to bytes then to hex
+          const dBytes = Uint8Array.from(atob(dBase64Url.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+          p521PrivateKeyHex = bytesToHex(dBytes);
+          document.getElementById('p521PrivateKey').textContent = p521PrivateKeyHex;
+
+          document.getElementById('p521KeyDisplay').classList.remove('hidden');
+          log(`P521 key derived and cached`, 'success');
+        } catch (error) {
+          log(`Warning: Could not derive P521 key: ${error.message}`, 'error');
+        }
+
+        // Auto-refresh balances
+        await refreshBalances();
+
+        // Listen for account changes
+        window.ethereum.on('accountsChanged', (accounts) => {
+          if (accounts.length === 0) {
+            location.reload();
+          } else {
+            location.reload();
+          }
+        });
+
+        // Listen for network changes
+        window.ethereum.on('chainChanged', (chainId) => {
+          const newChainId = parseInt(chainId, 16);
+          if (newChainId !== CONFIG.CHAIN_ID) {
+            log(`Network changed to wrong chain (${newChainId}). Please switch back to ${CONFIG.CHAIN_NAME}.`, 'error');
+            document.getElementById('actionsCard').classList.add('hidden');
+            document.getElementById('noFundsAlert').classList.add('hidden');
+            // Show network error
+            document.getElementById('networkAlert').classList.remove('hidden');
+          } else {
+            document.getElementById('networkAlert').classList.add('hidden');
+            location.reload();
+          }
+        });
+
+      } catch (error) {
+        log(`Connection failed: ${error.message}`, 'error');
+      }
+    }
+
+    // Get public balance
+    async function getPublicBalance() {
+      try {
+        const provider = signer.provider;
+        const balance = await provider.getBalance(userAddress);
+        return balance;
+      } catch (error) {
+        throw new Error(`Failed to get public balance: ${error.message}`);
+      }
+    }
+
+    // Get private balance using Subgraph
+    async function getPrivateBalance() {
+      try {
+        log('Querying subgraph for user events...');
+
+        // Query subgraph for user events (same query as Go client)
+        const query = `
+          query($applicationId: BigInt!, $limit: Int!) {
+            userEvents(
+              where: { applicationId: $applicationId }
+              orderBy: sortKey
+              orderDirection: desc
+              first: $limit
+            ) {
+              applicationId
+              requestId
+              eventSubType
+              encryptedData
+              blockNumber
+              logIndex
+              sortKey
+            }
+          }
+        `;
+
+        const response = await fetch(CONFIG.SUBGRAPH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            variables: {
+              applicationId: CONFIG.APPLICATION_ID.toString(),
+              limit: 100
+            }
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.errors) {
+          log(`Subgraph error: ${result.errors[0].message}`, 'error');
+          throw new Error(result.errors[0].message);
+        }
+
+        const events = result.data?.userEvents || [];
+        log(`Found ${events.length} events in subgraph`);
+
+        if (events.length === 0) {
+          log('No user events found', 'info');
+          return 0n;
+        }
+
+        // Get TEE public key for decryption (P521 key pair is already cached)
+        const teePublicKeyHex = await client.getTeePublicKey();
+        const teePublicKey = await importPublicKeyFromHex(teePublicKeyHex);
+
+        // Try to decrypt events and find balance
+        for (const event of events) {
+          try {
+            const encryptedHex = event.encryptedData.startsWith('0x')
+              ? event.encryptedData.slice(2)
+              : event.encryptedData;
+            const encryptedData = hexToBytes(encryptedHex);
+            const decryptedData = await decrypt(p521KeyPair.privateKey, teePublicKey, encryptedData);
+            const jsonStr = new TextDecoder().decode(decryptedData);
+            const json = JSON.parse(jsonStr);
+            if (json.balance !== undefined) {
+              let balance = json.balance;
+              if (typeof balance === 'string') {
+                balance = BigInt(balance);
+              } else if (typeof balance === 'object' && balance !== null) {
+                if (balance.hex) {
+                  balance = BigInt(balance.hex);
+                } else if (balance.Hex) {
+                  balance = BigInt(balance.Hex);
+                }
+              } else {
+                balance = BigInt(balance || 0);
+              }
+              return balance;
+            }
+          } catch (decryptError) {
+            // This event may not be for us or has different format, continue
+            continue;
+          }
+        }
+
+        log('No balance events found', 'info');
+        return 0n;
+      } catch (error) {
+        log(error);
+        throw new Error(`Failed to get private balance: ${error.message}`);
+      }
+    }
+
+    // Refresh balances
+    async function refreshBalances() {
+      try {
+        log('Fetching balances...');
+
+        // Public balance
+        const publicBalance = await getPublicBalance();
+        currentPublicBalance = BigInt(publicBalance.toString());
+        document.getElementById('publicBalance').textContent = `${weiToEth(publicBalance)} ETH`;
+        log(`Public balance: ${weiToEth(publicBalance)} ETH`);
+
+        // Check if public balance is 0 - show alert, hide actions
+        if (currentPublicBalance === 0n) {
+          document.getElementById('alertAddress').textContent = userAddress;
+          document.getElementById('noFundsAlert').classList.remove('hidden');
+          document.getElementById('actionsCard').classList.add('hidden');
+          log('No funds available - actions disabled', 'error');
+        } else {
+          document.getElementById('noFundsAlert').classList.add('hidden');
+          document.getElementById('actionsCard').classList.remove('hidden');
+        }
+
+        // Private balance
+        currentPrivateBalance = 0n;
+        try {
+          currentPrivateBalance = await getPrivateBalance();
+          document.getElementById('privateBalance').textContent = `${weiToEth(currentPrivateBalance)} ETH`;
+          log(`Private balance: ${weiToEth(currentPrivateBalance)} ETH`);
+        } catch (error) {
+          document.getElementById('privateBalance').textContent = '0.000000000000000000 ETH';
+          log(`Private balance: 0 (user may not be registered)`, 'info');
+        }
+
+        // If private balance > 0, user is already registered - disable register button
+        if (currentPrivateBalance > 0n) {
+          document.getElementById('registerBtn').disabled = true;
+          document.getElementById('registerDescription').classList.add('hidden');
+          document.getElementById('alreadyRegisteredMsg').classList.remove('hidden');
+        } else {
+          document.getElementById('registerBtn').disabled = false;
+          document.getElementById('registerDescription').classList.remove('hidden');
+          document.getElementById('alreadyRegisteredMsg').classList.add('hidden');
+        }
+
+      } catch (error) {
+        log(`Failed to refresh balances: ${error.message}`, 'error');
+      }
+    }
+
+    // Wait for request completion
+    async function waitForRequestCompleted(requestId) {
+      const startTime = Date.now();
+      const startBlock = await signer.provider.getBlockNumber();
+
+      while (Date.now() - startTime < CONFIG.POLLING_TIMEOUT) {
+        try {
+          const result = await client.getRequestCompletedEvent(requestId, undefined, startBlock);
+          if (result) {
+            if (result.status === 0n || result.status === 0) {
+              return result;
+            } else {
+              throw new Error(`Request failed: ${result.errorMessage || 'Unknown error'} (code: ${result.errorCode})`);
+            }
+          }
+        } catch (error) {
+          if (error.message.includes('Request failed')) {
+            throw error;
+          }
+          // Continue polling if it's just "not found yet"
+        }
+        log(`Waiting for confirmation... (${Math.floor((Date.now() - startTime) / 1000)}s)`);
+        await new Promise(r => setTimeout(r, CONFIG.POLLING_INTERVAL));
+      }
+      throw new Error('Request timeout - please check transaction status manually');
+    }
+
+    // Register user
+    async function registerUser() {
+      setActionLoading('registerBtn', 'registerStatus');
+      try {
+        const maxFeeValue = BigInt(CONFIG.DEFAULT_MAX_FEE);
+
+        log('Registering user (associating P521 key)...');
+
+        // Use cached P521 key pair
+        const publicKeyHex = await exportPublicKeyToHex(p521KeyPair.publicKey);
+        const publicKeyBytes = hexToBytes(publicKeyHex);
+
+        log('Submitting registration request...');
+        const receipt = await client.submitRequestAndWaitForRequestId(
+          CONFIG.PROTOCOL_VERSION,
+          CONFIG.APPLICATION_ID,
+          RequestType.ASSOCIATEKEY,
+          publicKeyBytes,
+          0n,
+          maxFeeValue
+        );
+
+        log(`Request submitted. ID: ${receipt.requestId}`);
+        log('Waiting for PES confirmation...');
+
+        await waitForRequestCompleted(receipt.requestId);
+
+        log('User registered successfully!', 'success');
+        setActionSuccess('registerBtn', 'registerStatus', 'Registered!');
+        await refreshBalances();
+
+      } catch (error) {
+        log(`Registration failed: ${error.message}`, 'error');
+        setActionError('registerBtn', 'registerStatus', 'Failed');
+      }
+    }
+
+    // Deposit
+    async function deposit() {
+      const amountEth = document.getElementById('depositAmount').value;
+
+      // Validation
+      if (!isValidAmount(amountEth)) {
+        setActionError('depositBtn', 'depositStatus', 'Invalid amount');
+        return;
+      }
+
+      const depositAmount = ethToWei(amountEth);
+      if (depositAmount >= currentPublicBalance) {
+        setActionError('depositBtn', 'depositStatus', 'Amount exceeds public balance');
+        return;
+      }
+
+      setActionLoading('depositBtn', 'depositStatus');
+      try {
+        const maxFeeValue = BigInt(CONFIG.DEFAULT_MAX_FEE);
+
+        log(`Depositing ${amountEth} ETH...`);
+
+        const receipt = await client.submitRequestAndWaitForRequestId(
+          CONFIG.PROTOCOL_VERSION,
+          CONFIG.APPLICATION_ID,
+          RequestType.PROCESS,
+          new Uint8Array(),
+          depositAmount,
+          maxFeeValue
+        );
+
+        log(`Request submitted. ID: ${receipt.requestId}`);
+        log('Waiting for PES confirmation...');
+
+        await waitForRequestCompleted(receipt.requestId);
+
+        log(`Deposit of ${amountEth} ETH completed successfully!`, 'success');
+        setActionSuccess('depositBtn', 'depositStatus', 'Deposited!');
+        await refreshBalances();
+
+      } catch (error) {
+        log(`Deposit failed: ${error.message}`, 'error');
+        setActionError('depositBtn', 'depositStatus', 'Failed');
+      }
+    }
+
+    // Private transfer
+    async function privateTransfer() {
+      const to = document.getElementById('transferTo').value;
+      const amountEth = document.getElementById('transferAmount').value;
+
+      // Validation
+      if (!to) {
+        setActionError('transferBtn', 'transferStatus', 'Recipient address required');
+        return;
+      }
+
+      if (!isValidEthereumAddress(to)) {
+        setActionError('transferBtn', 'transferStatus', 'Invalid Ethereum address');
+        return;
+      }
+
+      if (!isValidAmount(amountEth)) {
+        setActionError('transferBtn', 'transferStatus', 'Invalid amount');
+        return;
+      }
+
+      const amountWei = ethToWei(amountEth);
+      if (amountWei > currentPrivateBalance) {
+        setActionError('transferBtn', 'transferStatus', 'Amount exceeds private balance');
+        return;
+      }
+
+      setActionLoading('transferBtn', 'transferStatus');
+      try {
+        const maxFeeValue = BigInt(CONFIG.DEFAULT_MAX_FEE);
+
+        log(`Initiating private transfer of ${amountEth} ETH to ${to}...`);
+
+        // Build payload - Go expects hex strings, not byte arrays
+        const payload = {
+          type: "transfer",
+          transfer: {
+            to: to.toLowerCase(),  // hex string with 0x prefix
+            amount: "0x" + amountWei.toString(16)  // hex string with 0x prefix
+          }
+        };
+
+        const payloadBytes = stringToBytes(JSON.stringify(payload));
+        const encryptedPayload = await client.encryptForTee(payloadBytes);
+
+        log('Submitting encrypted transfer request...');
+
+        const receipt = await client.submitRequestAndWaitForRequestId(
+          CONFIG.PROTOCOL_VERSION,
+          CONFIG.APPLICATION_ID,
+          RequestType.PROCESS,
+          encryptedPayload,
+          0n,
+          maxFeeValue
+        );
+
+        log(`Request submitted. ID: ${receipt.requestId}`);
+        log('Waiting for PES confirmation...');
+
+        await waitForRequestCompleted(receipt.requestId);
+
+        log(`Private transfer of ${amountEth} ETH completed successfully!`, 'success');
+        setActionSuccess('transferBtn', 'transferStatus', 'Transferred!');
+        await refreshBalances();
+
+      } catch (error) {
+        log(`Private transfer failed: ${error.message}`, 'error');
+        setActionError('transferBtn', 'transferStatus', 'Failed');
+      }
+    }
+
+    // Withdraw
+    async function withdraw() {
+      const withdrawToSelf = document.getElementById('withdrawToSelf').checked;
+      const to = withdrawToSelf ? userAddress : document.getElementById('withdrawTo').value;
+      const amountEth = document.getElementById('withdrawAmount').value;
+
+      // Validation
+      if (!withdrawToSelf) {
+        if (!to) {
+          setActionError('withdrawBtn', 'withdrawStatus', 'Recipient address required');
+          return;
+        }
+        if (!isValidEthereumAddress(to)) {
+          setActionError('withdrawBtn', 'withdrawStatus', 'Invalid Ethereum address');
+          return;
+        }
+      }
+
+      if (!isValidAmount(amountEth)) {
+        setActionError('withdrawBtn', 'withdrawStatus', 'Invalid amount');
+        return;
+      }
+
+      const amountWei = ethToWei(amountEth);
+      if (amountWei > currentPrivateBalance) {
+        setActionError('withdrawBtn', 'withdrawStatus', 'Amount exceeds private balance');
+        return;
+      }
+
+      setActionLoading('withdrawBtn', 'withdrawStatus');
+      try {
+        const maxFeeValue = BigInt(CONFIG.DEFAULT_MAX_FEE);
+
+        log(`Initiating withdrawal of ${amountEth} ETH to ${to}...`);
+
+        // Build payload
+        const payload = {
+          type: "withdraw",
+          withdraw: {
+            to: to.toLowerCase(),  // hex string with 0x prefix
+            amount: "0x" + amountWei.toString(16)  // hex string with 0x prefix
+          }
+        };
+
+        const payloadBytes = stringToBytes(JSON.stringify(payload));
+        const encryptedPayload = await client.encryptForTee(payloadBytes);
+
+        log('Submitting encrypted withdrawal request...');
+
+        const receipt = await client.submitRequestAndWaitForRequestId(
+          CONFIG.PROTOCOL_VERSION,
+          CONFIG.APPLICATION_ID,
+          RequestType.PROCESS,
+          encryptedPayload,
+          0n,
+          maxFeeValue
+        );
+
+        log(`Request submitted. ID: ${receipt.requestId}`);
+        log('Waiting for PES confirmation...');
+
+        await waitForRequestCompleted(receipt.requestId);
+
+        log(`Withdrawal of ${amountEth} ETH completed successfully!`, 'success');
+        setActionSuccess('withdrawBtn', 'withdrawStatus', 'Withdrawn!');
+        await refreshBalances();
+
+      } catch (error) {
+        log(`Withdrawal failed: ${error.message}`, 'error');
+        setActionError('withdrawBtn', 'withdrawStatus', 'Failed');
+      }
+    }
+  </script>
+</body>
+</html>
