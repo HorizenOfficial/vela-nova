@@ -8,7 +8,7 @@ Application runtime for the horizen-pes TEE
 [wallet/](wallet) <br/>
 Client-side demo wallet (command line)
 
-[wallet-web/](wallet-web3) <br/>
+[wallet-web3/](wallet-web3) <br/>
 Client-side demo wallet (html)
 
 
