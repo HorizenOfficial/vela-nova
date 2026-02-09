@@ -404,7 +404,8 @@
       bytesToHex,
       hexToBytes,
       stringToBytes,
-      decrypt
+      createSubgraphClient,
+      fetchAndDecryptUserEvents
     } from './lib/index.js';
 
     // Configuration (M3)
@@ -436,6 +437,7 @@
     let p521KeyPair = null;  // Cached P521 key pair to avoid repeated signatures
     let currentPublicBalance = 0n;
     let currentPrivateBalance = 0n;
+    const sgClient = createSubgraphClient(CONFIG.SUBGRAPH_URL);
 
     // Make functions available globally
     window.connectWallet = connectWallet;
@@ -701,89 +703,45 @@
       }
     }
 
-    // Get private balance using Subgraph
+    // Get private balance using Subgraph client
     async function getPrivateBalance() {
       try {
         log('Querying subgraph for user events...');
 
-        // Query subgraph for user events (same query as Go client)
-        const query = `
-          query($applicationId: BigInt!, $limit: Int!) {
-            userEvents(
-              where: { applicationId: $applicationId }
-              orderBy: sortKey
-              orderDirection: desc
-              first: $limit
-            ) {
-              applicationId
-              requestId
-              eventSubType
-              encryptedData
-              blockNumber
-              logIndex
-              sortKey
-            }
-          }
-        `;
+        const teePublicKeyHex = await client.getTeePublicKey();
+        const teePublicKey = await importPublicKeyFromHex(teePublicKeyHex);
 
-        const response = await fetch(CONFIG.SUBGRAPH_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            variables: {
-              applicationId: CONFIG.APPLICATION_ID.toString(),
-              limit: 100
-            }
-          })
-        });
+        const decryptedEvents = await fetchAndDecryptUserEvents(
+          sgClient,
+          teePublicKey,
+          p521KeyPair.privateKey,
+          Number(CONFIG.APPLICATION_ID),
+          "",
+          100,
+        );
 
-        const result = await response.json();
+        log(`Decrypted ${decryptedEvents.length} events`);
 
-        if (result.errors) {
-          log(`Subgraph error: ${result.errors[0].message}`, 'error');
-          throw new Error(result.errors[0].message);
-        }
-
-        const events = result.data?.userEvents || [];
-        log(`Found ${events.length} events in subgraph`);
-
-        if (events.length === 0) {
+        if (decryptedEvents.length === 0) {
           log('No user events found', 'info');
           return 0n;
         }
 
-        // Get TEE public key for decryption (P521 key pair is already cached)
-        const teePublicKeyHex = await client.getTeePublicKey();
-        const teePublicKey = await importPublicKeyFromHex(teePublicKeyHex);
-
-        // Try to decrypt events and find balance
-        for (const event of events) {
+        for (const eventData of decryptedEvents) {
           try {
-            const encryptedHex = event.encryptedData.startsWith('0x')
-              ? event.encryptedData.slice(2)
-              : event.encryptedData;
-            const encryptedData = hexToBytes(encryptedHex);
-            const decryptedData = await decrypt(p521KeyPair.privateKey, teePublicKey, encryptedData);
-            const jsonStr = new TextDecoder().decode(decryptedData);
-            const json = JSON.parse(jsonStr);
+            const json = JSON.parse(new TextDecoder().decode(eventData));
             if (json.balance !== undefined) {
               let balance = json.balance;
               if (typeof balance === 'string') {
                 balance = BigInt(balance);
               } else if (typeof balance === 'object' && balance !== null) {
-                if (balance.hex) {
-                  balance = BigInt(balance.hex);
-                } else if (balance.Hex) {
-                  balance = BigInt(balance.Hex);
-                }
+                balance = BigInt(balance.hex || balance.Hex || 0);
               } else {
                 balance = BigInt(balance || 0);
               }
               return balance;
             }
-          } catch (decryptError) {
-            // This event may not be for us or has different format, continue
+          } catch {
             continue;
           }
         }
