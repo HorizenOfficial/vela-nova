@@ -172,9 +172,20 @@ func ProcessRequest(senderPtr *types.Address, payloadJSON, stateJSON string) typ
 				}
 			}
 
-			// Execute transfer
+			// Execute transfer (save both balances for revert on overflow)
+			oldSenderBalance := *currentState.Accounts[senderHex].Balance
+			oldRecipientBalance := *currentState.Accounts[recipientHex].Balance
+
 			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Transfer.Amount)
-			currentState.Accounts[recipientHex].Balance.Add(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount)
+			if currentState.Accounts[recipientHex].Balance.AddOverflow(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount) {
+				utils.LogError("ProcessRequest: overflow while adding transfer amount %s to recipient %s balance %s",
+					instructions.Transfer.Amount.String(), recipientHex, oldRecipientBalance.String())
+				// Revert both sender and recipient balances
+				*currentState.Accounts[senderHex].Balance = oldSenderBalance
+				*currentState.Accounts[recipientHex].Balance = oldRecipientBalance
+				return types.ProcessResult{Error: fmt.Sprintf("Overflow while adding transfer amount %s to recipient balance: %s",
+					instructions.Transfer.Amount, oldRecipientBalance)}
+			}
 			currentState.Nonce++
 
 			// Create events for both parties
