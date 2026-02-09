@@ -4,17 +4,15 @@ go 1.24.0
 
 toolchain go1.24.3
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
-
-// Can be useful for local developments
-//replace github.com/horizen-pes => ../../horizen-pes
-
-replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
-
+//replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
 //replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.0
 
-// Can be useful for local development
+// Can be useful for local developments
+replace github.com/horizen-pes => ../../horizen-pes
+
 replace github.com/horizen-cce-common-go/wasm => ../../horizen-cce-common-go/wasm
+
+replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
