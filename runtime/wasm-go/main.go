@@ -45,5 +45,11 @@ func generate_deanonymization_report(payloadPtr *byte, payloadLen int32, statePt
 	return types.SerializeAndWriteResult(result)
 }
 
+//export get_memory_stats
+func get_memory_stats() *byte {
+	result := app.GetAllocatedMemoryStats()
+	return types.SerializeAndWriteResult(result)
+}
+
 // Main function is required but not used in WASM
 func main() {}

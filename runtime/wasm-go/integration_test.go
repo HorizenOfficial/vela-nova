@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/horizen-cce-common-go/wasm/types"
 	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/horizen-cce-common-go/wasm/types"
 	"github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/logger"
@@ -207,6 +207,169 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	require.Contains(t, report.Accounts, sender)
 	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
 	assert.Equal(t, expectedBalance.String(), report.Accounts[sender].Balance.String())
+}
+
+// requireMemoryClean checks that guest memory is fully deallocated.
+func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId common.ApplicationIdType, wasmBytes []byte, msgAndArgs ...interface{}) {
+	t.Helper()
+	ctx := context.Background()
+	mapEntries, totalBytes, err := runtime.GetAllocatedMemoryStats2(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), mapEntries, msgAndArgs...)
+	require.Equal(t, int64(0), totalBytes, msgAndArgs...)
+}
+
+// TestIntegration_MemoryCleanBetweenOps verifies that BytesToPtr allocations
+// (created by SerializeAndWriteResult inside the WASM guest) are fully deallocated
+// after each host call.
+func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	recipientHex := fmt.Sprintf("0xadd%037x", 2)
+	recipientAddress, err := types.HexToAddress(recipientHex)
+	require.NoError(t, err)
+	withdrawAddrHex := "0x1234567890123456789012345678901234567890"
+	withdrawAddress, err := types.HexToAddress(withdrawAddrHex)
+	require.NoError(t, err)
+
+	// LoadModule
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after LoadModule")
+
+	// Deposit
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
+	require.Nil(t, failure)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after Deposit")
+
+	// Transfer
+	transferPayload := app.PayloadInstructions{
+		Type:     "transfer",
+		Transfer: &app.TransferInstruction{To: recipientAddress, Amount: types.NewUint256(100)},
+	}
+	transferBytes, err := json.Marshal(transferPayload)
+	require.NoError(t, err)
+
+	state, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, transferBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (transfer)")
+
+	// Withdraw
+	withdrawPayload := app.PayloadInstructions{
+		Type:     "withdraw",
+		Withdraw: &app.WithdrawInstruction{To: withdrawAddress, Amount: types.NewUint256(50)},
+	}
+	withdrawBytes, err := json.Marshal(withdrawPayload)
+	require.NoError(t, err)
+
+	state, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, withdrawBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (withdraw)")
+
+	// GenerateDeanonymizationReport
+	_, _, failure = runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	require.Nil(t, failure)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after GenerateDeanonymizationReport")
+}
+
+// TestIntegration_ErrorPathMemory verifies that error results returned by the guest
+// (which still use SerializeAndWriteResult → BytesToPtr) do not leak memory.
+func TestIntegration_ErrorPathMemory(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	nonExistentUser := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 99))
+	withdrawAddress, err := types.HexToAddress("0x1234567890123456789012345678901234567890")
+	require.NoError(t, err)
+
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+
+	// Deposit so sender has a balance
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), state, wasmBytes)
+	require.Nil(t, failure)
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after initial deposit")
+
+	// Error: withdraw more than balance
+	payload := app.PayloadInstructions{
+		Type:     "withdraw",
+		Withdraw: &app.WithdrawInstruction{To: withdrawAddress, Amount: types.NewUint256(9999)},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	_, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, payloadBytes, state, wasmBytes)
+	require.NotNil(t, failure2, "expected error for insufficient balance")
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after insufficient balance error")
+
+	// Error: transfer from non-existent account
+	transferPayload := app.PayloadInstructions{
+		Type:     "transfer",
+		Transfer: &app.TransferInstruction{To: withdrawAddress, Amount: types.NewUint256(1)},
+	}
+	transferBytes, err := json.Marshal(transferPayload)
+	require.NoError(t, err)
+
+	_, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, nonExistentUser, transferBytes, state, wasmBytes)
+	require.NotNil(t, failure2, "expected error for non-existent account")
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after non-existent account error")
+
+	// Error: invalid state JSON
+	_, _, _, failure = runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), []byte("{bad-json}"), wasmBytes)
+	require.NotNil(t, failure, "expected error for invalid state")
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after invalid state error")
+}
+
+// TestIntegration_LargeResultRoundTrip exercises BytesToPtr with a large JSON payload
+// by creating many accounts and generating a report that serializes all of them.
+func TestIntegration_LargeResultRoundTrip(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+
+	// Create 100 accounts with deposits
+	const numAccounts = 100
+	for i := range numAccounts {
+		addr := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
+		newState, _, _, failure := runtime.Deposit(ctx, appId, addr, big.NewInt(int64(1000+i)), state, wasmBytes)
+		require.Nil(t, failure, "deposit failed for account %d", i)
+		state = newState
+	}
+
+	// Verify large state
+	var stateData app.ApplicationInternalState
+	require.NoError(t, json.Unmarshal(state, &stateData))
+	require.Len(t, stateData.Accounts, numAccounts)
+
+	// Generate report with all accounts — large result through BytesToPtr
+	reportBytes, _, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	require.Nil(t, failure)
+	require.NotNil(t, reportBytes)
+
+	// Verify report contains all accounts
+	var report app.UnencryptedDeanonymizationReportData
+	require.NoError(t, json.Unmarshal(reportBytes, &report))
+	require.Len(t, report.Accounts, numAccounts)
+
+	// No memory leaked despite large allocation
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after large result round-trip")
 }
 
 func newTestLogger() logger.Logger {
