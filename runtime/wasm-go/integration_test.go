@@ -111,7 +111,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, payloadBytes, state, wasmBytes)
+	newState, events, withdrawals, _, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
@@ -156,7 +156,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, withdrawals, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, payloadBytes, state, wasmBytes)
+	newState, events, withdrawals, _, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
@@ -171,16 +171,14 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
 }
 
-func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
+func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	wasmBytes := readWasm(t)
 	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
 	defer runtime.Close()
 
 	type reportStruct struct {
-		ApplicationID string                                  `json:"applicationId"`
-		RequestID     string                                  `json:"requestId"`
-		Accounts      map[ethCommon.Address]*app.AccountState `json:"accounts"`
-		Nonce         uint64                                  `json:"nonce"`
+		Accounts map[ethCommon.Address]*app.AccountState `json:"accounts"`
+		Nonce    uint64                                  `json:"nonce"`
 	}
 
 	ctx := context.Background()
@@ -196,7 +194,7 @@ func TestIntegration_GenerateDeanonymizationReport(t *testing.T) {
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	reportBytes, fuel, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))

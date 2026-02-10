@@ -76,8 +76,6 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 		ReportData       json.RawMessage          `json:"reportData,omitempty"`
 		ReportDataBase64 string                   `json:"reportDataBase64,omitempty"`
 		Authority        string                   `json:"authority,omitempty"`
-		RefundAmount     *common.Big              `json:"refundAmount,omitempty"`
-		ApplicationFee   *common.Big              `json:"applicationFee,omitempty"`
 	}
 
 	if strings.TrimSpace(c.Config.RpcUrl) == "" {
@@ -122,11 +120,9 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 
 		// Try to render report data as pretty JSON; fall back to base64 if it is not valid JSON.
 		output := decryptedReportOutput{
-			ApplicationID:  decrypted.ApplicationID,
-			RequestID:      decrypted.RequestID,
-			Authority:      report.Authority.Hex(),
-			RefundAmount:   report.RefundAmount,
-			ApplicationFee: report.ApplicationFee,
+			ApplicationID: decrypted.ApplicationID,
+			RequestID:     decrypted.RequestID,
+			Authority:     report.Authority.Hex(),
 		}
 		if len(decrypted.ReportDataBytes) > 0 {
 			var pretty json.RawMessage

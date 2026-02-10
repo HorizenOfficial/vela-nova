@@ -2,10 +2,10 @@ module github.com/horizen-pes-nova/wallet
 
 go 1.23.0
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
+//replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
 
 // Can be useful for local developments
-//replace github.com/horizen-pes => ../../horizen-pes
+replace github.com/horizen-pes => ../../horizen-pes
 
 replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
 
