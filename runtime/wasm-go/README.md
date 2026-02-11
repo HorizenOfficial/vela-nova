@@ -136,6 +136,8 @@ This project contains three distinct types of tests, each with a different focus
     *   **Type**: End-to-End (E2E) System Test
     *   **Scope**: Covers the entire application stack, including simulated components like an "Executor," a "Manager," a database, and a blockchain.
     *   **Purpose**: To validate that all components of the system work together correctly in a production-like environment. It tests the full user flow, including cryptographic operations, request submission, and state verification across the entire distributed system.
+    *   **Key tests**:
+        -   `TestPaymentAppFullFlow`: Deploys the app, registers user and auditor keys, deposits funds, withdraws funds, and generates a deanonymization report. Validates deposit and withdrawal event fields, verifies on-chain withdrawal recording, checks update payload signatures, and verifies the deanonymization report (framework envelope, base64-encoded report data, and expected user balance after all operations).
     *   **Note**: Skipped when `CI_FLAG=true` due to long execution time.
 
 ## Resources
