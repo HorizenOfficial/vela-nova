@@ -9,6 +9,7 @@ toolchain go1.24.3
 
 // Can be useful for local developments
 replace github.com/horizen-pes => ../../horizen-pes
+
 replace github.com/horizen-cce-common-go/wasm => ../../horizen-cce-common-go/wasm
 
 replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go

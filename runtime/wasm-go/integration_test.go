@@ -254,7 +254,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	state, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, transferBytes, state, wasmBytes)
+	state, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (transfer)")
 
@@ -266,13 +266,19 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	withdrawBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err)
 
-	state, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, withdrawBytes, state, wasmBytes)
+	stateBytes, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (withdraw)")
 
-	// GenerateDeanonymizationReport
-	_, _, failure = runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
-	require.Nil(t, failure)
+	deanonPayload := app.PayloadInstructions{
+		Type:        "deanonymize",
+		Deanonymize: &app.DeanonymizeInstruction{},
+	}
+	payloadBytes, err := json.Marshal(deanonPayload)
+	require.NoError(t, err)
+
+	stateBytes, _, _, _, _, failure = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, stateBytes, wasmBytes)
+
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after GenerateDeanonymizationReport")
 }
 
@@ -307,7 +313,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	_, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, payloadBytes, state, wasmBytes)
+	_, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
 	require.NotNil(t, failure2, "expected error for insufficient balance")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after insufficient balance error")
 
@@ -319,7 +325,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	_, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, nonExistentUser, transferBytes, state, wasmBytes)
+	_, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, nonExistentUser, common.Process, transferBytes, state, wasmBytes)
 	require.NotNil(t, failure2, "expected error for non-existent account")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after non-existent account error")
 
@@ -356,13 +362,19 @@ func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(state, &stateData))
 	require.Len(t, stateData.Accounts, numAccounts)
 
-	// Generate report with all accounts — large result through BytesToPtr
-	reportBytes, _, failure := runtime.GenerateDeanonymizationReport(ctx, appId, []byte("{}"), state, wasmBytes)
+	deanonPayload := app.PayloadInstructions{
+		Type:        "deanonymize",
+		Deanonymize: &app.DeanonymizeInstruction{},
+	}
+	payloadBytes, err := json.Marshal(deanonPayload)
+	require.NoError(t, err)
+
+	_, _, _, reportBytes, _, failure := runtime.ProcessRequest(ctx, appId, ethCommon.Address{}, common.Deanonymize, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
 
 	// Verify report contains all accounts
-	var report app.UnencryptedDeanonymizationReportData
+	var report app.DeanonymizationReport
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
 	require.Len(t, report.Accounts, numAccounts)
 
