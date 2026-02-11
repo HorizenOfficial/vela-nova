@@ -49,7 +49,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			payload := runtimeapp.ReportPayloadInstructions{} //empty for now
+			payload := runtimeapp.PayloadInstructions{Deanonymize: &runtimeapp.DeanonymizeInstruction{}}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)

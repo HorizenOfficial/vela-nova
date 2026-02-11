@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -185,17 +184,11 @@ func convertReportResponse(resp *authorityapi.GetReportResponse) (*common.Deanon
 	if err != nil {
 		return nil, fmt.Errorf("invalid encryptedReport in response: %w", err)
 	}
-	refundAmount := new(big.Int)
-	refundAmount.SetString(resp.RefundAmount, 10)
-	applicationFee := new(big.Int)
-	applicationFee.SetString(resp.ApplicationFee, 10)
 
 	return &common.DeanonymizationReport{
 		ApplicationID:   common.ApplicationIdType(appID),
 		ReportID:        reportID,
 		Authority:       ethCommon.HexToAddress(resp.Authority),
 		EncryptedReport: encBytes,
-		RefundAmount:    common.ToBig(refundAmount),
-		ApplicationFee:  common.ToBig(applicationFee),
 	}, nil
 }

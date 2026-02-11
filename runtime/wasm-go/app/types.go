@@ -31,14 +31,20 @@ type TransferInstruction struct {
 	Amount *types.Uint256 `json:"amount"`
 }
 
-// PayloadInstructions represents the deserialized payload instructions
-type PayloadInstructions struct {
-	Type     string               `json:"type"`
-	Transfer *TransferInstruction `json:"transfer,omitempty"`
-	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+// DeanonymizeInstruction represents optional instructions for deanonymization
+type DeanonymizeInstruction struct {
 }
 
-type UnencryptedDeanonymizationReportData struct {
+// PayloadInstructions represents the deserialized payload instructions
+type PayloadInstructions struct {
+	Type        string                  `json:"type"`
+	Transfer    *TransferInstruction    `json:"transfer,omitempty"`
+	Withdraw    *WithdrawInstruction    `json:"withdraw,omitempty"`
+	Deanonymize *DeanonymizeInstruction `json:"deanonymize,omitempty"`
+}
+
+// DeanonymizationReport represents the structure of the deanonymization report
+type DeanonymizationReport struct {
 	Accounts map[string]*AccountState `json:"accounts"`
 	Nonce    uint64                   `json:"nonce"`
 }

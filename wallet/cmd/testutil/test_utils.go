@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"crypto/rand"
 	"math/big"
 	"testing"
 
@@ -22,14 +23,25 @@ func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refun
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
-		request, _, err := blockchainClient.GetNextPendingRequest(context.Background())
+		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			err = blockchainClient.MarkRequestCompleted(context.Background(), request.RequestID, refundAmount, applicationFees)
+			var newStateRoot [32]byte
+			_, err = rand.Read(newStateRoot[:]) //dummy new state root
+			require.NoError(t, err)
+			update := &common.UpdatePayload{
+				ApplicationID:  request.ApplicationID,
+				RequestID:      request.RequestID,
+				PrevStateRoot:  stateRoot,
+				NewStateRoot:   newStateRoot,
+				Signature:      make([]byte, 65),
+				RefundAmount:   common.ToBig(refundAmount),
+				ApplicationFee: common.ToBig(applicationFees),
+			}
+			err = blockchainClient.SubmitStateUpdate(context.Background(), update)
 			require.NoError(t, err)
 			return
 		}
-
 	}
 }
 
