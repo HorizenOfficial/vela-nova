@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wasm/types"
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
@@ -65,7 +66,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			receiverAddr, err := runtimeapp.HexToAddress(receiver.Hex())
+			receiverAddr, err := types.HexToAddress(receiver.Hex())
 			if err != nil {
 				fmt.Printf("Error: invalid receiver address, could not convert to byte array: %v\n", err)
 				return
@@ -73,7 +74,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
+				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes())},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {

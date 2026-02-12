@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wasm/types"
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
@@ -67,7 +68,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			toAddr, err := runtimeapp.HexToAddress(to.Hex())
+			toAddr, err := types.HexToAddress(to.Hex())
 			if err != nil {
 				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
 			}
@@ -75,7 +76,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			//build payload with type transfer
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "transfer",
-				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(runtimeapp.Uint256).SetBytes(amount.Bytes())},
+				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes())},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {

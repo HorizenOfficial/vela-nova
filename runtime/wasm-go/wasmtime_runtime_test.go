@@ -15,30 +15,36 @@ import (
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes/pkg/common"
 	wasm "github.com/horizen-pes/pkg/wasm"
-	wasmCommon "github.com/horizen-pes/pkg/wasm/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Local helper types to avoid importing the app submodule (internal types)
+// host-side helper types for test validation (app-specific, not framework types).
 // They mirror the JSON shapes expected by the WASM app.
-type PayloadInstructions struct {
+type depositEvent struct {
+	Type    string      `json:"type"`
+	Amount  *common.Big `json:"amount"`
+	Balance *common.Big `json:"balance"`
+	Nonce   uint64      `json:"nonce"`
+}
+
+type payloadInstructions struct {
 	Type     string               `json:"type"`
-	Transfer *TransferInstruction `json:"transfer,omitempty"`
-	Withdraw *WithdrawInstruction `json:"withdraw,omitempty"`
+	Transfer *transferInstruction `json:"transfer,omitempty"`
+	Withdraw *withdrawInstruction `json:"withdraw,omitempty"`
 }
 
-type TransferInstruction struct {
+type transferInstruction struct {
 	To     ethCommon.Address `json:"to"`
 	Amount *common.Big       `json:"amount"`
 }
 
-type WithdrawInstruction struct {
+type withdrawInstruction struct {
 	To     ethCommon.Address `json:"to"`
 	Amount *common.Big       `json:"amount"`
 }
 
-type ApplicationInternalState struct {
+type applicationInternalState struct {
 	AppID    common.ApplicationIdType `json:"appId"`
 	Accounts map[ethCommon.Address]struct {
 		Address ethCommon.Address `json:"address"`
@@ -65,7 +71,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Verify the state is valid JSON
-	var stateData ApplicationInternalState
+	var stateData applicationInternalState
 	err = json.Unmarshal(state, &stateData)
 	require.NoError(t, err, "State should be valid JSON")
 
@@ -116,7 +122,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	assert.Equal(t, sender, event.UserID)
 	assert.Equal(t, "deposit", event.EventSubType)
 
-	var eventData wasmCommon.DepositEvent
+	var eventData depositEvent
 	err = json.Unmarshal(event.Data, &eventData)
 	require.NoError(t, err, "Event data should be valid JSON")
 	assert.Equal(t, "deposit", eventData.Type)
@@ -174,9 +180,9 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	// Create transfer payload
-	transferPayload := PayloadInstructions{
+	transferPayload := payloadInstructions{
 		Type: "transfer",
-		Transfer: &TransferInstruction{
+		Transfer: &transferInstruction{
 			To:     recipient,
 			Amount: common.ToBig(transferValue),
 		},
@@ -260,9 +266,9 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	// Create withdrawal payload
-	withdrawPayload := PayloadInstructions{
+	withdrawPayload := payloadInstructions{
 		Type: "withdraw",
-		Withdraw: &WithdrawInstruction{
+		Withdraw: &withdrawInstruction{
 			To:     withdrawAddress,
 			Amount: common.ToBig(withdrawValue),
 		},
@@ -390,9 +396,9 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	t.Log("Step 3: Transfer from user1 to user2")
 	transferValue := big.NewInt(500000000000000000) // 0.5 ETH
-	transferPayload := PayloadInstructions{
+	transferPayload := payloadInstructions{
 		Type: "transfer",
-		Transfer: &TransferInstruction{
+		Transfer: &transferInstruction{
 			To:     user2,
 			Amount: common.ToBig(transferValue),
 		},
@@ -412,9 +418,9 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	// Create withdrawal payload
 	withdrawValue := big.NewInt(250000000000000000) // 0.25 ETH
 	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
-	withdrawPayload := PayloadInstructions{
+	withdrawPayload := payloadInstructions{
 		Type: "withdraw",
-		Withdraw: &WithdrawInstruction{
+		Withdraw: &withdrawInstruction{
 			To:     withdrawAddress,
 			Amount: common.ToBig(withdrawValue),
 		},
@@ -506,9 +512,9 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	}
 
 	// Verify the large state can still be processed
-	transferPayload := PayloadInstructions{
+	transferPayload := payloadInstructions{
 		Type: "transfer",
-		Transfer: &TransferInstruction{
+		Transfer: &transferInstruction{
 			To:     ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1)),
 			Amount: common.ToBig(big.NewInt(500000000000000000)),
 		},
@@ -668,9 +674,9 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	// Try to transfer without enough funds
-	transferPayload := PayloadInstructions{
+	transferPayload := payloadInstructions{
 		Type: "transfer",
-		Transfer: &TransferInstruction{
+		Transfer: &transferInstruction{
 			To:     user2,
 			Amount: common.ToBig(depositAmount),
 		},
