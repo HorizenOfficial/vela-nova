@@ -6,20 +6,17 @@ go 1.24.0
 // This prevents "works on my machine" problems that can arise from subtle differences between minor Go versions
 toolchain go1.24.3
 
-//replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.0
-//replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.18
+replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.20
+
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.20
 
 // Can be useful for local developments
-replace github.com/horizen-pes => ../../../horizen-pes
-
-replace github.com/horizen-cce-common-go/wasm => ../../../horizen-cce-common-go/wasm
-
-require github.com/horizen-cce-common-go/wasm v0.0.0
-
-// Can be useful for local development
+//replace github.com/horizen-pes => ../../../horizen-pes
+//replace github.com/horizen-cce-common-go => ../../../horizen-cce-common-go
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
+	github.com/horizen-cce-common-go v0.0.20
 	github.com/horizen-pes v0.0.18
 	github.com/stretchr/testify v1.11.1
 )
@@ -63,5 +60,6 @@ require (
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
