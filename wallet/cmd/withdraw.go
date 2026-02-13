@@ -97,7 +97,8 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return
 			}
 
-			fmt.Println("Withdrawal completed successfully")
+			fmt.Println("Withdrawal completed successfully, funds moved from the private state to the bridge contract and ready to be claimed")
+			fmt.Println("IMPORTANT: you have to execute a claimpendingpayments command to see funds in your public address")
 
 		},
 	}

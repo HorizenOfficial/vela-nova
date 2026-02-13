@@ -34,6 +34,8 @@ func Execute() {
 	rootCmd.AddCommand(NewRequestReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDownloadReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDeployAppCommand(config, nil).Command())
+	rootCmd.AddCommand(NewGetPendingPaymentsCommand(config, nil).Command())
+	rootCmd.AddCommand(NewClaimPendingPaymentsCommand(config, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
