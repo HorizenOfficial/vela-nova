@@ -35,8 +35,9 @@ type payloadInstructions struct {
 }
 
 type transferInstruction struct {
-	To     ethCommon.Address `json:"to"`
-	Amount *common.Big       `json:"amount"`
+	To        ethCommon.Address `json:"to"`
+	Amount    *common.Big       `json:"amount"`
+	InvoiceID string            `json:"invoice_id,omitempty"`
 }
 
 type withdrawInstruction struct {
@@ -150,10 +151,11 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	}
 
 	type TestTransferEventData struct {
-		Type   string            `json:"type"`
-		From   ethCommon.Address `json:"from,omitempty"`
-		To     ethCommon.Address `json:"to,omitempty"`
-		Amount *common.Big       `json:"amount"`
+		Type      string            `json:"type"`
+		From      ethCommon.Address `json:"from,omitempty"`
+		To        ethCommon.Address `json:"to,omitempty"`
+		Amount    *common.Big       `json:"amount"`
+		InvoiceID string            `json:"invoice_id,omitempty"`
 	}
 
 	// Build and load the compiled WASM module
@@ -179,49 +181,88 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	// Create transfer payload
-	transferPayload := payloadInstructions{
-		Type: "transfer",
-		Transfer: &transferInstruction{
-			To:     recipient,
-			Amount: common.ToBig(transferValue),
-		},
+	// helper: build payload, execute transfer, verify state, return events
+	doTransfer := func(t *testing.T, invoiceID string) []common.PlainEvent {
+		t.Helper()
+		ti := &transferInstruction{
+			To:        recipient,
+			Amount:    common.ToBig(transferValue),
+			InvoiceID: invoiceID,
+		}
+		payloadBytes, err := json.Marshal(payloadInstructions{Type: "transfer", Transfer: ti})
+		require.NoError(t, err)
+
+		newState, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
+			ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
+		require.Nil(t, failure)
+		require.NotNil(t, newState, "New state should not be nil")
+		require.Len(t, events, 2, "Should generate two events (sender and recipient)")
+		require.Len(t, withdrawals, 0, "Should not generate withdrawals")
+		require.Nil(t, reportBytes, "Report should be nil for transfer requests")
+		require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
+
+		// Verify the state was updated
+		var stateData TestStateData
+		require.NoError(t, json.Unmarshal(newState, &stateData))
+		updatedBalanceSender := new(big.Int).Sub(depositAmount, transferValue)
+		assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance.ToInt())
+		assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance.ToInt())
+
+		return events
 	}
-	payloadBytes, err := json.Marshal(transferPayload)
-	require.NoError(t, err, "Should marshal transfer payload")
 
-	// Test ProcessRequest for transfer
-	newState, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
-	require.Nil(t, failure)
-	require.NotNil(t, newState, "New state should not be nil")
-	require.Len(t, events, 2, "Should generate two events (sender and recipient)")
-	require.Len(t, withdrawals, 0, "Should not generate withdrawals")
-	require.Nil(t, reportBytes, "Report should be nil for transfer requests")
-	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
+	t.Run("WithoutInvoiceID", func(t *testing.T) {
+		events := doTransfer(t, "")
 
-	// Verify sender event
-	var senderEventData TestTransferEventData
-	err = json.Unmarshal(events[0].Data, &senderEventData)
-	require.NoError(t, err)
-	assert.Equal(t, "transfer_sent", senderEventData.Type)
-	assert.Equal(t, recipient, senderEventData.To)
-	assert.Equal(t, transferValue, senderEventData.Amount.ToInt())
+		// Verify sender event
+		var senderEventData TestTransferEventData
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderEventData))
+		assert.Equal(t, "transfer_sent", senderEventData.Type)
+		assert.Equal(t, recipient, senderEventData.To)
+		assert.Equal(t, transferValue, senderEventData.Amount.ToInt())
 
-	// Verify recipient event
-	var recipientEventData TestTransferEventData
-	err = json.Unmarshal(events[1].Data, &recipientEventData)
-	require.NoError(t, err)
-	assert.Equal(t, "transfer_received", recipientEventData.Type)
-	assert.Equal(t, sender, recipientEventData.From)
-	assert.Equal(t, transferValue, recipientEventData.Amount.ToInt())
-	// Verify the state was updated
-	var stateData TestStateData
-	err = json.Unmarshal(newState, &stateData)
-	require.NoError(t, err, "New state should be valid JSON")
+		// Verify recipient event
+		var recipientEventData TestTransferEventData
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientEventData))
+		assert.Equal(t, "transfer_received", recipientEventData.Type)
+		assert.Equal(t, sender, recipientEventData.From)
+		assert.Equal(t, transferValue, recipientEventData.Amount.ToInt())
 
-	updatedBalanceSender := new(big.Int).Sub(depositAmount, transferValue)
-	assert.Equal(t, updatedBalanceSender, stateData.Accounts[sender].Balance.ToInt())
-	assert.Equal(t, transferValue, stateData.Accounts[recipient].Balance.ToInt())
+		// Verify invoice_id is absent from both events
+		var senderRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderRaw))
+		assert.NotContains(t, senderRaw, "invoice_id", "invoice_id should be absent from sender event when not provided")
+
+		var recipientRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
+		assert.NotContains(t, recipientRaw, "invoice_id", "invoice_id should be absent from recipient event when not provided")
+	})
+
+	t.Run("WithInvoiceID", func(t *testing.T) {
+		invoiceID := "INV-2025-001"
+		events := doTransfer(t, invoiceID)
+
+		// Verify sender event contains invoice_id
+		var senderEventData TestTransferEventData
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderEventData))
+		assert.Equal(t, "transfer_sent", senderEventData.Type)
+		assert.Equal(t, invoiceID, senderEventData.InvoiceID)
+
+		// Verify recipient event contains invoice_id
+		var recipientEventData TestTransferEventData
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientEventData))
+		assert.Equal(t, "transfer_received", recipientEventData.Type)
+		assert.Equal(t, invoiceID, recipientEventData.InvoiceID)
+
+		// Verify invoice_id is present in raw JSON
+		var senderRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderRaw))
+		assert.Equal(t, invoiceID, senderRaw["invoice_id"])
+
+		var recipientRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
+		assert.Equal(t, invoiceID, recipientRaw["invoice_id"])
+	})
 }
 
 func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {

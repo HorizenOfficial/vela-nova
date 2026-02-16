@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"math/big"
 	"os"
@@ -17,46 +16,57 @@ import (
 
 func TestPrivateTransfer(t *testing.T) {
 
-	// Redirect stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	// helper: run a private transfer command with optional invoice ID, return captured stdout
+	doTransfer := func(t *testing.T, invoiceID string) string {
+		t.Helper()
 
-	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
-	var key2, _ = crypto.GeneratePrivateKeyP521()
-	var teeKey, _ = crypto.GeneratePrivateKeyP521()
+		old := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
-	defer testHelper.Close()
+		var key1, _ = crypto.GeneratePrivateKeySecp256k1()
+		var key2, _ = crypto.GeneratePrivateKeyP521()
+		var teeKey, _ = crypto.GeneratePrivateKeyP521()
 
-	client := testutil.SetupNewBlockChainClient(testHelper)
+		testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+		defer testHelper.Close()
 
-	// Execute the command
-	transferCmd := NewPrivateTransferCommand(&app.Config{
-		KeySecp:                   key1,
-		KeyP521:                   key2,
-		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout:  10,
-	}, client)
-	transferCmd.SubgraphClient = testutil.SubgraphClientOK()
-	cmd := transferCmd.Command()
-	cmd.Flags().Set("amount", "1 ETH")
-	cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
-	cmd.Flags().Set("max-value-fee", "100 wei")
+		client := testutil.SetupNewBlockChainClient(testHelper)
 
-	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
+		transferCmd := NewPrivateTransferCommand(&app.Config{
+			KeySecp:                   key1,
+			KeyP521:                   key2,
+			BlockchainPollingInterval: 2,
+			BlockchainPollingTimeout:  10,
+		}, client)
+		transferCmd.SubgraphClient = testutil.SubgraphClientOK()
+		cmd := transferCmd.Command()
+		cmd.Flags().Set("amount", "1 ETH")
+		cmd.Flags().Set("to", "0x0000000000000000000000000000000000000001")
+		cmd.Flags().Set("max-value-fee", "100 wei")
+		if invoiceID != "" {
+			cmd.Flags().Set("invoice-id", invoiceID)
+		}
 
-	cmd.Run(cmd, nil)
+		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
-	// Restore stdout
-	w.Close()
-	os.Stdout = old
+		cmd.Run(cmd, nil)
 
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	output := buf.String()
+		w.Close()
+		os.Stdout = old
 
-	fmt.Println(output)
-	assert.Contains(t, output, "Private transfer completed successfully")
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		return buf.String()
+	}
 
+	t.Run("WithoutInvoiceID", func(t *testing.T) {
+		output := doTransfer(t, "")
+		assert.Contains(t, output, "Private transfer completed successfully")
+	})
+
+	t.Run("WithInvoiceID", func(t *testing.T) {
+		output := doTransfer(t, "INV-2025-001")
+		assert.Contains(t, output, "Private transfer completed successfully")
+	})
 }

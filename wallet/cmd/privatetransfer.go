@@ -19,6 +19,7 @@ type PrivateTransferCommand struct {
 	receiver    string
 	value       string
 	maxFeeValue string
+	invoiceID   string
 }
 
 func NewPrivateTransferCommand(config *app.Config, blockchainClient blockchain.Client) *PrivateTransferCommand {
@@ -76,7 +77,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			//build payload with type transfer
 			payload := runtimeapp.PayloadInstructions{
 				Type:     "transfer",
-				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes())},
+				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes()), InvoiceID: c.invoiceID},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
@@ -103,5 +104,6 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")
 	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer. Eg --to 0xabc123...")
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringVarP(&c.invoiceID, "invoice-id", "i", "", "Optional invoice ID to include in the transfer event")
 	return cmd
 }

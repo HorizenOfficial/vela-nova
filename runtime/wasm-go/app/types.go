@@ -26,9 +26,11 @@ type WithdrawInstruction struct {
 }
 
 // TransferInstruction represents instructions for transferring funds
+// IvoiceID is an optional field the sender can include to track the payment
 type TransferInstruction struct {
-	To     types.Address  `json:"to"`
-	Amount *types.Uint256 `json:"amount"`
+	To        types.Address  `json:"to"`
+	Amount    *types.Uint256 `json:"amount"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
 // DeanonymizeInstruction represents optional instructions for deanonymization
@@ -63,19 +65,21 @@ type DepositEvent struct {
 }
 
 type SenderEvent struct {
-	Type    string         `json:"type"`
-	To      types.Address  `json:"to"`
-	Amount  *types.Uint256 `json:"amount"`
-	Balance *types.Uint256 `json:"balance"`
-	Nonce   uint64         `json:"nonce"`
+	Type      string         `json:"type"`
+	To        types.Address  `json:"to"`
+	Amount    *types.Uint256 `json:"amount"`
+	Balance   *types.Uint256 `json:"balance"`
+	Nonce     uint64         `json:"nonce"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
 type RecipientEvent struct {
-	Type    string         `json:"type"`
-	From    types.Address  `json:"from"`
-	Amount  *types.Uint256 `json:"amount"`
-	Balance *types.Uint256 `json:"balance"`
-	Nonce   uint64         `json:"nonce"`
+	Type      string         `json:"type"`
+	From      types.Address  `json:"from"`
+	Amount    *types.Uint256 `json:"amount"`
+	Balance   *types.Uint256 `json:"balance"`
+	Nonce     uint64         `json:"nonce"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
 // WithdrawalEvent has the same structure as SenderEvent

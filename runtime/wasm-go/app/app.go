@@ -203,11 +203,12 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 
 			// Create events for both parties
 			senderEventData := SenderEvent{
-				Type:    "transfer_sent",
-				To:      instructions.Transfer.To,
-				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[senderHex].Balance,
-				Nonce:   currentState.Nonce,
+				Type:      "transfer_sent",
+				To:        instructions.Transfer.To,
+				Amount:    instructions.Transfer.Amount,
+				Balance:   currentState.Accounts[senderHex].Balance,
+				Nonce:     currentState.Nonce,
+				InvoiceID: instructions.Transfer.InvoiceID,
 			}
 			senderEventDataBytes, err := json.Marshal(senderEventData)
 			if err != nil {
@@ -216,11 +217,12 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			}
 
 			recipientEventData := RecipientEvent{
-				Type:    "transfer_received",
-				From:    sender,
-				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[recipientHex].Balance,
-				Nonce:   currentState.Nonce,
+				Type:      "transfer_received",
+				From:      sender,
+				Amount:    instructions.Transfer.Amount,
+				Balance:   currentState.Accounts[recipientHex].Balance,
+				Nonce:     currentState.Nonce,
+				InvoiceID: instructions.Transfer.InvoiceID,
 			}
 			recipientEventDataBytes, err := json.Marshal(recipientEventData)
 			if err != nil {
