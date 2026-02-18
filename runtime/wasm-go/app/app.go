@@ -164,6 +164,10 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				utils.LogError("ProcessRequest: transfer amount is nil")
 				return types.ProcessResult{Error: "Transfer amount is nil"}
 			}
+			if len(instructions.Transfer.InvoiceID) > MaxInvoiceIDLength {
+				utils.LogError("ProcessRequest: invoice_id exceeds maximum length of %d characters", MaxInvoiceIDLength)
+				return types.ProcessResult{Error: fmt.Sprintf("invoice_id exceeds maximum length of %d characters", MaxInvoiceIDLength)}
+			}
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {

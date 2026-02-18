@@ -4,6 +4,8 @@ import (
 	"github.com/horizen-cce-common-go/wasm/types"
 )
 
+const MaxInvoiceIDLength = 100
+
 // ----- module internal types
 
 // AccountState represents the state of a user account
@@ -26,7 +28,7 @@ type WithdrawInstruction struct {
 }
 
 // TransferInstruction represents instructions for transferring funds
-// IvoiceID is an optional field the sender can include to track the payment
+// InvoiceID is an optional field the sender can include to track the payment
 type TransferInstruction struct {
 	To        types.Address  `json:"to"`
 	Amount    *types.Uint256 `json:"amount"`
