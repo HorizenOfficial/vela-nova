@@ -11,7 +11,7 @@ import (
 	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-pes/pkg/subgraph"
+	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +40,7 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		return nil, fmt.Errorf("missing keys to decrypt user events")
 	}
 
-	events, err := subgraph.FetchAndDecryptUserEvents(
+	events, err := FetchAndDecryptUserEvents(
 		ctx,
 		subgraphClient,
 		teePubKey,
