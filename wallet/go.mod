@@ -4,9 +4,9 @@ go 1.24.0
 
 toolchain go1.24.3
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.21
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.22
 
-replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.21
+replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.22
 
 // Can be useful for local developments
 //replace github.com/horizen-pes => ../../horizen-pes
@@ -16,8 +16,8 @@ replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-cce-common-go v0.0.21
-	github.com/horizen-pes v0.0.21
+	github.com/horizen-cce-common-go v0.0.22
+	github.com/horizen-pes v0.0.22
 	github.com/horizen-pes-nova/payment-app v0.0.0
 	github.com/magiconair/properties v1.8.10
 	github.com/spf13/cobra v1.9.1
