@@ -47,7 +47,7 @@ func TestClaimPendingPaymentsCmd(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "No pending payments to claim")
+	assert.Contains(t, output, "Nothing to claim")
 }
 
 func TestClaimPendingPaymentsCmdNoKey(t *testing.T) {
