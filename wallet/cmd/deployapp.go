@@ -28,6 +28,10 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 		Short: `Triggers the app deployment (admin feature).  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
 		Long:  `Triggers the app deployment (admin feature).  Note: the app deployment is permissioned for now - wasm is not sent with this command and must be provided to the admins offchain in advance`,
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := context.Background()
+			if cmd != nil && cmd.Context() != nil {
+				ctx = cmd.Context()
+			}
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
 			if err != nil {
@@ -35,21 +39,15 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 				return
 			}
 
-			if c.BlockchainClient == nil {
-				//create blockchain client
-				c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp.PrivateKey)
-				err := c.BlockchainClient.Connect(context.Background())
-				if err != nil {
-					fmt.Printf("Error connecting to rpc node: %v", err)
-					return
-				}
+			if err := c.InitChainClient(ctx); err != nil {
+				fmt.Printf("Error connecting to rpc node: %v", err)
+				return
 			}
 			defer c.BlockchainClient.Close()
-			ctx := context.Background()
 
 			requestType := common.Deploy
 
-			requestID, _, err := c.BlockchainClient.SubmitRequest(context.Background(), PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, []byte{}, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, []byte{}, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deploy app: %v", err)
 				return
