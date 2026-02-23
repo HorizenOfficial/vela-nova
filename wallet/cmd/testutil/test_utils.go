@@ -21,7 +21,7 @@ func SetupNewBlockChainClient(testHelper *pestestutil.SimTestHelper) *cceblockch
 }
 
 func CompleteNextRequest(t *testing.T, testHelper *pestestutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
-	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.ManagerAccount)
 
 	for {
 		request, stateRoot, err := coreClient.GetNextPendingRequest(context.Background())
@@ -47,7 +47,7 @@ func CompleteNextRequest(t *testing.T, testHelper *pestestutil.SimTestHelper, re
 }
 
 func FailNextRequest(t *testing.T, testHelper *pestestutil.SimTestHelper) {
-	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.ManagerAccount)
 
 	for {
 		request, _, err := coreClient.GetNextPendingRequest(context.Background())
