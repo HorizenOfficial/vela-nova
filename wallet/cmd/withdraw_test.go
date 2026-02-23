@@ -9,9 +9,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/horizen-cce-common-go/wallet/blockchain"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
 	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
 	"github.com/horizen-pes/pkg/crypto"
 	"github.com/stretchr/testify/assert"

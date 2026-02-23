@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wallet/blockchain"
+	"github.com/horizen-cce-common-go/wallet/common"
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
 	"github.com/spf13/cobra"
 )
 

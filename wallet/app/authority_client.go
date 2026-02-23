@@ -13,8 +13,8 @@ import (
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/horizen-cce-common-go/wallet/blockchain"
 	authorityapi "github.com/horizen-pes/pkg/authorityservice/api"
-	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
@@ -147,9 +147,13 @@ func DecryptReport(ctx context.Context, bc blockchain.Client, privP521 *cryptoty
 	if privP521 == nil {
 		return nil, fmt.Errorf("P521 key not configured")
 	}
-	pubKey, err := bc.GetTeePublicKey(ctx)
+	pubKeyBytes, err := bc.GetTeePublicKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("retrieving TEE public key: %w", err)
+	}
+	pubKey, err := crypto.ImportPublicKeyP521FromHex(hex.EncodeToString(pubKeyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("importing TEE public key: %w", err)
 	}
 
 	decryptedBytes, err := crypto.Decrypt(pubKey, privP521, report.EncryptedReport)

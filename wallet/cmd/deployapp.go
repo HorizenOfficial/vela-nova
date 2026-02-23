@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wallet/blockchain"
+	"github.com/horizen-cce-common-go/wallet/common"
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 
 			if c.BlockchainClient == nil {
 				//create blockchain client
-				c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
+				c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp.PrivateKey)
 				err := c.BlockchainClient.Connect(context.Background())
 				if err != nil {
 					fmt.Printf("Error connecting to rpc node: %v", err)

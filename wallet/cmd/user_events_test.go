@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/horizen-cce-common-go/common"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/horizen-cce-common-go/wallet/common"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
 
 	"github.com/horizen-pes/pkg/common/testutil"
 	"github.com/horizen-pes/pkg/crypto"

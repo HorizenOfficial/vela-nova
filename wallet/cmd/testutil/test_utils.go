@@ -6,28 +6,29 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/blockchain/testutil"
+	cceblockchain "github.com/horizen-cce-common-go/wallet/blockchain"
+	ccecommon "github.com/horizen-cce-common-go/wallet/common"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
+	pesblockchain "github.com/horizen-pes/pkg/blockchain"
+	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
 	"github.com/horizen-pes/pkg/common"
 	"github.com/horizen-pes/pkg/common/apperrors"
-	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/stretchr/testify/require"
 )
 
-func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.BlockChainClient {
-	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
-
+func SetupNewBlockChainClient(testHelper *pestestutil.SimTestHelper) *cceblockchain.BlockChainClient {
+	return cceblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
 }
 
-func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
-	blockchainClient := SetupNewBlockChainClient(testHelper)
+func CompleteNextRequest(t *testing.T, testHelper *pestestutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
+	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
 
 	for {
-		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		request, stateRoot, err := coreClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
 			var newStateRoot [32]byte
-			_, err = rand.Read(newStateRoot[:]) //dummy new state root
+			_, err = rand.Read(newStateRoot[:]) // dummy new state root
 			require.NoError(t, err)
 			update := &common.UpdatePayload{
 				ApplicationID:  request.ApplicationID,
@@ -38,25 +39,24 @@ func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refun
 				RefundAmount:   common.ToBig(refundAmount),
 				ApplicationFee: common.ToBig(applicationFees),
 			}
-			err = blockchainClient.SubmitStateUpdate(context.Background(), update)
+			err = coreClient.SubmitStateUpdate(context.Background(), update)
 			require.NoError(t, err)
 			return
 		}
 	}
 }
 
-func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
-	blockchainClient := SetupNewBlockChainClient(testHelper)
+func FailNextRequest(t *testing.T, testHelper *pestestutil.SimTestHelper) {
+	coreClient := pesblockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
 
 	for {
-		request, _, err := blockchainClient.GetNextPendingRequest(context.Background())
+		request, _, err := coreClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			err = blockchainClient.MarkRequestFailed(context.Background(), request.RequestID, apperrors.New(apperrors.CodeInternalFallback, "internal error", nil))
+			err = coreClient.MarkRequestFailed(context.Background(), request.RequestID, apperrors.New(apperrors.CodeInternalFallback, "internal error", nil))
 			require.NoError(t, err)
 			return
 		}
-
 	}
 }
 
@@ -66,7 +66,7 @@ type StubSubgraphClient struct {
 	Err    error
 }
 
-func (s StubSubgraphClient) GetRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+func (s StubSubgraphClient) GetRequestCompletedByID(_ context.Context, _ ccecommon.RequestIdType) (*subgraph.RequestCompleted, error) {
 	return s.Result, s.Err
 }
 
@@ -74,17 +74,17 @@ func (StubSubgraphClient) HealthCheck(context.Context) error {
 	return nil
 }
 
-func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+func (StubSubgraphClient) GetUserEvents(context.Context, ccecommon.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
 	return nil, nil
 }
 
 func SubgraphClientOK() subgraph.Client {
-	return StubSubgraphClient{Result: &subgraph.RequestCompleted{Status: common.RequestResultOK}}
+	return StubSubgraphClient{Result: &subgraph.RequestCompleted{Status: ccecommon.RequestResultOK}}
 }
 
 func SubgraphClientFailure() subgraph.Client {
 	return StubSubgraphClient{Result: &subgraph.RequestCompleted{
-		Status:       common.RequestResultFailed,
+		Status:       ccecommon.RequestResultFailed,
 		ErrorCode:    2,
 		ErrorMessage: "internal error",
 	}}

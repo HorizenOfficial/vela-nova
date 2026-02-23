@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -9,11 +10,11 @@ import (
 	"time"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/horizen-cce-common-go/wallet/blockchain"
+	ccecommon "github.com/horizen-cce-common-go/wallet/common"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/magiconair/properties"
 )
 
@@ -165,7 +166,7 @@ func (c *ChainCommand) InitChainClient(ctx context.Context) error {
 		if c.Config.ProcessorEndpointAddress == nil || c.Config.TeeAuthenticatorAddress == nil || c.Config.KeySecp == nil || c.Config.RpcUrl == "" {
 			return fmt.Errorf("missing required configuration fields to create blockchain client")
 		}
-		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
+		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp.PrivateKey)
 		err := c.BlockchainClient.Connect(ctx)
 		if err != nil {
 			return err
@@ -181,7 +182,7 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, ctx context.Context) error {
+func (c *ChainCommand) WaitForRequestCompleted(requestID ccecommon.RequestIdType, ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()
@@ -203,7 +204,7 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, c
 				fmt.Println("Waiting for confirmation from PES...")
 				continue
 			}
-			if result.Status != common.RequestResultOK {
+			if result.Status != ccecommon.RequestResultOK {
 				failureMsg := result.ErrorMessage
 				if failureMsg == "" {
 					failureMsg = "request failed"
@@ -228,9 +229,13 @@ func (c *ChainCommand) EncryptPayload(payload any, ctx context.Context) ([]byte,
 	if err != nil {
 		return nil, fmt.Errorf("error preparing process payload: %w", err)
 	}
-	receiverPubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+	receiverPubKeyBytes, err := c.BlockchainClient.GetTeePublicKey(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving PES public key: %w", err)
+	}
+	receiverPubKey, err := crypto.ImportPublicKeyP521FromHex(hex.EncodeToString(receiverPubKeyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("error importing PES public key: %w", err)
 	}
 	encryptedPayload, err := crypto.Encrypt(c.Config.KeyP521, receiverPubKey, payloadBytes)
 	if err != nil {

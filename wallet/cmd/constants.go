@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/horizen-pes/pkg/common"
+	"github.com/horizen-cce-common-go/wallet/common"
 )
 
 var NOVA_APPLICATION_ID = common.NewApplicationId(1)

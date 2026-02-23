@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/horizen-cce-common-go/common"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/horizen-cce-common-go/wallet/common"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
 
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"

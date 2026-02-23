@@ -2,16 +2,18 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wallet/blockchain"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
 	"github.com/horizen-pes/pkg/common"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/horizen-pes/pkg/crypto"
 	"github.com/spf13/cobra"
 )
 
@@ -32,12 +34,16 @@ func EventFilter(b []byte) bool {
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
+func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKeyBytes []byte, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
 	if subgraphClient == nil {
 		return nil, fmt.Errorf("subgraph client not initialized")
 	}
-	if teePubKey == nil || privKey == nil {
+	if len(teePubKeyBytes) == 0 || privKey == nil {
 		return nil, fmt.Errorf("missing keys to decrypt user events")
+	}
+	teePubKey, err := crypto.ImportPublicKeyP521FromHex(hex.EncodeToString(teePubKeyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("invalid TEE public key: %w", err)
 	}
 
 	events, err := FetchAndDecryptUserEvents(

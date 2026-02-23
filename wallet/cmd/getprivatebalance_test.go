@@ -7,22 +7,21 @@ import (
 	"os"
 	"testing"
 
+	"github.com/horizen-cce-common-go/wallet/blockchain"
+	"github.com/horizen-cce-common-go/wallet/subgraph"
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/stretchr/testify/assert"
 )
 
 // Test blockchain client that returns a fixed TEE public key.
 type TestGetPrivateBalanceBlockChainClient struct {
 	*blockchain.MockClient
-	teePub *cryptotypes.PublicKeyP521
+	teePub []byte
 }
 
-func (c *TestGetPrivateBalanceBlockChainClient) GetTeePublicKey(ctx context.Context) (*cryptotypes.PublicKeyP521, error) {
-	return c.teePub, nil
+func (c *TestGetPrivateBalanceBlockChainClient) GetTeePublicKey(_ context.Context) ([]byte, error) {
+	return append([]byte(nil), c.teePub...), nil
 }
 
 func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
@@ -34,7 +33,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
-	teePub := teeKey.PublicKey()
+	teePub := teeKey.PublicKey().Bytes()
 
 	// Balance must be hex-encoded with 0x prefix for common.Big unmarshaling
 	// 12345 decimal = 0x3039 hex
@@ -75,7 +74,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 
 func TestGetPrivateBalance_NoEventsReturnsZero(t *testing.T) {
 	// This test verifies that when no events are found, the default zero balance
-	// is returned and properly unmarshaled. 
+	// is returned and properly unmarshaled.
 	// Redirect stdout
 	old := os.Stdout
 	r, w, _ := os.Pipe()
@@ -84,7 +83,7 @@ func TestGetPrivateBalance_NoEventsReturnsZero(t *testing.T) {
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
-	teePub := teeKey.PublicKey()
+	teePub := teeKey.PublicKey().Bytes()
 
 	client := &TestGetPrivateBalanceBlockChainClient{
 		MockClient: blockchain.NewMockClient(),
@@ -124,7 +123,7 @@ func TestGetPrivateBalance_InvalidEventFilteredOut(t *testing.T) {
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
-	teePub := teeKey.PublicKey()
+	teePub := teeKey.PublicKey().Bytes()
 
 	// Event without Balance key - will be filtered out
 	mockEvent := []byte(`{"other_field": "value"}`)
