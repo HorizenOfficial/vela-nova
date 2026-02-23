@@ -164,6 +164,10 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				utils.LogError("ProcessRequest: transfer amount is nil")
 				return types.ProcessResult{Error: "Transfer amount is nil"}
 			}
+			if len(instructions.Transfer.InvoiceID) > MaxInvoiceIDLength {
+				utils.LogError("ProcessRequest: invoice_id exceeds maximum length of %d characters", MaxInvoiceIDLength)
+				return types.ProcessResult{Error: fmt.Sprintf("invoice_id exceeds maximum length of %d characters", MaxInvoiceIDLength)}
+			}
 
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
@@ -203,11 +207,12 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 
 			// Create events for both parties
 			senderEventData := SenderEvent{
-				Type:    "transfer_sent",
-				To:      instructions.Transfer.To,
-				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[senderHex].Balance,
-				Nonce:   currentState.Nonce,
+				Type:      "transfer_sent",
+				To:        instructions.Transfer.To,
+				Amount:    instructions.Transfer.Amount,
+				Balance:   currentState.Accounts[senderHex].Balance,
+				Nonce:     currentState.Nonce,
+				InvoiceID: instructions.Transfer.InvoiceID,
 			}
 			senderEventDataBytes, err := json.Marshal(senderEventData)
 			if err != nil {
@@ -216,11 +221,12 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			}
 
 			recipientEventData := RecipientEvent{
-				Type:    "transfer_received",
-				From:    sender,
-				Amount:  instructions.Transfer.Amount,
-				Balance: currentState.Accounts[recipientHex].Balance,
-				Nonce:   currentState.Nonce,
+				Type:      "transfer_received",
+				From:      sender,
+				Amount:    instructions.Transfer.Amount,
+				Balance:   currentState.Accounts[recipientHex].Balance,
+				Nonce:     currentState.Nonce,
+				InvoiceID: instructions.Transfer.InvoiceID,
 			}
 			recipientEventDataBytes, err := json.Marshal(recipientEventData)
 			if err != nil {

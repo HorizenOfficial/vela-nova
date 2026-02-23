@@ -105,25 +105,61 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	recAddress, err := types.HexToAddress(recipientHex)
 	require.NoError(t, err)
 
-	payload := app.PayloadInstructions{
-		Type:     "transfer",
-		Transfer: &app.TransferInstruction{To: recAddress, Amount: transferValue},
+	// helper: build payload, execute transfer, verify state, return events
+	doTransfer := func(t *testing.T, invoiceID string) []common.PlainEvent {
+		t.Helper()
+		payload := app.PayloadInstructions{
+			Type:     "transfer",
+			Transfer: &app.TransferInstruction{To: recAddress, Amount: transferValue, InvoiceID: invoiceID},
+		}
+		payloadBytes, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		newState, events, withdrawals, _, fuel, failure := runtime.ProcessRequest(
+			ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+		require.Nil(t, failure)
+		require.Len(t, events, 2)
+		require.Len(t, withdrawals, 0)
+		require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
+
+		// Verify the state was updated
+		var stateData app.ApplicationInternalState
+		require.NoError(t, json.Unmarshal(newState, &stateData))
+		expectedBalance := types.NewUint256(0)
+		expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
+		assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
+		assert.Equal(t, transferValue.String(), stateData.Accounts[recipientHex].Balance.String())
+
+		return events
 	}
-	payloadBytes, err := json.Marshal(payload)
-	require.NoError(t, err)
 
-	newState, events, withdrawals, _, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
-	require.Nil(t, failure)
-	require.Len(t, events, 2)
-	require.Len(t, withdrawals, 0)
-	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
+	t.Run("WithoutInvoiceID", func(t *testing.T) {
+		events := doTransfer(t, "")
 
-	var stateData app.ApplicationInternalState
-	require.NoError(t, json.Unmarshal(newState, &stateData))
-	expectedBalance := types.NewUint256(0)
-	expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
-	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
-	assert.Equal(t, transferValue.String(), stateData.Accounts[recipientHex].Balance.String())
+		// Verify invoice_id is absent from both events
+		var senderRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderRaw))
+		assert.NotContains(t, senderRaw, "invoice_id", "invoice_id should be absent from sender event when not provided")
+
+		var recipientRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
+		assert.NotContains(t, recipientRaw, "invoice_id", "invoice_id should be absent from recipient event when not provided")
+	})
+
+	t.Run("WithInvoiceID", func(t *testing.T) {
+		invoiceID := "INV-2025-001"
+		events := doTransfer(t, invoiceID)
+
+		// Verify invoice_id is present in sender event
+		var senderRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[0].Data, &senderRaw))
+		assert.Equal(t, invoiceID, senderRaw["invoice_id"], "sender event should contain invoice_id")
+
+		// Verify invoice_id is present in recipient event
+		var recipientRaw map[string]interface{}
+		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
+		assert.Equal(t, invoiceID, recipientRaw["invoice_id"], "recipient event should contain invoice_id")
+	})
 }
 
 func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
