@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/horizen-pes-nova/wallet/app"
@@ -51,8 +50,7 @@ func (c *GetPendingPaymentsCommand) Command() *cobra.Command {
 				return
 			}
 
-			eth := new(big.Float).Quo(new(big.Float).SetInt(amount), big.NewFloat(1e18))
-			fmt.Printf("Pending payments: %s ETH\n", eth.Text('f', 18))
+			fmt.Printf("Pending payments: %s ETH\n", app.WeiToEtherStr(amount))
 		},
 	}
 	return cmd
