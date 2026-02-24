@@ -16,7 +16,7 @@ type AccountState struct {
 
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    int64                    `json:"appId"`
+	AppID    uint64                   `json:"appId"`
 	Accounts map[string]*AccountState `json:"accounts"`
 	Nonce    uint64                   `json:"nonce"`
 }

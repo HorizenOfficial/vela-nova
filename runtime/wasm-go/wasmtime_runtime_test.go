@@ -510,7 +510,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			appId := common.NewApplicationId(int64(id))
+			appId := common.NewApplicationId(uint64(id))
 			_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 			if err != nil {
 				errors <- err
@@ -794,7 +794,7 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 
 	// Load same module multiple times (TODO this will change)
 	for i := 0; i < 5; i++ {
-		_, _, err := runtime.LoadModule(ctx, common.NewApplicationId(int64(i)), wasmBytes)
+		_, _, err := runtime.LoadModule(ctx, common.NewApplicationId(uint64(i)), wasmBytes)
 		require.NoError(t, err)
 	}
 }

@@ -6,9 +6,9 @@ go 1.24.0
 // This prevents "works on my machine" problems that can arise from subtle differences between minor Go versions
 toolchain go1.24.3
 
-replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.20
+replace github.com/horizen-cce-common-go => github.com/HorizenOfficial/horizen-cce-common-go v0.0.22
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.20
+replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.22
 
 // Can be useful for local developments
 //replace github.com/horizen-pes => ../../../horizen-pes
@@ -16,8 +16,8 @@ replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.20
 
 require (
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-cce-common-go v0.0.20
-	github.com/horizen-pes v0.0.18
+	github.com/horizen-cce-common-go v0.0.22
+	github.com/horizen-pes v0.0.22
 	github.com/stretchr/testify v1.11.1
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/horizen-pes/pkg/blockchain"
 	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
 	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-pes/pkg/subgraph"
+	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/stretchr/testify/assert"
 )
 
