@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -46,7 +45,6 @@ func TestClaimPendingPaymentsCmd(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	fmt.Println(output)
 	assert.Contains(t, output, "Nothing to claim")
 }
 
@@ -75,6 +73,5 @@ func TestClaimPendingPaymentsCmdNoKey(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	fmt.Println(output)
 	assert.Contains(t, output, "Secp256k1 key not found")
 }
