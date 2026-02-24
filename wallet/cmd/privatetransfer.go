@@ -33,8 +33,8 @@ func NewPrivateTransferCommand(config *app.Config, blockchainClient blockchain.C
 func (c *PrivateTransferCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "privatetransfer",
-		Short: `submits a private transfer request specifying receiver address and amount as parameters`,
-		Long:  `submits a private transfer request specifying receiver address and amount as parameters`,
+		Short: `submits a private transfer request to a receiver address`,
+		Long:  `submits a private transfer request to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
 			//get receiver
 			to, err := app.ValidateAndChecksumAddress(c.receiver)
@@ -72,6 +72,11 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			toAddr, err := types.HexToAddress(to.Hex())
 			if err != nil {
 				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
+			}
+
+			if len(c.invoiceID) > runtimeapp.MaxInvoiceIDLength {
+				fmt.Printf("Error: invoice_id exceeds maximum length of %d characters\n", runtimeapp.MaxInvoiceIDLength)
+				return
 			}
 
 			//build payload with type transfer

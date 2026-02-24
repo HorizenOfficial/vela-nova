@@ -84,5 +84,10 @@ type RecipientEvent struct {
 	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
-// WithdrawalEvent has the same structure as SenderEvent
-type WithdrawalEvent SenderEvent
+type WithdrawalEvent struct {
+	Type    string         `json:"type"`
+	To      types.Address  `json:"to"`
+	Amount  *types.Uint256 `json:"amount"`
+	Balance *types.Uint256 `json:"balance"`
+	Nonce   uint64         `json:"nonce"`
+}
