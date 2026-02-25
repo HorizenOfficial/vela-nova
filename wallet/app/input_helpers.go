@@ -10,6 +10,28 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// WeiToEther converts a *big.Int value in Wei to a human-readable ETH string
+// with 18 decimal places. It uses string manipulation instead of floating-point
+// arithmetic to avoid rounding errors.
+func WeiToEtherStr(wei *big.Int) string {
+	const decimals = 18
+
+	s := wei.String()
+
+	// Pad with leading zeros so we always have at least decimals+1 digits
+	if len(s) <= decimals {
+		s = strings.Repeat("0", decimals-len(s)+1) + s
+	}
+
+	intPart := s[:len(s)-decimals]
+	fracPart := strings.TrimRight(s[len(s)-decimals:], "0")
+
+	if fracPart == "" {
+		return intPart
+	}
+	return intPart + "." + fracPart
+}
+
 // ParseEtherValue converts a string representing a value in Ether, Gwei, or Wei
 // into its equivalent value in Wei as a *big.Int.
 // Examples: "1 ETH" -> 10^18 Wei, "10 Gwei" -> 10^10 Wei, "500 Wei" -> 500 Wei.

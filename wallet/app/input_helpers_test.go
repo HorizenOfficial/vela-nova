@@ -120,6 +120,45 @@ func TestParseEtherValue(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestWeiToEtherStr(t *testing.T) {
+	tests := []struct {
+		name     string
+		wei      *big.Int
+		expected string
+	}{
+		{"zero", big.NewInt(0), "0"},
+		{"1 wei", big.NewInt(1), "0.000000000000000001"},
+		{"1 gwei", big.NewInt(1e9), "0.000000001"},
+		{"1 ether", new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil), "1"},
+		{"1.5 ether", big.NewInt(15e17), "1.5"},
+		{"0.002 ether", big.NewInt(2e15), "0.002"},
+		{"large value", func() *big.Int {
+			v, _ := new(big.Int).SetString("123456789000000000000000000", 10)
+			return v
+		}(), "123456789"},
+		{"all decimals", func() *big.Int {
+			v, _ := new(big.Int).SetString("1234567890123456789", 10)
+			return v
+		}(), "1.234567890123456789"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := WeiToEtherStr(tt.wei)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestWeiToEtherStrRoundTrip(t *testing.T) {
+	// Verify WeiToEtherStr + ParseEtherValue round-trips correctly
+	original := big.NewInt(15e17) // 1.5 ETH
+	ethStr := WeiToEtherStr(original)
+	parsed, err := ParseEtherValue(ethStr + " ETH")
+	require.NoError(t, err)
+	require.Equal(t, 0, original.Cmp(parsed), "round-trip failed: %s", ethStr)
+}
+
 func TestValidateAndChecksumAddress(t *testing.T) {
 
 	input := ""

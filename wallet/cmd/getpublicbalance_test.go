@@ -34,5 +34,5 @@ func TestGetPublicBalanceCmd(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 	
-	assert.Contains(t, output, "0.000000000000000000")
+	assert.Contains(t, output, "0\n")
 }

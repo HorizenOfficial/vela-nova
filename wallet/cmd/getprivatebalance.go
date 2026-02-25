@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
@@ -103,8 +102,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to convert event to json: %v", err)
 			}
 			//print balance
-			eth := new(big.Float).Quo(new(big.Float).SetInt(jsonData.Balance.ToInt()), big.NewFloat(1e18))
-			fmt.Println(eth.Text('f', 18))
+			fmt.Println(app.WeiToEtherStr(jsonData.Balance.ToInt()))
 		},
 	}
 	return cmd

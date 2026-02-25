@@ -1,10 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"context"
-	"math/big"
 
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/spf13/cobra"
@@ -51,8 +50,7 @@ func (c *GetPublicBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("Failed to get balance: %v", err)
 			}
 
-			eth := new(big.Float).Quo(new(big.Float).SetInt(balance), big.NewFloat(1e18))
-			fmt.Println(eth.Text('f', 18))
+			fmt.Println(app.WeiToEtherStr(balance))
 		},
 	}
 	return cmd

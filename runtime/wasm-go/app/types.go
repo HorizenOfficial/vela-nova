@@ -4,6 +4,8 @@ import (
 	"github.com/horizen-cce-common-go/wasm/types"
 )
 
+const MaxInvoiceIDLength = 100
+
 // ----- module internal types
 
 // AccountState represents the state of a user account
@@ -26,9 +28,11 @@ type WithdrawInstruction struct {
 }
 
 // TransferInstruction represents instructions for transferring funds
+// InvoiceID is an optional field the sender can include to track the payment
 type TransferInstruction struct {
-	To     types.Address  `json:"to"`
-	Amount *types.Uint256 `json:"amount"`
+	To        types.Address  `json:"to"`
+	Amount    *types.Uint256 `json:"amount"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
 // DeanonymizeInstruction represents optional instructions for deanonymization
@@ -63,20 +67,27 @@ type DepositEvent struct {
 }
 
 type SenderEvent struct {
+	Type      string         `json:"type"`
+	To        types.Address  `json:"to"`
+	Amount    *types.Uint256 `json:"amount"`
+	Balance   *types.Uint256 `json:"balance"`
+	Nonce     uint64         `json:"nonce"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
+}
+
+type RecipientEvent struct {
+	Type      string         `json:"type"`
+	From      types.Address  `json:"from"`
+	Amount    *types.Uint256 `json:"amount"`
+	Balance   *types.Uint256 `json:"balance"`
+	Nonce     uint64         `json:"nonce"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
+}
+
+type WithdrawalEvent struct {
 	Type    string         `json:"type"`
 	To      types.Address  `json:"to"`
 	Amount  *types.Uint256 `json:"amount"`
 	Balance *types.Uint256 `json:"balance"`
 	Nonce   uint64         `json:"nonce"`
 }
-
-type RecipientEvent struct {
-	Type    string         `json:"type"`
-	From    types.Address  `json:"from"`
-	Amount  *types.Uint256 `json:"amount"`
-	Balance *types.Uint256 `json:"balance"`
-	Nonce   uint64         `json:"nonce"`
-}
-
-// WithdrawalEvent has the same structure as SenderEvent
-type WithdrawalEvent SenderEvent
