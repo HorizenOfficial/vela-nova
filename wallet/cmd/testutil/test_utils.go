@@ -49,10 +49,24 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 	blockchainClient := SetupNewBlockChainClient(testHelper)
 
 	for {
-		request, _, err := blockchainClient.GetNextPendingRequest(context.Background())
+		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			err = blockchainClient.MarkRequestFailed(context.Background(), request.RequestID, apperrors.New(apperrors.CodeInternalFallback, "internal error", nil))
+			var newStateRoot [32]byte
+			_, err = rand.Read(newStateRoot[:])
+			require.NoError(t, err)
+			update := &common.UpdatePayload{
+				ApplicationID:  request.ApplicationID,
+				RequestID:      request.RequestID,
+				PrevStateRoot:  stateRoot,
+				NewStateRoot:   newStateRoot,
+				Signature:      make([]byte, 65),
+				RefundAmount:   common.NewBig(0),
+				ApplicationFee: common.NewBig(0),
+				ErrorCode:      apperrors.New(apperrors.CodeInternalFallback, "internal error").Category(),
+				ErrorMsg:       "internal error",
+			}
+			err = blockchainClient.SubmitStateUpdate(context.Background(), update)
 			require.NoError(t, err)
 			return
 		}
