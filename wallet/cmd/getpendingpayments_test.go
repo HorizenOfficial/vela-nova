@@ -45,7 +45,7 @@ func TestGetPendingPaymentsCmd(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Contains(t, output, "Pending payments: 0.000000000000000000 ETH")
+	assert.Contains(t, output, "Pending payments: 0 ETH")
 }
 
 func TestGetPendingPaymentsCmdNoKey(t *testing.T) {

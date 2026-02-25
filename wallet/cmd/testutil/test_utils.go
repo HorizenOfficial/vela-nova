@@ -52,16 +52,13 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
-			var newStateRoot [32]byte
-			_, err = rand.Read(newStateRoot[:])
-			require.NoError(t, err)
 			update := &common.UpdatePayload{
 				ApplicationID:  request.ApplicationID,
 				RequestID:      request.RequestID,
 				PrevStateRoot:  stateRoot,
-				NewStateRoot:   newStateRoot,
+				NewStateRoot:   stateRoot, // same as prev state root for failed requests
 				Signature:      make([]byte, 65),
-				RefundAmount:   common.NewBig(0),
+				RefundAmount:   common.ToBig(request.DepositAmount.ToInt()),
 				ApplicationFee: common.NewBig(0),
 				ErrorCode:      apperrors.New(apperrors.CodeInternalFallback, "internal error").Category(),
 				ErrorMsg:       "internal error",

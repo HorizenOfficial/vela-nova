@@ -111,7 +111,7 @@ func TestGetPrivateBalance_NoEventsReturnsZero(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Contains(t, output, "0.000000000000000000")
+	assert.Contains(t, output, "0\n")
 }
 
 func TestGetPrivateBalance_InvalidEventFilteredOut(t *testing.T) {
@@ -159,5 +159,5 @@ func TestGetPrivateBalance_InvalidEventFilteredOut(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 
-	assert.Contains(t, output, "0.000000000000000000")
+	assert.Contains(t, output, "0\n")
 }
