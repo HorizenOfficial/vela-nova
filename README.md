@@ -1,14 +1,10 @@
-# Horizen PES Nova
+# Horizen Vela Nova - Private Transfer Application
 
-An application for the [horizen-pes](https://github.com/HorizenOfficial/horizen-pes) system fot privacy preserving money transactions.
+Privacy-preserving token transfer application for the Horizen Vela platform. Includes a WASM runtime for confidential transactions inside the TEE and a client-side wallet CLI.
 
 [runtime/](runtime/) <br/>
-Application runtime for the horizen-pes TEE
+Application runtime for Horizen Vela 
 
 [wallet/](wallet) <br/>
-Client-side demo wallet
-
-
-
-
+Client-side wallet CLI
 
