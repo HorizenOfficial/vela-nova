@@ -49,3 +49,9 @@ To fetch a deanonymization report from the authority service, configure `rpcUrl`
 ```
 novaw downloadreport --report-id <hexReportId>
 ```
+
+To deploy/update the WASM application artifact, configure `AuthorityServiceURL` in `wallet.conf` and run:
+
+```
+novaw deployapp --wasm /path/to/app.wasm --max-value-fee "100 wei"
+```

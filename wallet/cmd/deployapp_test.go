@@ -1,48 +1,134 @@
 package cmd
 
 import (
-	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"io"
-	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/stretchr/testify/assert"
+	cmdtestutil "github.com/horizen-pes-nova/wallet/cmd/testutil"
+	"github.com/horizen-pes/pkg/blockchain"
+	"github.com/horizen-pes/pkg/common"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDeployAppCommand_Success(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
 
-	// Redirect stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
-	defer testHelper.Close()
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/deploy/upload", r.URL.Path)
+		require.NoError(t, r.ParseMultipartForm(32<<20))
 
-	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
+		file, _, err := r.FormFile("wasm")
+		require.NoError(t, err)
+		defer file.Close()
+		uploaded, err := io.ReadAll(file)
+		require.NoError(t, err)
+		require.Equal(t, wasmBytes, uploaded)
 
-	config := &app.Config{
-		BlockchainPollingInterval: 2,
-		BlockchainPollingTimeout:  60,
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+			"wasmSize":   len(wasmBytes),
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := blockchain.NewMockClient()
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  1,
 	}
 
-	deployCmd := NewDeployAppCommand(config, blockchainClient)
-	deployCmd.SubgraphClient = testutil.SubgraphClientOK()
-	cmd := deployCmd.Command()
-	cmd.Flags().Set("max-value-fee", "100 wei")
+	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
 
-	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
-	cmd.Run(nil, []string{"1"})
+	err := cmd.run(context.Background())
+	require.NoError(t, err)
 
-	// Restore stdout
-	w.Close()
-	os.Stdout = old
-	var buf bytes.Buffer
-	_, err := io.Copy(&buf, r)
-	assert.NoError(t, err)
+	pending, err := mockBC.GetPendingRequests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
 
-	assert.Contains(t, buf.String(), "Deploy app completed successfully")
+	req := pending[0]
+	require.Equal(t, common.Deploy, req.RequestType)
+	require.NotEmpty(t, req.Payload)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(req.Payload, &payload))
+	require.Equal(t, "artifact_ref", payload["mode"])
+	require.Equal(t, float64(1), payload["applicationId"])
+	require.Equal(t, "sha256:"+shaHex, payload["artifactId"])
+	require.Equal(t, shaHex, payload["wasmSha256"])
+	require.Equal(t, float64(len(wasmBytes)), payload["wasmSize"])
+}
+
+func TestDeployAppCommand_FailsWithoutArtifactServiceURL(t *testing.T) {
+	wasmPath := writeTempWASM(t, []byte("dummy-wasm-module"))
+
+	cmd := NewDeployAppCommand(&app.Config{}, blockchain.NewMockClient())
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.ErrorContains(t, err, "authority service URL is required")
+}
+
+func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + strings.Repeat("0", 64),
+			"wasmSha256": strings.Repeat("0", 64),
+			"wasmSize":   len(wasmBytes),
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := blockchain.NewMockClient()
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  1,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.ErrorContains(t, err, "deploy upload hash mismatch")
+
+	pending, getErr := mockBC.GetPendingRequests(context.Background())
+	require.NoError(t, getErr)
+	require.Len(t, pending, 0)
+}
+
+func writeTempWASM(t *testing.T, wasm []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "app.wasm")
+	require.NoError(t, os.WriteFile(path, wasm, 0o644))
+	return path
+}
+
+func shaHex(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,12 @@ type AuthorityClient struct {
 	HTTPClient *http.Client
 }
 
+type DeployUploadResponse struct {
+	ArtifactID string `json:"artifactId"`
+	WasmSHA256 string `json:"wasmSha256"`
+	WasmSize   uint64 `json:"wasmSize"`
+}
+
 func NewAuthorityClient(baseURL string, chainID uint64, appID common.ApplicationIdType, key *cryptotypes.PrivateKeySecp256k1) *AuthorityClient {
 	return &AuthorityClient{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
@@ -37,6 +44,50 @@ func NewAuthorityClient(baseURL string, chainID uint64, appID common.Application
 		KeySecp:    key,
 		HTTPClient: http.DefaultClient,
 	}
+}
+
+// UploadWASM calls POST /deploy/upload and returns upload metadata.
+func (c *AuthorityClient) UploadWASM(ctx context.Context, wasm []byte) (*DeployUploadResponse, error) {
+	if len(wasm) == 0 {
+		return nil, fmt.Errorf("wasm payload is empty")
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	fileWriter, err := writer.CreateFormFile("wasm", "app.wasm")
+	if err != nil {
+		return nil, fmt.Errorf("creating multipart payload: %w", err)
+	}
+	if _, err := fileWriter.Write(wasm); err != nil {
+		return nil, fmt.Errorf("writing multipart payload: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/deploy/upload", &body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("upload wasm: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("deploy upload failed: %s", bytes.TrimSpace(body))
+	}
+
+	var out DeployUploadResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decoding deploy upload response: %w", err)
+	}
+	return &out, nil
 }
 
 // FetchNonce calls GET /nonce.
