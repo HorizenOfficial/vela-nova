@@ -243,6 +243,116 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	assert.Equal(t, expectedBalance.String(), report.Accounts[sender].Balance.String())
 }
 
+func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	recipientHex := fmt.Sprintf("0xadd%037x", 2)
+	ethRecipient := ethCommon.HexToAddress(recipientHex)
+	withdrawAddrHex := "0x1234567890123456789012345678901234567890"
+
+	depositAmount := big.NewInt(2_000_000_000_000_000_000)
+	transferValue := types.NewUint256(500_000_000_000_000_000)
+	withdrawValue := types.NewUint256(100_000_000_000_000_000)
+
+	// Load module + deposit + transfer + withdrawal
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	require.Nil(t, failure)
+
+	recAddress, err := types.HexToAddress(recipientHex)
+	require.NoError(t, err)
+	transferPayload := app.PayloadInstructions{
+		Type:     "transfer",
+		Transfer: &app.TransferInstruction{To: recAddress, Amount: transferValue, InvoiceID: "INV-001"},
+	}
+	transferBytes, err := json.Marshal(transferPayload)
+	require.NoError(t, err)
+	state, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+
+	withdrawAddr, err := types.HexToAddress(withdrawAddrHex)
+	require.NoError(t, err)
+	withdrawPayload := app.PayloadInstructions{
+		Type:     "withdraw",
+		Withdraw: &app.WithdrawInstruction{To: withdrawAddr, Amount: withdrawValue},
+	}
+	withdrawBytes, err := json.Marshal(withdrawPayload)
+	require.NoError(t, err)
+	state, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+
+	// Verify state has transaction records
+	var stateData app.ApplicationInternalState
+	require.NoError(t, json.Unmarshal(state, &stateData))
+	require.Len(t, stateData.Transactions, 3, "should have deposit + transfer + withdrawal")
+
+	// tx_history report for sender — should see all 3 transactions
+	senderAddr, err := types.HexToAddress(senderHex)
+	require.NoError(t, err)
+	deanonPayload := app.PayloadInstructions{
+		Deanonymize: &app.DeanonymizeInstruction{ReportType: "tx_history", Address: senderAddr},
+	}
+	payloadBytes, err := json.Marshal(deanonPayload)
+	require.NoError(t, err)
+
+	_, _, _, reportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+	require.NotNil(t, reportBytes)
+
+	var report app.TxHistoryReport
+	require.NoError(t, json.Unmarshal(reportBytes, &report))
+	assert.Equal(t, senderHex, report.Address.Hex())
+	require.Len(t, report.Transactions, 3, "sender involved in all 3 transactions")
+	assert.Equal(t, "deposit", report.Transactions[0].Type)
+	assert.Equal(t, "transfer", report.Transactions[1].Type)
+	assert.Equal(t, "INV-001", report.Transactions[1].InvoiceID)
+	assert.Equal(t, "withdrawal", report.Transactions[2].Type)
+
+	// tx_history report for recipient — should only see the transfer
+	recipientAddr, err := types.HexToAddress(recipientHex)
+	require.NoError(t, err)
+	deanonPayload2 := app.PayloadInstructions{
+		Deanonymize: &app.DeanonymizeInstruction{ReportType: "tx_history", Address: recipientAddr},
+	}
+	payloadBytes2, err := json.Marshal(deanonPayload2)
+	require.NoError(t, err)
+
+	_, _, _, reportBytes2, _, failure2 := runtime.ProcessRequest(ctx, appId, ethRecipient, common.Deanonymize, payloadBytes2, state, wasmBytes)
+	require.Nil(t, failure2)
+	require.NotNil(t, reportBytes2)
+
+	var report2 app.TxHistoryReport
+	require.NoError(t, json.Unmarshal(reportBytes2, &report2))
+	require.Len(t, report2.Transactions, 1, "recipient only involved in transfer")
+	assert.Equal(t, "transfer", report2.Transactions[0].Type)
+
+	// Backward compatibility: empty payload defaults to balances
+	_, _, _, balanceReportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, []byte("{}"), state, wasmBytes)
+	require.Nil(t, failure2)
+	require.NotNil(t, balanceReportBytes)
+
+	var balanceReport app.DeanonymizationReport
+	require.NoError(t, json.Unmarshal(balanceReportBytes, &balanceReport))
+	require.Contains(t, balanceReport.Accounts, senderHex)
+
+	// Error: tx_history without address should fail
+	badPayload := app.PayloadInstructions{
+		Deanonymize: &app.DeanonymizeInstruction{ReportType: "tx_history"},
+	}
+	badBytes, err := json.Marshal(badPayload)
+	require.NoError(t, err)
+	_, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, badBytes, state, wasmBytes)
+	require.NotNil(t, failure2, "tx_history without address should fail")
+}
+
 // requireMemoryClean checks that guest memory is fully deallocated.
 func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId common.ApplicationIdType, wasmBytes []byte, msgAndArgs ...interface{}) {
 	t.Helper()

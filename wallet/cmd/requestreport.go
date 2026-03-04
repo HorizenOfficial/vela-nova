@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/horizen-cce-common-go/wasm/types"
 	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
 	"github.com/horizen-pes-nova/wallet/app"
 	"github.com/horizen-pes/pkg/blockchain"
@@ -21,13 +22,15 @@ func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Cli
 type RequestReportCommand struct {
 	*app.ChainCommand
 	maxFeeValue string
+	reportType  string
+	address     string
 }
 
 func (c *RequestReportCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "requestreport",
-		Short: `requests a deanonymization report of the balances of Nova app`,
-		Long:  `requests a deanonymization report of the balances of Nova app`,
+		Short: `requests a deanonymization report of the Nova app`,
+		Long:  `requests a deanonymization report of the Nova app. Use --report-type to select 'balances' (default) or 'tx_history'.`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
@@ -49,7 +52,19 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			payload := runtimeapp.PayloadInstructions{Deanonymize: &runtimeapp.DeanonymizeInstruction{}}
+			deanonInstruction := runtimeapp.DeanonymizeInstruction{
+				ReportType: c.reportType,
+			}
+			if c.address != "" {
+				addr, err := types.HexToAddress(c.address)
+				if err != nil {
+					fmt.Printf("Error: invalid address: %v\n", err)
+					return
+				}
+				deanonInstruction.Address = addr
+			}
+
+			payload := runtimeapp.PayloadInstructions{Deanonymize: &deanonInstruction}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)
@@ -75,5 +90,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringVar(&c.reportType, "report-type", "", "Report type: 'balances' (default) or 'tx_history'")
+	cmd.Flags().StringVar(&c.address, "address", "", "Address to query (required for tx_history)")
 	return cmd
 }

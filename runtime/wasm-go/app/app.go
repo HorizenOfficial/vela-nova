@@ -11,6 +11,19 @@ import (
 
 // --- High-Level Application Logic ---
 
+// recordTransaction appends a transaction record to the state's transaction log.
+// Must be called after state.Nonce++ so the nonce matches the corresponding event.
+func recordTransaction(state *ApplicationInternalState, txType string, from, to types.Address, amount *types.Uint256, invoiceID string) {
+	state.Transactions = append(state.Transactions, TransactionRecord{
+		Type:      txType,
+		From:      from,
+		To:        to,
+		Amount:    amount,
+		Nonce:     state.Nonce,
+		InvoiceID: invoiceID,
+	})
+}
+
 func LoadModule(appId int64) types.LoadModuleResult {
 	initialState := &ApplicationInternalState{
 		AppID:    uint64(appId),
@@ -74,6 +87,7 @@ func DepositFunds(senderPtr *types.Address, value *types.Uint256, stateJSON stri
 			return types.DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, oldBalance)}
 		}
 		currentState.Nonce++
+		recordTransaction(&currentState, "deposit", *senderPtr, *senderPtr, value, "")
 
 		// Create deposit event
 		eventData := DepositEvent{
@@ -204,6 +218,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 					instructions.Transfer.Amount, oldRecipientBalance)}
 			}
 			currentState.Nonce++
+			recordTransaction(&currentState, "transfer", sender, instructions.Transfer.To, instructions.Transfer.Amount, instructions.Transfer.InvoiceID)
 
 			// Create events for both parties
 			senderEventData := SenderEvent{
@@ -270,6 +285,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			// Execute withdrawal
 			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Withdraw.Amount)
 			currentState.Nonce++
+			recordTransaction(&currentState, "withdrawal", sender, instructions.Withdraw.To, instructions.Withdraw.Amount, "")
 
 			// Create withdrawal
 			withdrawals = append(withdrawals, types.Withdrawal{
@@ -298,23 +314,48 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			})
 
 		case "deanonymize":
-			// Generate deanonymization report
-			report := DeanonymizationReport{
-				Accounts: currentState.Accounts,
-				Nonce:    currentState.Nonce,
+			reportType := "balances"
+			if instructions.Deanonymize != nil && instructions.Deanonymize.ReportType != "" {
+				reportType = instructions.Deanonymize.ReportType
 			}
 
-			// Serialize the report
-			reportBytes, err := json.Marshal(report)
+			var reportBytes []byte
+			var err error
+
+			switch reportType {
+			case "balances":
+				reportBytes, err = json.Marshal(DeanonymizationReport{
+					Accounts: currentState.Accounts,
+					Nonce:    currentState.Nonce,
+				})
+			case "tx_history":
+				if instructions.Deanonymize == nil || instructions.Deanonymize.Address.IsZero() {
+					return types.ProcessResult{Error: "tx_history report requires a non-zero address"}
+				}
+				addrHex := instructions.Deanonymize.Address.Hex()
+				var filtered []TransactionRecord
+				for _, tx := range currentState.Transactions {
+					if tx.From.Hex() == addrHex || tx.To.Hex() == addrHex {
+						filtered = append(filtered, tx)
+					}
+				}
+				reportBytes, err = json.Marshal(TxHistoryReport{
+					Address:      instructions.Deanonymize.Address,
+					Transactions: filtered,
+				})
+			default:
+				return types.ProcessResult{Error: fmt.Sprintf("Unsupported report type: %s", reportType)}
+			}
+
 			if err != nil {
-				utils.LogError("ProcessRequest: failed to serialize deanonymization report: %v", err)
-				return types.ProcessResult{Error: fmt.Sprintf("Failed to serialize deanonymization report: %v", err)}
+				utils.LogError("ProcessRequest: failed to serialize %s report: %v", reportType, err)
+				return types.ProcessResult{Error: fmt.Sprintf("Failed to serialize %s report: %v", reportType, err)}
 			}
 
-			utils.LogDebug("ProcessRequest: deanonymize sender=%s, accountsCount=%d, reportSize=%d",
-				senderHex, len(currentState.Accounts), len(reportBytes))
+			utils.LogDebug("ProcessRequest: deanonymize sender=%s, reportType=%s, reportSize=%d",
+				senderHex, reportType, len(reportBytes))
 			return types.ProcessResult{
-				State:  []byte(stateJSON), //we have not modified the app state, using the old one to avoid useless marshalling
+				State:  []byte(stateJSON),
 				Report: reportBytes,
 				Fuel:   types.NewUint256(20),
 			}

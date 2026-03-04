@@ -14,11 +14,22 @@ type AccountState struct {
 	Balance *types.Uint256 `json:"balance"`
 }
 
+// TransactionRecord represents a single transaction stored in the private state
+type TransactionRecord struct {
+	Type      string         `json:"type"` // "deposit", "transfer", "withdrawal"
+	From      types.Address  `json:"from"`
+	To        types.Address  `json:"to"`
+	Amount    *types.Uint256 `json:"amount"`
+	Nonce     uint64         `json:"nonce"`
+	InvoiceID string         `json:"invoice_id,omitempty"`
+}
+
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    uint64                   `json:"appId"`
-	Accounts map[string]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	AppID        uint64                   `json:"appId"`
+	Accounts     map[string]*AccountState `json:"accounts"`
+	Nonce        uint64                   `json:"nonce"`
+	Transactions []TransactionRecord      `json:"transactions,omitempty"`
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
@@ -37,6 +48,8 @@ type TransferInstruction struct {
 
 // DeanonymizeInstruction represents optional instructions for deanonymization
 type DeanonymizeInstruction struct {
+	ReportType string        `json:"report_type,omitempty"` // "balances" (default) or "tx_history"
+	Address    types.Address `json:"address,omitempty"`     // required for tx_history
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -53,10 +66,10 @@ type DeanonymizationReport struct {
 	Nonce    uint64                   `json:"nonce"`
 }
 
-// ReportPayloadInstructions represents a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
-// we can omit empty accounts
-type ReportPayloadInstructions struct {
+// TxHistoryReport is the report returned for a tx_history deanonymization request
+type TxHistoryReport struct {
+	Address      types.Address       `json:"address"`
+	Transactions []TransactionRecord `json:"transactions"`
 }
 
 type DepositEvent struct {
