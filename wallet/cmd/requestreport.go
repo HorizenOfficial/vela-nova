@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
-	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -64,7 +64,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				return
 			}
 
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Println("Waiting for confirmation from Vela")
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Deanonymization request failed: %v\n", err)

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/spf13/cobra"
 )
 

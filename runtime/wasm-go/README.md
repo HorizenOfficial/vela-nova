@@ -1,10 +1,10 @@
 # WASM Go Module: Payment App
 
-This module contains the Go implementation of the **Payment App** WASM module — a privacy-preserving payment application for deposits, transfers, and withdrawals, built on the Horizen PES (Privacy Preserving Execution System) framework.
+This module contains the Go implementation of the **Payment App** WASM module — a privacy-preserving payment application for deposits, transfers, and withdrawals, built on the Vela (Privacy Preserving Execution System) framework.
 
-The PES framework (`horizen-pes`) is **application-agnostic**: it provides a generic execution pipeline (EVM blockchain → Manager → Executor → WASM Runtime) that processes requests without ever parsing application payloads. This module is a specific application that plugs into that framework — the only layer that knows about payment logic. Any WASM module implementing the expected exports can replace it.
+The Vela framework (`vela`) is **application-agnostic**: it provides a generic execution pipeline (EVM blockchain → Manager → Executor → WASM Runtime) that processes requests without ever parsing application payloads. This module is a specific application that plugs into that framework — the only layer that knows about payment logic. Any WASM module implementing the expected exports can replace it.
 
-**Note:** The WebAssembly (WASM) runtime itself (Wasmtime) is implemented and maintained in the `horizen-pes` repository. This module depends on that runtime for building and executing tests.
+**Note:** The WebAssembly (WASM) runtime itself (Wasmtime) is implemented and maintained in the `vela` repository. This module depends on that runtime for building and executing tests.
 
 ## Prerequisites
 
@@ -34,18 +34,10 @@ tinygo version
 
 This module depends on two external packages:
 
-- **`horizen-pes`** — The application-agnostic PES framework. Provides the generic WASM runtime (Wasmtime), common types (`common.Request`, `common.Event`, `common.Withdrawal`), and the `Runtime` interface. Used in tests to run the compiled WASM module.
-- **`horizen-cce-common-go/wasm`** — Shared WASM guest-side types and utilities. Provides `types.Uint256`, `types.Address`, `types.PlainEvent`, result types (`LoadModuleResult`, `DepositResult`, `ProcessResult`, `DeanonymizationResult`), memory allocator (`utils.Allocate`/`Deallocate`), logging, and pointer conversions. These are the shared data structures that the wallet also imports to ensure identical serialization.
+- **`vela`** — The application-agnostic Vela framework. Provides the generic WASM runtime (Wasmtime), common types (`common.Request`, `common.Event`, `common.Withdrawal`), and the `Runtime` interface. Used in tests to run the compiled WASM module.
+- **`vela-common-go/wasm`** — Shared WASM guest-side types and utilities. Provides `types.Uint256`, `types.Address`, `types.PlainEvent`, result types (`LoadModuleResult`, `DepositResult`, `ProcessResult`, `DeanonymizationResult`), memory allocator (`utils.Allocate`/`Deallocate`), logging, and pointer conversions. These are the shared data structures that the wallet also imports to ensure identical serialization.
 
 Both dependencies use `replace` directives in `go.mod`. For local development, uncomment the local path replaces pointing to sibling directories.
-
-Since these are private repos, you need to configure Go for private module access:
-
-```bash
-go env -w GOPRIVATE=github.com/HorizenOfficial/*
-git config --global url."git@github.com:".insteadOf "https://github.com/"
-```
-
 
 ## Building
 
@@ -72,7 +64,7 @@ runtime/wasm-go/
 │   └── types.go         # App-specific types (PayloadInstructions, TransferInstruction, WithdrawInstruction, AccountState)
 ├── wasmtime_runtime_test.go  # Unit/integration tests against WASM runtime
 ├── integration_test.go       # Integration tests for compiled WASM binary
-├── system_tests/             # E2E system tests (full PES stack simulation)
+├── system_tests/             # E2E system tests (full Vela stack simulation)
 ├── build/                    # Dev WASM binary output
 ├── production_build/         # Production WASM binary output
 └── Makefile
@@ -80,7 +72,7 @@ runtime/wasm-go/
 
 ### WASM Exports
 
-The module exports these functions for the generic PES runtime to call:
+The module exports these functions for the generic Vela runtime to call:
 
 | Export | Purpose |
 |---|---|
@@ -92,11 +84,11 @@ The module exports these functions for the generic PES runtime to call:
 
 ### Shared Data Structures
 
-The wallet (`wallet/`) constructs `PayloadInstructions` (defined in `app/types.go`) and encrypts them before submitting to the blockchain. This module receives and decrypts those instructions inside the TEE. Both sides import `types.Address` and `types.Uint256` from `horizen-cce-common-go/wasm/types` to ensure identical serialization.
+The wallet (`wallet/`) constructs `PayloadInstructions` (defined in `app/types.go`) and encrypts them before submitting to the blockchain. This module receives and decrypts those instructions inside the TEE. Both sides import `types.Address` and `types.Uint256` from `vela-common-go/wasm/types` to ensure identical serialization.
 
 ## Development Workflow
 
-1.  **Modify WASM Module**: The core application logic is in `app/app.go`. The WASM export bridge is in `main.go`. App-specific types are in `app/types.go`. Shared guest-side types and utilities come from `horizen-cce-common-go/wasm`.
+1.  **Modify WASM Module**: The core application logic is in `app/app.go`. The WASM export bridge is in `main.go`. App-specific types are in `app/types.go`. Shared guest-side types and utilities come from `vela-common-go/wasm`.
 2.  **Rebuild Module**: After making changes, rebuild the WASM module using `make build` or the `tinygo` command directly.
 3.  **Update Tests**: Add or update corresponding tests in `wasmtime_runtime_test.go` or `integration_test.go` to reflect your changes.
 4.  **Verify Changes**: Run the test suite to ensure everything is working correctly:
@@ -124,7 +116,7 @@ This project contains three distinct types of tests, each with a different focus
 
 1.  **`wasmtime_runtime_test.go`**:
     *   **Type**: Unit/Integration Test
-    *   **Scope**: Focuses on the interaction with the `WasmtimeRuntime` component (which is implemented in `horizen-pes`).
+    *   **Scope**: Focuses on the interaction with the `WasmtimeRuntime` component (which is implemented in `vela`).
     *   **Purpose**: To verify that this module correctly interacts with the WASM runtime, ensuring robust and correct handling of various scenarios. It tests the module's behavior in isolation when communicating with the runtime, covering happy paths, error conditions (e.g., invalid WASM, corrupted state), and edge cases (e.g., concurrent operations, large payloads).
 
 2.  **`integration_test.go`**:

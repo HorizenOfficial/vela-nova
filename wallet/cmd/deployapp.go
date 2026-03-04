@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +55,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 				return
 			}
 
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Println("Waiting for confirmation from Vela")
 
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {

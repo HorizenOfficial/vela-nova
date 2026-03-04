@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela/pkg/common"
 )
 
 var NOVA_APPLICATION_ID = common.NewApplicationId(1)

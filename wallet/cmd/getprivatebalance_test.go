@@ -7,11 +7,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/stretchr/testify/assert"
 )
 

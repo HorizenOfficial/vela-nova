@@ -5,7 +5,7 @@ import (
 	"os"
 	
 	"github.com/spf13/cobra"
-	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
 )
 
 var rootCmd = &cobra.Command{
