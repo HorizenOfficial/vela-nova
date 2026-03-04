@@ -8,12 +8,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-pes/pkg/crypto"
-	"github.com/horizen-cce-common-go/subgraph"
 	"github.com/magiconair/properties"
 )
 
@@ -200,7 +200,7 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, c
 				continue
 			}
 			if result == nil {
-				fmt.Println("Waiting for confirmation from PES...")
+				fmt.Println("Waiting for confirmation from Vela...")
 				continue
 			}
 			if result.Status != common.RequestResultOK {
@@ -214,8 +214,8 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, c
 			return nil
 
 		case <-timeoutCh:
-			fmt.Println("Timeout expired while waiting for confirmation from PES")
-			return fmt.Errorf("timeout expired while waiting for confirmation from PES")
+			fmt.Println("Timeout expired while waiting for confirmation from Vela")
+			return fmt.Errorf("timeout expired while waiting for confirmation from Vela")
 		}
 	}
 
@@ -230,7 +230,7 @@ func (c *ChainCommand) EncryptPayload(payload any, ctx context.Context) ([]byte,
 	}
 	receiverPubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving PES public key: %w", err)
+		return nil, fmt.Errorf("error retrieving Vela public key: %w", err)
 	}
 	encryptedPayload, err := crypto.Encrypt(c.Config.KeyP521, receiverPubKey, payloadBytes)
 	if err != nil {

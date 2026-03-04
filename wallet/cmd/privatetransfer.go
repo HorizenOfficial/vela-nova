@@ -6,11 +6,11 @@ import (
 	"log"
 	"math/big"
 
-	"github.com/horizen-cce-common-go/wasm/types"
-	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
+	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -96,7 +96,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return
 			}
-			fmt.Printf("Waiting for confirmation from PES for requestID: %s\n", requestID)
+			fmt.Printf("Waiting for confirmation from Vela for requestID: %s\n", requestID)
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
 				fmt.Printf("Private transfer failed: %v\n", err)

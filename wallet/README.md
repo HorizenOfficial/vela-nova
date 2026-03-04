@@ -1,17 +1,10 @@
-# Horizen Nova Wallet
+# Vela Nova Wallet
 
-This is a command line wallet for the Horizen Nova Wallet.
+This is a command line wallet for the Vela Nova Wallet.
 
 ## Dependencies
 
-TODO: This will change when the github public repo will be available.
-
-This module depends on the `horizen-pes` repository.
-Since it is a private repo, you need to set Go to access Github private repos:
-
-go env -w GOPRIVATE=github.com/HorizenOfficial/*
-git config --global url."git@github.com:".insteadOf "https://github.com/"
-
+This module depends on the `vela` repository.
 
 ## Building
 

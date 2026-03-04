@@ -39,16 +39,16 @@ go-ethereum
 PERMISSIVE DEPENDENCIES - Go (Direct)
 ================================================================================
 
-horizen-cce-common-go
-  Version:    v0.0.22
+vela-common-go
+  Version:    v0.0.25
   License:    BSL-1.1
-  Source:     https://github.com/HorizenOfficial/horizen-cce-common-go
+  Source:     https://github.com/HorizenOfficial/vela-common-go
   Notice:     Copyright (c) 2025 The Horizen Foundation.
 
-horizen-pes
-  Version:    v0.0.23
+vela
+  Version:    v0.0.25
   License:    BSL-1.1
-  Source:     https://github.com/HorizenOfficial/horizen-pes
+  Source:     https://github.com/HorizenOfficial/vela
   Notice:     Copyright (c) 2025 The Horizen Foundation.
 
 cobra

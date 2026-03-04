@@ -6,11 +6,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/common"
-	"github.com/horizen-pes/pkg/common/apperrors"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	"github.com/HorizenOfficial/vela/pkg/common/apperrors"
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/stretchr/testify/require"
 )
 
