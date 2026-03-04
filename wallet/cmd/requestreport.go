@@ -52,6 +52,15 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
+			if c.reportType != "" && c.reportType != "balances" && c.reportType != "tx_history" {
+				fmt.Printf("Error: unsupported report type %q (must be 'balances' or 'tx_history')\n", c.reportType)
+				return
+			}
+			if c.reportType == "tx_history" && c.address == "" {
+				fmt.Println("Error: --address is required for tx_history report type")
+				return
+			}
+
 			deanonInstruction := runtimeapp.DeanonymizeInstruction{
 				ReportType: c.reportType,
 			}

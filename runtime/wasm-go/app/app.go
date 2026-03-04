@@ -332,10 +332,10 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				if instructions.Deanonymize == nil || instructions.Deanonymize.Address.IsZero() {
 					return types.ProcessResult{Error: "tx_history report requires a non-zero address"}
 				}
-				addrHex := instructions.Deanonymize.Address.Hex()
+				addr := instructions.Deanonymize.Address
 				var filtered []TransactionRecord
 				for _, tx := range currentState.Transactions {
-					if tx.From.Hex() == addrHex || tx.To.Hex() == addrHex {
+					if tx.From == addr || tx.To == addr {
 						filtered = append(filtered, tx)
 					}
 				}
