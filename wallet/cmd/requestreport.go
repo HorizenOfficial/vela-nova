@@ -6,7 +6,7 @@ import (
 	"math/big"
 
 	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
-	"github.com/horizen-cce-common-go/wasm/types"
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
