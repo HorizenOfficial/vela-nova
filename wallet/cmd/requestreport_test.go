@@ -4,19 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-
 
 func TestRequestReportCmd(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
@@ -24,34 +23,35 @@ func TestRequestReportCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
- 
 	Key1 := &cryptotypes.PrivateKeySecp256k1{PrivateKey: testHelper.ManagerPrivKey}
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
 	// Set the authority to be the testHelper manager account
-	tx := testHelper.AddAuthority(&NOVA_APPLICATION_ID, testHelper.ManagerAccount.From)
+	tx := testHelper.AddAuthority(big.NewInt(1), testHelper.ManagerAccount.From) // TODO ML NOVA_APPLICATION_ID should be used but there are consistency problems, will be fixed, already created a task but adding this TODO to not forget that we need to take care about this here as well
 	testHelper.WaitMined(tx)
 
-	t.Run("Command successful", func(t *testing.T) { 
+	t.Run("Command successful", func(t *testing.T) {
 		// Redirect stdout
 		old := os.Stdout
 		r, w, err := os.Pipe()
 		require.NoError(t, err)
 		os.Stdout = w
 
-
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		cmd := NewRequestReportCommand(&app.Config{
-			KeySecp:                   Key1, 
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
 			KeyP521:                   key2,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient).Command()
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientOK()
+		cmd := reportCmd.Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
 
-		go testutil.CompleteNextRequest(t, testHelper)
-		cmd.Run(nil, nil)
+		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(80), big.NewInt(20))
+		cmd.Run(cmd, nil)
 
 		// Restore stdout
 		w.Close()
@@ -66,8 +66,7 @@ func TestRequestReportCmd(t *testing.T) {
 
 	})
 
-
-	t.Run("Command failed", func(t *testing.T) { 
+	t.Run("Command failed", func(t *testing.T) {
 		// Redirect stdout
 		old := os.Stdout
 		r, w, err := os.Pipe()
@@ -76,15 +75,18 @@ func TestRequestReportCmd(t *testing.T) {
 
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		cmd := NewRequestReportCommand(&app.Config{
-			KeySecp:                   Key1, 
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
 			KeyP521:                   key2,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient).Command()
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientFailure()
+		cmd := reportCmd.Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
 
 		go testutil.FailNextRequest(t, testHelper)
-		cmd.Run(nil, nil)
+		cmd.Run(cmd, nil)
 
 		// Restore stdout
 		w.Close()
@@ -95,10 +97,8 @@ func TestRequestReportCmd(t *testing.T) {
 		output := buf.String()
 
 		fmt.Println(output)
-		assert.Contains(t, output, "Deanonymization request failed")
+		assert.Contains(t, output, "Deanonymization request failed: internal error (code 2)")
 
 	})
 
-
 }
-

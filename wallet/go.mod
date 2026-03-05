@@ -1,20 +1,23 @@
-module github.com/horizen-pes-nova/wallet
+module github.com/HorizenOfficial/vela-nova/wallet
 
-go 1.23.0
+go 1.24.0
 
-replace github.com/horizen-pes => github.com/HorizenOfficial/horizen-pes v0.0.8
+toolchain go1.24.3
 
 // Can be useful for local developments
-//replace github.com/horizen-pes => ../../horizen-pes
-replace github.com/horizen-pes-nova/payment-app => ../runtime/wasm-go
+//replace github.com/HorizenOfficial/vela => ../../vela
+//replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
+
+replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
+	github.com/HorizenOfficial/vela v0.0.25
+	github.com/HorizenOfficial/vela-common-go v0.0.25
+	github.com/HorizenOfficial/vela-nova/payment-app v0.0.25
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/horizen-pes v0.0.8
-	github.com/horizen-pes-nova/payment-app v0.0.0
 	github.com/magiconair/properties v1.8.10
 	github.com/spf13/cobra v1.9.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (

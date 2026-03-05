@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +27,7 @@ func TestListPubKeysCmd(t *testing.T) {
 		KeySecp: key1,
 		KeyP521: key2,
 	}).Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

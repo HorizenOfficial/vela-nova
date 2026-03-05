@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +24,7 @@ func TestGetPublicBalanceCmd(t *testing.T) {
 		KeySecp: key,
 		RpcUrl: "https://base-sepolia.drpc.org",
 	}).Command()
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -34,5 +34,5 @@ func TestGetPublicBalanceCmd(t *testing.T) {
 	io.Copy(&buf, r)
 	output := buf.String()
 	
-	assert.Contains(t, output, "0.000000000000000000")
+	assert.Contains(t, output, "0\n")
 }

@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,16 +31,19 @@ func TestRegisterUserCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := regCmd.Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -71,16 +75,19 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := regCmd.Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.FailNextRequest(t, testHelper)
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -91,7 +98,7 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Public key registration failed")
+	assert.Contains(t, output, "Register user failed: internal error (code 2)")
 
 }
 
@@ -112,14 +119,17 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewRegisterUserCommand(&app.Config{
+	regCmd := NewRegisterUserCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 1,
 		BlockchainPollingTimeout:  2,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	regCmd.SubgraphClient = testutil.SubgraphClientEmpty()
+	cmd := regCmd.Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

@@ -5,7 +5,7 @@ import (
 	"os"
 	
 	"github.com/spf13/cobra"
-	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
 )
 
 var rootCmd = &cobra.Command{
@@ -32,7 +32,10 @@ func Execute() {
 	rootCmd.AddCommand(NewDecryptReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewWithdrawCommand(config, nil).Command())
 	rootCmd.AddCommand(NewRequestReportCommand(config, nil).Command())
+	rootCmd.AddCommand(NewDownloadReportCommand(config, nil).Command())
 	rootCmd.AddCommand(NewDeployAppCommand(config, nil).Command())
+	rootCmd.AddCommand(NewGetPendingPaymentsCommand(config, nil).Command())
+	rootCmd.AddCommand(NewClaimPendingPaymentsCommand(config, nil).Command())
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

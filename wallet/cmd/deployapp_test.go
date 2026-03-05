@@ -3,12 +3,13 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,9 +30,11 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	}
 
 	deployCmd := NewDeployAppCommand(config, blockchainClient)
+	deployCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := deployCmd.Command()
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 	cmd.Run(nil, []string{"1"})
 
 	// Restore stdout

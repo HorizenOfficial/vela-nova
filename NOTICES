@@ -1,0 +1,164 @@
+Horizen Vela Nova - Private Transfer Application
+Copyright (c) 2025 The Horizen Foundation
+
+This product is licensed under the Business Source License 1.1.
+See the LICENSE file for the full license text.
+
+This product includes software developed by third parties. Below is a list of
+those third-party components, their licenses, and links to their source code.
+Users may obtain, modify, and relink any of these components under the terms
+of their respective licenses.
+
+Build instructions for relinking dependencies are provided in the go.mod /
+go.sum files included with this distribution.
+
+================================================================================
+WEAK COPYLEFT DEPENDENCIES
+================================================================================
+
+The following dependency is licensed under a weak copyleft license. Pursuant
+to its license terms, users retain the right to modify and relink this library.
+Source code and build configuration (go.mod, go.sum) are provided to enable
+this.
+
+go-ethereum
+  Version:    v1.16.1
+  License:    GNU Lesser General Public License v3.0 (LGPL-3.0) (library code)
+              GNU General Public License v3.0 (GPL-3.0) (cmd/ binaries only)
+  Source:     https://github.com/ethereum/go-ethereum
+  Usage:      Imported as a library in both runtime/wasm-go and wallet/ for
+              contract bindings, ABI encoding, cryptographic utilities, and
+              blockchain interaction. Only the LGPL-3.0 applies to this usage.
+  Notice:     Copyright 2013-2024 The go-ethereum Authors.
+              The full text of the LGPL-3.0 and GPL-3.0 licenses can be
+              obtained at:
+                https://www.gnu.org/licenses/lgpl-3.0.txt
+                https://www.gnu.org/licenses/gpl-3.0.txt
+
+================================================================================
+PERMISSIVE DEPENDENCIES - Go (Direct)
+================================================================================
+
+vela-common-go
+  Version:    v0.0.25
+  License:    BSL-1.1
+  Source:     https://github.com/HorizenOfficial/vela-common-go
+  Notice:     Copyright (c) 2025 The Horizen Foundation.
+
+vela
+  Version:    v0.0.25
+  License:    BSL-1.1
+  Source:     https://github.com/HorizenOfficial/vela
+  Notice:     Copyright (c) 2025 The Horizen Foundation.
+
+cobra
+  Version:    v1.9.1
+  License:    Apache-2.0
+  Source:     https://github.com/spf13/cobra
+  Notice:     Copyright 2013-2023 The Cobra Authors.
+
+properties
+  Version:    v1.8.10
+  License:    BSD-2-Clause
+  Source:     https://github.com/magiconair/properties
+  Notice:     Copyright (c) 2013-2020 Frank Schroeder.
+
+testify
+  Version:    v1.11.1
+  License:    MIT
+  Source:     https://github.com/stretchr/testify
+  Notice:     Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell, and contributors.
+
+================================================================================
+PERMISSIVE DEPENDENCIES - Go (Indirect, notable)
+================================================================================
+
+wasmtime-go
+  Version:    v1.0.0
+  License:    Apache-2.0 WITH LLVM-exception
+  Source:     https://github.com/bytecodealliance/wasmtime-go
+  Notice:     Copyright The Bytecode Alliance contributors.
+
+orderedmap
+  Version:    v3.1.0
+  License:    MIT
+  Source:     https://github.com/elliotchance/orderedmap
+  Notice:     Copyright (c) 2020 Elliot Chance.
+
+gnark-crypto
+  Version:    v0.18.0
+  License:    Apache-2.0
+  Source:     https://github.com/consensys/gnark-crypto
+  Notice:     Copyright (c) 2020 ConsenSys Software Inc.
+
+go-eth-kzg
+  Version:    v1.3.0
+  License:    Apache-2.0
+  Source:     https://github.com/crate-crypto/go-eth-kzg
+  Notice:     Copyright (c) 2023 Crate Crypto.
+
+c-kzg-4844
+  Version:    v2.1.0
+  License:    Apache-2.0
+  Source:     https://github.com/ethereum/c-kzg-4844
+  Notice:     Copyright (c) 2023 The Ethereum Foundation.
+
+blst
+  Version:    v0.3.14
+  License:    Apache-2.0
+  Source:     https://github.com/supranational/blst
+  Notice:     Copyright (c) 2022 Supranational LLC.
+
+pebble
+  Version:    v1.1.5
+  License:    BSD-3-Clause
+  Source:     https://github.com/cockroachdb/pebble
+  Notice:     Copyright 2011 The LevelDB-Go Authors.
+
+goleveldb
+  Version:    v1.0.1-0.20210819022825-2ae1ddf74ef7
+  License:    BSD-2-Clause
+  Source:     https://github.com/syndtr/goleveldb
+  Notice:     Copyright 2012 Suryandaru Triandana.
+
+zerolog
+  Version:    v1.34.0
+  License:    MIT
+  Source:     https://github.com/rs/zerolog
+  Notice:     Copyright (c) 2017 Olivier Poitrey.
+
+golang/snappy
+  Version:    v0.0.5-0.20220116011046-fa5810519dcb
+  License:    BSD-3-Clause
+  Source:     https://github.com/golang/snappy
+  Notice:     Copyright 2011 The Snappy-Go Authors.
+
+golang.org/x/crypto
+  Version:    v0.39.0
+  License:    BSD-3-Clause
+  Source:     https://github.com/golang/crypto
+  Notice:     Copyright 2009 The Go Authors.
+
+google.golang.org/protobuf
+  Version:    v1.34.2
+  License:    BSD-3-Clause
+  Source:     https://github.com/protocolbuffers/protobuf-go
+  Notice:     Copyright 2018 The Go Authors.
+
+================================================================================
+RELINKING INSTRUCTIONS
+================================================================================
+
+This software statically links go-ethereum, which is licensed under LGPL-3.0.
+To rebuild this software with a modified version of go-ethereum:
+
+1. Clone this repository.
+2. Edit the relevant go.mod (runtime/wasm-go/go.mod or wallet/go.mod) to
+   point to your modified go-ethereum (using a replace directive or by
+   changing the module version).
+3. Run: go mod tidy
+4. Build the module:
+   - Runtime: cd runtime/wasm-go && go build ./...
+   - Wallet:  cd wallet && go build ./cmd/wallet
+
+Full build instructions are available in CLAUDE.md.

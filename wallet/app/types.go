@@ -4,28 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
-	cryptotypes "github.com/horizen-pes/pkg/common/crypto"
-	"github.com/horizen-pes/pkg/crypto"
 	"github.com/magiconair/properties"
 )
 
 const ConfFileName = "wallet.conf"
 
 type Config struct {
-	KeyP521 *cryptotypes.PrivateKeyP521
-	KeySecp *cryptotypes.PrivateKeySecp256k1
-	RpcUrl string
+	KeyP521                  *cryptotypes.PrivateKeyP521
+	KeySecp                  *cryptotypes.PrivateKeySecp256k1
+	RpcUrl                   string
 	ProcessorEndpointAddress *ethCommon.Address
-	TeeAuthenticatorAddress *ethCommon.Address
+	TeeAuthenticatorAddress  *ethCommon.Address
+	AuthorityServiceURL      string
+	SubgraphURL              string
 	// BlockchainPollingInterval is the interval at which to poll the blockchain for events
 	BlockchainPollingInterval int64
-	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain 
+	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain
 	BlockchainPollingTimeout int64
 }
 
@@ -50,18 +54,18 @@ func NewAppCommand(config *Config) *AppCommand {
 		return &AppCommand{
 			Config: config,
 		}
-	} 
+	}
 
 	config, err := LoadConfigFromFile(ConfFileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error while loading configuration from file '%s': %v\n", ConfFileName, err)
-        os.Exit(1)
-	} 
+		os.Exit(1)
+	}
 
 	return &AppCommand{
 		Config: config,
 	}
-		
+
 }
 
 func fileExists(path string) bool {
@@ -78,8 +82,7 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error loading conf file %w", err)
 		}
-		
-		
+
 		var keySecp *cryptotypes.PrivateKeySecp256k1
 		if keySecpFromFile := config.MustGetString("keySecp256k1"); keySecpFromFile != "" {
 			keySecp, err = crypto.ImportPrivateKeySecp256k1FromHex(keySecpFromFile)
@@ -88,7 +91,6 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 			}
 		}
 
-		
 		var keyP521 *cryptotypes.PrivateKeyP521
 		if keyP521FromFile := config.MustGetString("keyP521"); keyP521FromFile != "" {
 			keyP521, err = crypto.ImportPrivateKeyP521FromHex(keyP521FromFile)
@@ -97,6 +99,13 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 			}
 		}
 		rpcUrl := config.MustGetString("rpcUrl")
+		authorityURL := config.GetString("AuthorityServiceURL", "")
+		subgraphURL := config.GetString("SubgraphURL", "")
+		if subgraphURL != "" {
+			if _, err := url.ParseRequestURI(subgraphURL); err != nil {
+				return nil, fmt.Errorf("subgraph url is not valid: %w", err)
+			}
+		}
 
 		var processorEndpointAddress ethCommon.Address
 		if processorAddress := config.MustGetString("ProcessorAddress"); processorAddress != "" {
@@ -104,7 +113,7 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 				return nil, fmt.Errorf("processor address %s is not a valid hex address", processorAddress)
 			}
 			processorEndpointAddress = ethCommon.HexToAddress(processorAddress)
-		} 
+		}
 
 		var teeAuthenticatorAddress ethCommon.Address
 		if teeAddress := config.MustGetString("TeeAuthenticatorAddress"); teeAddress != "" {
@@ -115,43 +124,53 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 		}
 
 		return &Config{
-				KeySecp: keySecp,
-				KeyP521: keyP521,
-				RpcUrl: rpcUrl,
-				ProcessorEndpointAddress: &processorEndpointAddress,
-				TeeAuthenticatorAddress: &teeAuthenticatorAddress,
-				BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
-				BlockchainPollingTimeout: config.GetInt64("BlockchainPollingTimeout", 60),
-			}, nil
-		
+			KeySecp:                   keySecp,
+			KeyP521:                   keyP521,
+			RpcUrl:                    rpcUrl,
+			ProcessorEndpointAddress:  &processorEndpointAddress,
+			TeeAuthenticatorAddress:   &teeAuthenticatorAddress,
+			AuthorityServiceURL:       authorityURL,
+			SubgraphURL:               subgraphURL,
+			BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
+			BlockchainPollingTimeout:  config.GetInt64("BlockchainPollingTimeout", 60),
+		}, nil
+
 	}
 
 }
 
-
 type ChainCommand struct {
 	*AppCommand
 	BlockchainClient blockchain.Client
+	SubgraphClient   subgraph.Client
 }
 
 func NewChainCommand(config *Config, blockchainClient blockchain.Client) *ChainCommand {
-	return  &ChainCommand{AppCommand: NewAppCommand(config), BlockchainClient: blockchainClient}
+	appCmd := NewAppCommand(config)
+	var sgClient subgraph.Client
+	if appCmd.Config != nil && appCmd.Config.SubgraphURL != "" {
+		sgClient = subgraph.NewClient(appCmd.Config.SubgraphURL)
+	}
+	return &ChainCommand{
+		AppCommand:       appCmd,
+		BlockchainClient: blockchainClient,
+		SubgraphClient:   sgClient,
+	}
 }
 
-
-func (c *ChainCommand) InitChainClient() error {
+func (c *ChainCommand) InitChainClient(ctx context.Context) error {
 	if c.BlockchainClient == nil {
 		//create blockchain client
 		// Check that required config fields are set
-		if c.Config.ProcessorEndpointAddress == nil || c.Config.TeeAuthenticatorAddress == nil || c.Config.KeySecp == nil || c.Config.RpcUrl == ""{
+		if c.Config.ProcessorEndpointAddress == nil || c.Config.TeeAuthenticatorAddress == nil || c.Config.KeySecp == nil || c.Config.RpcUrl == "" {
 			return fmt.Errorf("missing required configuration fields to create blockchain client")
 		}
 		c.BlockchainClient = blockchain.NewBlockChainClient(*c.Config.ProcessorEndpointAddress, *c.Config.TeeAuthenticatorAddress, c.Config.RpcUrl, c.Config.KeySecp)
-		err := c.BlockchainClient.Connect(context.Background())
+		err := c.BlockchainClient.Connect(ctx)
 		if err != nil {
 			return err
 		}
-	} 
+	}
 	return nil
 }
 
@@ -162,55 +181,60 @@ func (c *ChainCommand) CloseClient() error {
 	return c.BlockchainClient.Close()
 }
 
-func (c *ChainCommand) WaitForRequestCompleted(requestID string, blockNumber uint64, ctx context.Context) (bool, error) {
+func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Duration(c.Config.BlockchainPollingInterval) * time.Second)
 	defer ticker.Stop()
 
 	timeoutCh := time.After(time.Duration(c.Config.BlockchainPollingTimeout) * time.Second)
 
-	toBlock := blockNumber + 1
 	for {
 		select {
 		case <-ticker.C:
-			result, err := c.BlockchainClient.GetRequestCompletedEvent(ctx, requestID, 0, toBlock)
+			if c.SubgraphClient == nil {
+				return fmt.Errorf("subgraph client not initialized")
+			}
+			result, err := c.SubgraphClient.GetRequestCompletedByID(ctx, requestID)
 			if err != nil {
 				fmt.Printf("Error getting request completion event: %v. Retrying\n", err)
 				continue
 			}
 			if result == nil {
-				fmt.Println("Waiting for confirmation from PES...")
+				fmt.Println("Waiting for confirmation from Vela...")
 				continue
 			}
 			if result.Status != common.RequestResultOK {
-				fmt.Println("Request failed")
-				return false, nil
+				failureMsg := result.ErrorMessage
+				if failureMsg == "" {
+					failureMsg = "request failed"
+				}
+				return fmt.Errorf("%s (code %d)", failureMsg, result.ErrorCode)
 			}
 			fmt.Println("Request completed successfully")
-			return true, nil
+			return nil
 
 		case <-timeoutCh:
-			fmt.Println("Timeout expired while waiting for confirmation from PES")
-			return false, fmt.Errorf("timeout expired while waiting for confirmation from PES")
+			fmt.Println("Timeout expired while waiting for confirmation from Vela")
+			return fmt.Errorf("timeout expired while waiting for confirmation from Vela")
 		}
 	}
-	
+
 }
 
 // EncryptPayload encrypts the given payload using ECIES with the TEE public key retrieved from the blockchain client.
 // Returns the encrypted payload bytes or an error if marshalling, key retrieval, or encryption fails.
-func (c *ChainCommand) EncryptPayload(payload any, ctx context.Context) ([]byte, error)  {
+func (c *ChainCommand) EncryptPayload(payload any, ctx context.Context) ([]byte, error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing process payload: %w", err)
 	}
 	receiverPubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving PES public key: %w", err)
+		return nil, fmt.Errorf("error retrieving Vela public key: %w", err)
 	}
 	encryptedPayload, err := crypto.Encrypt(c.Config.KeyP521, receiverPubKey, payloadBytes)
 	if err != nil {
-		return nil, fmt.Errorf("error encrypting process payload: %w", err) 
+		return nil, fmt.Errorf("error encrypting process payload: %w", err)
 	}
 	return encryptedPayload, nil
 }

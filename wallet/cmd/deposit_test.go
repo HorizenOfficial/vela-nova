@@ -4,19 +4,20 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDepositCmdInvalidInput(t *testing.T) {
+func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	// Redirect stdout
 	old := os.Stdout
 	r, w, err := os.Pipe()
@@ -33,16 +34,19 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "pippo")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -54,6 +58,50 @@ func TestDepositCmdInvalidInput(t *testing.T) {
 
 	fmt.Println(output)
 	assert.Contains(t, output, "invalid amount")
+
+}
+
+func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
+	// Redirect stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
+	// Execute the command
+	depositCmd := NewDepositCommand(&app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
+
+	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "pippo")
+
+	cmd.Run(cmd, nil)
+
+	// Restore stdout
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	fmt.Println(output)
+	assert.Contains(t, output, "invalid max fee amount")
 
 }
 
@@ -74,19 +122,22 @@ func TestDepositCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	// To be honest, it should be a StateUpdate but for the test it is enough, for now
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -118,18 +169,21 @@ func TestDepositCmdFailure(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewDepositCommand(&app.Config{
+	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := depositCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 
 	go testutil.FailNextRequest(t, testHelper)
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -140,6 +194,51 @@ func TestDepositCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Deposit failed")
+	assert.Contains(t, output, "Deposit failed: internal error (code 2)")
 
+}
+
+func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
+	// Redirect stdout
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	key1, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+	key2, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
+
+	depositCmd := NewDepositCommand(&app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
+		BlockchainPollingInterval: 2,
+		BlockchainPollingTimeout:  10,
+	}, blockchainClient)
+	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
+
+	// Only set amount; max-value-fee should use default value (100 wei)
+	cmd.Flags().Set("amount", "333 wei")
+
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(65), big.NewInt(35))
+
+	cmd.Run(cmd, nil)
+
+	// Restore stdout
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	output := buf.String()
+
+	fmt.Println(output)
+	assert.Contains(t, output, "Deposit completed successfully")
 }

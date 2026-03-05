@@ -2,21 +2,21 @@ package cmd
 
 import (
 	"bytes"
+	"math/big"
 	// "math/big"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
 
 func TestWithdrawCmd(t *testing.T) {
 	// Redirect stdout
@@ -37,20 +37,23 @@ func TestWithdrawCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewWithdrawCommand(&app.Config{
+	withdrawCmd := NewWithdrawCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	withdrawCmd.SubgraphClient = testutil.SubgraphClientOK()
+	cmd := withdrawCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 	cmd.Flags().Set("to", key1.PublicKey().Address())
 
 	// To be honest, it should be a StateUpdate but the test it is enough for now
-	go testutil.CompleteNextRequest(t, testHelper)
+	go testutil.CompleteNextRequest(t, testHelper, big.NewInt(50), big.NewInt(50))
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -84,19 +87,22 @@ func TestWithdrawCmdFailure(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	cmd := NewWithdrawCommand(&app.Config{
+	withdrawCmd := NewWithdrawCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient).Command()
+	}, blockchainClient)
+	withdrawCmd.SubgraphClient = testutil.SubgraphClientFailure()
+	cmd := withdrawCmd.Command()
 
 	cmd.Flags().Set("amount", "333 wei")
+	cmd.Flags().Set("max-value-fee", "100 wei")
 	cmd.Flags().Set("to", key1.PublicKey().Address())
 
 	go testutil.FailNextRequest(t, testHelper)
 
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()
@@ -107,6 +113,6 @@ func TestWithdrawCmdFailure(t *testing.T) {
 	output := buf.String()
 
 	fmt.Println(output)
-	assert.Contains(t, output, "Withdrawal failed")
+	assert.Contains(t, output, "Withdrawal failed: internal error (code 2)")
 
 }

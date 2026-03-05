@@ -7,11 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/horizen-pes/pkg/common"
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 
@@ -26,10 +27,11 @@ func TestDecryptReport(t *testing.T) {
 	// create report
 	reportFinalJson := "{'accounts': ['0x1111']}"
 	//create json object to encrypt
+	RequestID := commontestutil.GenerateRandomRequestID()
 	payload, err := json.Marshal(
 		common.DecryptedReport {
-			ApplicationID:  "1",
-			RequestID: "test-request-id",
+			ApplicationID:  common.NewApplicationId(1),
+			RequestID: RequestID,
 			ReportDataBytes: []byte(reportFinalJson),
 		},
 	)
@@ -46,8 +48,8 @@ func TestDecryptReport(t *testing.T) {
 
 	jsonData, err := json.Marshal(
 		common.DeanonymizationReport {
-			ApplicationID:  "1",
-			ReportID:       "test-report-Id",
+			ApplicationID:  common.NewApplicationId(1),
+			ReportID:       RequestID,
 			EncryptedReport: encrypted,
 		},
 	)
@@ -74,7 +76,7 @@ func TestDecryptReport(t *testing.T) {
 		BlockchainPollingTimeout:  10,
 	}, client).Command()
 	cmd.Flags().Set("path", filePath)
-	cmd.Run(nil, nil)
+	cmd.Run(cmd, nil)
 
 	// Restore stdout
 	w.Close()

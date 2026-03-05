@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/spf13/cobra"
 )
 
