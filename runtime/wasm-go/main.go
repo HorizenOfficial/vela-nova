@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/horizen-cce-common-go/wasm/types"
-	"github.com/horizen-cce-common-go/wasm/utils"
-	"github.com/horizen-pes-nova/payment-app/app"
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
+	"github.com/HorizenOfficial/vela-common-go/wasm/utils"
+	"github.com/HorizenOfficial/vela-nova/payment-app/app"
 )
 
 // --- WASM-Exposed Functions (Bridge to Application Logic) ---

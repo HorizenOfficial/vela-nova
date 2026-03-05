@@ -7,12 +7,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/horizen-pes/pkg/common"
-	commontestutil "github.com/horizen-pes/pkg/common/testutil"
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes-nova/wallet/cmd/testutil"
-	pestestutil "github.com/horizen-pes/pkg/blockchain/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 

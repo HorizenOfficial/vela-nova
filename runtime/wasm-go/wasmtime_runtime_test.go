@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-pes/pkg/common"
-	wasm "github.com/horizen-pes/pkg/wasm"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	wasm "github.com/HorizenOfficial/vela/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

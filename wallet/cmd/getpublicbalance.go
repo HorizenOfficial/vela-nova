@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/horizen-pes-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/spf13/cobra"
 
 	"github.com/ethereum/go-ethereum/common"
