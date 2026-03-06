@@ -50,7 +50,6 @@ type deployDescriptorPayload struct {
 	ApplicationID common.ApplicationIdType `json:"applicationId"`
 	ArtifactID    string                   `json:"artifactId"`
 	WasmSHA256    string                   `json:"wasmSha256"`
-	WasmSize      uint64                   `json:"wasmSize"`
 }
 
 func (c *DeployAppCommand) run(ctx context.Context) error {
@@ -78,7 +77,6 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 
 	localSHABytes := sha256.Sum256(wasmBytes)
 	localSHA := hex.EncodeToString(localSHABytes[:])
-	localSize := uint64(len(wasmBytes))
 	expectedArtifactID := "sha256:" + localSHA
 
 	authorityClient := app.NewAuthorityClient(serviceURL, 0, NOVA_APPLICATION_ID, nil)
@@ -89,9 +87,6 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 	if uploadResp.WasmSHA256 != localSHA {
 		return fmt.Errorf("deploy upload hash mismatch: local=%s remote=%s", localSHA, uploadResp.WasmSHA256)
 	}
-	if uploadResp.WasmSize != localSize {
-		return fmt.Errorf("deploy upload size mismatch: local=%d remote=%d", localSize, uploadResp.WasmSize)
-	}
 	if uploadResp.ArtifactID != expectedArtifactID {
 		return fmt.Errorf("deploy upload artifactId mismatch: expected=%s remote=%s", expectedArtifactID, uploadResp.ArtifactID)
 	}
@@ -101,7 +96,6 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 		ApplicationID: NOVA_APPLICATION_ID,
 		ArtifactID:    uploadResp.ArtifactID,
 		WasmSHA256:    uploadResp.WasmSHA256,
-		WasmSize:      uploadResp.WasmSize,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to encode deploy descriptor payload: %w", err)

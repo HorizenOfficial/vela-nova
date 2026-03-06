@@ -40,7 +40,6 @@ func TestDeployAppCommand_Success(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"artifactId": "sha256:" + shaHex,
 			"wasmSha256": shaHex,
-			"wasmSize":   len(wasmBytes),
 		})
 	}))
 	defer artifactServer.Close()
@@ -74,7 +73,6 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	require.Equal(t, float64(1), payload["applicationId"])
 	require.Equal(t, "sha256:"+shaHex, payload["artifactId"])
 	require.Equal(t, shaHex, payload["wasmSha256"])
-	require.Equal(t, float64(len(wasmBytes)), payload["wasmSize"])
 }
 
 func TestDeployAppCommand_FailsWithoutArtifactServiceURL(t *testing.T) {
@@ -96,7 +94,6 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"artifactId": "sha256:" + strings.Repeat("0", 64),
 			"wasmSha256": strings.Repeat("0", 64),
-			"wasmSize":   len(wasmBytes),
 		})
 	}))
 	defer artifactServer.Close()

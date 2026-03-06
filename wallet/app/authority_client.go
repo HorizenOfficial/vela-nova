@@ -33,7 +33,6 @@ type AuthorityClient struct {
 type DeployUploadResponse struct {
 	ArtifactID string `json:"artifactId"`
 	WasmSHA256 string `json:"wasmSha256"`
-	WasmSize   uint64 `json:"wasmSize"`
 }
 
 func NewAuthorityClient(baseURL string, chainID uint64, appID common.ApplicationIdType, key *cryptotypes.PrivateKeySecp256k1) *AuthorityClient {
