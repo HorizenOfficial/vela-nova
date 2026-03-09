@@ -58,4 +58,4 @@ novaw deployapp --wasm /path/to/app.wasm --max-value-fee "100 wei"
 
 This command uploads the WASM to authorityservice (`/deploy/upload`) and submits a deploy descriptor payload (`mode=artifact_ref`) on-chain.
 
-Operational requirement: the wallet deploy sender must match manager config `MANAGER_ALLOWED_DEPLOYER`.
+Operational requirement: the wallet deploy sender must be allowed on-chain by `ProcessorEndpoint` (`DEPLOYER_ROLE`).
