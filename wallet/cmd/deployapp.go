@@ -31,7 +31,7 @@ func NewDeployAppCommand(config *app.Config, blockchainClient blockchain.Client)
 func (c *DeployAppCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deployapp",
-		Short: `Uploads a wasm artifact and triggers app deployment (admin feature)`,
+		Short: `Uploads a wasm artifact and triggers app deployment`,
 		Long:  `Uploads a wasm artifact to the authority service and submits a deploy request with an artifact descriptor payload.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := c.run(context.Background()); err != nil {
