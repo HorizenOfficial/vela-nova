@@ -1,8 +1,13 @@
 package app
 
 import (
+	"time"
+
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 )
+
+// Now returns the current Unix timestamp. Defined as a variable so tests can override it.
+var Now = func() int64 { return time.Now().Unix() }
 
 const MaxInvoiceIDLength = 100
 
@@ -21,6 +26,7 @@ type TransactionRecord struct {
 	To        types.Address  `json:"to"`
 	Amount    *types.Uint256 `json:"amount"`
 	Nonce     uint64         `json:"nonce"`
+	Timestamp int64          `json:"timestamp"`
 	InvoiceID string         `json:"invoice_id,omitempty"`
 }
 
@@ -48,8 +54,10 @@ type TransferInstruction struct {
 
 // DeanonymizeInstruction represents optional instructions for deanonymization
 type DeanonymizeInstruction struct {
-	ReportType string        `json:"report_type,omitempty"` // "balances" (default) or "tx_history"
-	Address    types.Address `json:"address,omitempty"`     // required for tx_history
+	ReportType    string        `json:"report_type,omitempty"`    // "balances" (default) or "tx_history"
+	Address       types.Address `json:"address,omitempty"`        // required for tx_history
+	FromTimestamp int64         `json:"from_timestamp,omitempty"` // filter tx_history: start unix timestamp (inclusive)
+	ToTimestamp   int64         `json:"to_timestamp,omitempty"`   // filter tx_history: end unix timestamp (inclusive)
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -69,6 +77,7 @@ type DeanonymizationReport struct {
 // TxHistoryReport is the report returned for a tx_history deanonymization request
 type TxHistoryReport struct {
 	Address      types.Address       `json:"address"`
+	Balance      *types.Uint256      `json:"balance"`
 	Transactions []TransactionRecord `json:"transactions"`
 }
 

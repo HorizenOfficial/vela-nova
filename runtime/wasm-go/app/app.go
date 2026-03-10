@@ -14,12 +14,14 @@ import (
 // recordTransaction appends a transaction record to the state's transaction log.
 // Must be called after state.Nonce++ so the nonce matches the corresponding event.
 func recordTransaction(state *ApplicationInternalState, txType string, from, to types.Address, amount *types.Uint256, invoiceID string) {
+	amountCopy := *amount
 	state.Transactions = append(state.Transactions, TransactionRecord{
 		Type:      txType,
 		From:      from,
 		To:        to,
-		Amount:    amount,
+		Amount:    &amountCopy,
 		Nonce:     state.Nonce,
+		Timestamp: Now(),
 		InvoiceID: invoiceID,
 	})
 }
@@ -329,18 +331,39 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 					Nonce:    currentState.Nonce,
 				})
 			case "tx_history":
-				if instructions.Deanonymize == nil || instructions.Deanonymize.Address.IsZero() {
+				if instructions.Deanonymize.Address.IsZero() {
 					return types.ProcessResult{Error: "tx_history report requires a non-zero address"}
 				}
 				addr := instructions.Deanonymize.Address
-				var filtered []TransactionRecord
+				addrHex := addr.Hex()
+				fromTs := instructions.Deanonymize.FromTimestamp
+				toTs := instructions.Deanonymize.ToTimestamp
+
+				filtered := []TransactionRecord{}
 				for _, tx := range currentState.Transactions {
-					if tx.From == addr || tx.To == addr {
-						filtered = append(filtered, tx)
+					if tx.From != addr && tx.To != addr {
+						continue
 					}
+					if fromTs > 0 && tx.Timestamp < fromTs {
+						continue
+					}
+					if toTs > 0 && tx.Timestamp > toTs {
+						continue
+					}
+					filtered = append(filtered, tx)
 				}
+
+				// Look up current balance for the requested address
+				var balance *types.Uint256
+				if acc := currentState.Accounts[addrHex]; acc != nil {
+					balance = acc.Balance
+				} else {
+					balance = types.NewUint256(0)
+				}
+
 				reportBytes, err = json.Marshal(TxHistoryReport{
-					Address:      instructions.Deanonymize.Address,
+					Address:      addr,
+					Balance:      balance,
 					Transactions: filtered,
 				})
 			default:

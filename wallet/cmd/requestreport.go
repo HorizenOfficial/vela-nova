@@ -21,9 +21,11 @@ func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Cli
 
 type RequestReportCommand struct {
 	*app.ChainCommand
-	maxFeeValue string
-	reportType  string
-	address     string
+	maxFeeValue   string
+	reportType    string
+	address       string
+	fromTimestamp int64
+	toTimestamp   int64
 }
 
 func (c *RequestReportCommand) Command() *cobra.Command {
@@ -62,7 +64,9 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 
 			deanonInstruction := runtimeapp.DeanonymizeInstruction{
-				ReportType: c.reportType,
+				ReportType:    c.reportType,
+				FromTimestamp: c.fromTimestamp,
+				ToTimestamp:   c.toTimestamp,
 			}
 			if c.address != "" {
 				addr, err := types.HexToAddress(c.address)
@@ -101,5 +105,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	cmd.Flags().StringVar(&c.reportType, "report-type", "", "Report type: 'balances' (default) or 'tx_history'")
 	cmd.Flags().StringVar(&c.address, "address", "", "Address to query (required for tx_history)")
+	cmd.Flags().Int64Var(&c.fromTimestamp, "from-timestamp", 0, "Filter tx_history from this Unix timestamp (inclusive)")
+	cmd.Flags().Int64Var(&c.toTimestamp, "to-timestamp", 0, "Filter tx_history up to this Unix timestamp (inclusive)")
 	return cmd
 }
