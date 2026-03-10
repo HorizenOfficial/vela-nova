@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/horizen-cce-common-go/wasm/types"
-	runtimeapp "github.com/horizen-pes-nova/payment-app/app"
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
+	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -31,8 +31,8 @@ func NewWithdrawCommand(config *app.Config, blockchainClient blockchain.Client) 
 func (c *WithdrawCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "withdraw",
-		Short: `withdraw funds from the PES system`,
-		Long:  `withdraw funds from the PES system and send them to a receiver address`,
+		Short: `withdraw funds from the Vela system`,
+		Long:  `withdraw funds from the Vela system and send them to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			amount, err := app.ParseEtherValue(c.value)
@@ -89,7 +89,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return
 			}
 
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Println("Waiting for confirmation from Vela")
 
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {

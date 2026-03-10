@@ -13,11 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	cmdtestutil "github.com/horizen-pes-nova/wallet/cmd/testutil"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
-	"github.com/stretchr/testify/require"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
+	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDeployAppCommand_Success(t *testing.T) {

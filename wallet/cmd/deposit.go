@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
 type DepositCommand struct {
 	*app.ChainCommand
 	depositAmount string
-	maxFeeValue string
+	maxFeeValue   string
 }
 
 func NewDepositCommand(config *app.Config, blockchainClient blockchain.Client) *DepositCommand {
@@ -27,8 +27,8 @@ func NewDepositCommand(config *app.Config, blockchainClient blockchain.Client) *
 func (c *DepositCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deposit",
-		Short: `deposit funds into the PES system`,
-		Long:  `deposit funds into the PES system`,
+		Short: `deposit funds into the Vela system`,
+		Long:  `deposit funds into the Vela system`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			amount, err := app.ParseEtherValue(c.depositAmount)
@@ -62,10 +62,10 @@ func (c *DepositCommand) Command() *cobra.Command {
 			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.depositAmount, err)
-				return 
+				return
 			}
 
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Println("Waiting for confirmation from Vela")
 
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {

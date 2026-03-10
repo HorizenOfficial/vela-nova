@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/horizen-cce-common-go/common"
-	"github.com/horizen-cce-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-common-go/common"
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 
-	"github.com/horizen-pes/pkg/common/testutil"
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
 )
 

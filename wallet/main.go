@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/horizen-pes-nova/wallet/cmd"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd"
 )
 
 func main() {

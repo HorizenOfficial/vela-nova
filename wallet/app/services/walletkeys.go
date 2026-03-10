@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/horizen-pes/pkg/crypto"
+	"github.com/HorizenOfficial/vela/pkg/crypto"
 )
 
 func GenerateKeys() (string, string) {

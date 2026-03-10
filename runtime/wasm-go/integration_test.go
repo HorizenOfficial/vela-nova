@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
-	"github.com/horizen-cce-common-go/wasm/types"
-	"github.com/horizen-pes-nova/payment-app/app"
-	"github.com/horizen-pes/pkg/common"
-	"github.com/horizen-pes/pkg/logger"
-	"github.com/horizen-pes/pkg/wasm"
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
+	"github.com/HorizenOfficial/vela-nova/payment-app/app"
+	"github.com/HorizenOfficial/vela/pkg/common"
+	"github.com/HorizenOfficial/vela/pkg/logger"
+	"github.com/HorizenOfficial/vela/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

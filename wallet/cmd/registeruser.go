@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/horizen-pes-nova/wallet/app"
-	"github.com/horizen-pes/pkg/blockchain"
-	"github.com/horizen-pes/pkg/common"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -25,8 +25,8 @@ type RegisterUserCommand struct {
 func (c *RegisterUserCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "registeruser",
-		Short: `register the association [address, encryption key (P521)] of the wallet into the PES system`,
-		Long:  `register the association [address, encryption key (P521)] of the wallet into the PES system`,
+		Short: `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
+		Long:  `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
@@ -64,7 +64,7 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				return
 			}
 
-			fmt.Println("Waiting for confirmation from PES")
+			fmt.Println("Waiting for confirmation from Vela")
 
 			err = c.WaitForRequestCompleted(requestID, ctx)
 			if err != nil {
