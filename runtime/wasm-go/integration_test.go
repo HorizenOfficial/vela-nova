@@ -353,6 +353,149 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	require.NotNil(t, failure2, "tx_history without address should fail")
 }
 
+func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	recipientHex := fmt.Sprintf("0xadd%037x", 2)
+
+	depositAmount := big.NewInt(2_000_000_000_000_000_000)
+	transferValue := types.NewUint256(500_000_000_000_000_000)
+	withdrawValue := types.NewUint256(100_000_000_000_000_000)
+
+	// Build state with 3 transactions: deposit, transfer, withdrawal
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	require.Nil(t, failure)
+
+	recAddress, err := types.HexToAddress(recipientHex)
+	require.NoError(t, err)
+	transferPayload := app.PayloadInstructions{
+		Type:     "transfer",
+		Transfer: &app.TransferInstruction{To: recAddress, Amount: transferValue},
+	}
+	transferBytes, err := json.Marshal(transferPayload)
+	require.NoError(t, err)
+	state, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+
+	withdrawAddr, err := types.HexToAddress("0x1234567890123456789012345678901234567890")
+	require.NoError(t, err)
+	withdrawPayload := app.PayloadInstructions{
+		Type:     "withdraw",
+		Withdraw: &app.WithdrawInstruction{To: withdrawAddr, Amount: withdrawValue},
+	}
+	withdrawBytes, err := json.Marshal(withdrawPayload)
+	require.NoError(t, err)
+	state, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
+	require.Nil(t, failure2)
+
+	// Verify timestamps are populated (non-zero)
+	var stateData app.ApplicationInternalState
+	require.NoError(t, json.Unmarshal(state, &stateData))
+	require.Len(t, stateData.Transactions, 3)
+	for i, tx := range stateData.Transactions {
+		assert.Greater(t, tx.Timestamp, int64(0), "transaction %d should have a non-zero timestamp", i)
+	}
+
+	// Override timestamps with known values for deterministic filtering
+	// deposit=1000, transfer=2000, withdrawal=3000
+	stateData.Transactions[0].Timestamp = 1000
+	stateData.Transactions[1].Timestamp = 2000
+	stateData.Transactions[2].Timestamp = 3000
+	state, err = json.Marshal(stateData)
+	require.NoError(t, err)
+
+	senderAddr, err := types.HexToAddress(senderHex)
+	require.NoError(t, err)
+
+	// Helper to request tx_history with optional timestamp range
+	requestTxHistory := func(t *testing.T, fromTs, toTs int64) app.TxHistoryReport {
+		t.Helper()
+		payload := app.PayloadInstructions{
+			Deanonymize: &app.DeanonymizeInstruction{
+				ReportType:    "tx_history",
+				Address:       senderAddr,
+				FromTimestamp: fromTs,
+				ToTimestamp:   toTs,
+			},
+		}
+		payloadBytes, err := json.Marshal(payload)
+		require.NoError(t, err)
+		_, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+		require.Nil(t, fail)
+		require.NotNil(t, reportBytes)
+		var report app.TxHistoryReport
+		require.NoError(t, json.Unmarshal(reportBytes, &report))
+		return report
+	}
+
+	t.Run("NoFilter_ReturnsAll", func(t *testing.T) {
+		report := requestTxHistory(t, 0, 0)
+		require.Len(t, report.Transactions, 3)
+		assert.NotNil(t, report.Balance, "report should include balance")
+	})
+
+	t.Run("FromTimestamp_FilterOldest", func(t *testing.T) {
+		// from=1500 should exclude deposit(1000), keep transfer(2000)+withdrawal(3000)
+		report := requestTxHistory(t, 1500, 0)
+		require.Len(t, report.Transactions, 2)
+		assert.Equal(t, "transfer", report.Transactions[0].Type)
+		assert.Equal(t, "withdrawal", report.Transactions[1].Type)
+	})
+
+	t.Run("ToTimestamp_FilterNewest", func(t *testing.T) {
+		// to=2500 should exclude withdrawal(3000), keep deposit(1000)+transfer(2000)
+		report := requestTxHistory(t, 0, 2500)
+		require.Len(t, report.Transactions, 2)
+		assert.Equal(t, "deposit", report.Transactions[0].Type)
+		assert.Equal(t, "transfer", report.Transactions[1].Type)
+	})
+
+	t.Run("BothTimestamps_Range", func(t *testing.T) {
+		// from=1500, to=2500 should keep only transfer(2000)
+		report := requestTxHistory(t, 1500, 2500)
+		require.Len(t, report.Transactions, 1)
+		assert.Equal(t, "transfer", report.Transactions[0].Type)
+	})
+
+	t.Run("NoMatch_EmptyArray", func(t *testing.T) {
+		// from=5000, to=6000 should match nothing
+		report := requestTxHistory(t, 5000, 6000)
+		require.Len(t, report.Transactions, 0)
+
+		// Verify JSON has [] not null
+		payloadInstr := app.PayloadInstructions{
+			Deanonymize: &app.DeanonymizeInstruction{
+				ReportType:    "tx_history",
+				Address:       senderAddr,
+				FromTimestamp: 5000,
+				ToTimestamp:   6000,
+			},
+		}
+		payloadBytes, err := json.Marshal(payloadInstr)
+		require.NoError(t, err)
+		_, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+		require.Nil(t, fail)
+		assert.Contains(t, string(reportBytes), `"transactions":[]`, "empty transactions should be [] not null")
+	})
+
+	t.Run("BalanceIncluded", func(t *testing.T) {
+		report := requestTxHistory(t, 0, 0)
+		require.NotNil(t, report.Balance)
+		// sender deposited 2 ETH, transferred 0.5 ETH, withdrew 0.1 ETH => 1.4 ETH remaining
+		expectedBalance := types.NewUint256(1_400_000_000_000_000_000)
+		assert.Equal(t, expectedBalance.String(), report.Balance.String())
+	})
+}
+
 // requireMemoryClean checks that guest memory is fully deallocated.
 func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId common.ApplicationIdType, wasmBytes []byte, msgAndArgs ...interface{}) {
 	t.Helper()
