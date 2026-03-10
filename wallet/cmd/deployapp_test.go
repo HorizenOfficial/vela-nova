@@ -70,7 +70,6 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(req.Payload, &payload))
 	require.Equal(t, "artifact_ref", payload["mode"])
-	require.Equal(t, float64(1), payload["applicationId"])
 	require.Equal(t, "sha256:"+shaHex, payload["artifactId"])
 	require.Equal(t, shaHex, payload["wasmSha256"])
 }

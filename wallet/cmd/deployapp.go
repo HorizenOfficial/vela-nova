@@ -46,10 +46,9 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 }
 
 type deployDescriptorPayload struct {
-	Mode          string                   `json:"mode"`
-	ApplicationID common.ApplicationIdType `json:"applicationId"`
-	ArtifactID    string                   `json:"artifactId"`
-	WasmSHA256    string                   `json:"wasmSha256"`
+	Mode       string `json:"mode"`
+	ArtifactID string `json:"artifactId"`
+	WasmSHA256 string `json:"wasmSha256"`
 }
 
 func (c *DeployAppCommand) run(ctx context.Context) error {
@@ -92,10 +91,9 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 	}
 
 	deployPayload, err := json.Marshal(deployDescriptorPayload{
-		Mode:          "artifact_ref",
-		ApplicationID: NOVA_APPLICATION_ID,
-		ArtifactID:    uploadResp.ArtifactID,
-		WasmSHA256:    uploadResp.WasmSHA256,
+		Mode:       "artifact_ref",
+		ArtifactID: uploadResp.ArtifactID,
+		WasmSHA256: uploadResp.WasmSHA256,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to encode deploy descriptor payload: %w", err)
