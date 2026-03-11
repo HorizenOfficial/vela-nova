@@ -66,6 +66,75 @@ func TestRequestReportCmd(t *testing.T) {
 
 	})
 
+	t.Run("Command successful with account filter", func(t *testing.T) {
+		// Redirect stdout
+		old := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		// Execute the command
+		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
+			KeyP521:                   key2,
+			BlockchainPollingInterval: 2,
+			BlockchainPollingTimeout:  60,
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientOK()
+		cmd := reportCmd.Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
+		cmd.Flags().Set("account-filter", "0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222")
+
+		go testutil.CompleteNextRequest(t, testHelper, big.NewInt(80), big.NewInt(20))
+		cmd.Run(cmd, nil)
+
+		// Restore stdout
+		w.Close()
+		os.Stdout = old
+
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		output := buf.String()
+
+		fmt.Println(output)
+		assert.Contains(t, output, "Deanonymization request completed successfully")
+	})
+
+	t.Run("Command fails with invalid account filter", func(t *testing.T) {
+		// Redirect stdout
+		old := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		// Execute the command
+		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
+		reportCmd := NewRequestReportCommand(&app.Config{
+			KeySecp:                   Key1,
+			KeyP521:                   key2,
+			BlockchainPollingInterval: 2,
+			BlockchainPollingTimeout:  60,
+		}, blockchainClient)
+		reportCmd.SubgraphClient = testutil.SubgraphClientOK()
+		cmd := reportCmd.Command()
+		cmd.Flags().Set("max-value-fee", "100 wei")
+		cmd.Flags().Set("account-filter", "invalid-address")
+
+		cmd.Run(cmd, nil)
+
+		// Restore stdout
+		w.Close()
+		os.Stdout = old
+
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		output := buf.String()
+
+		fmt.Println(output)
+		assert.Contains(t, output, "Error: invalid account filter address")
+	})
+
 	t.Run("Command failed", func(t *testing.T) {
 		// Redirect stdout
 		old := os.Stdout

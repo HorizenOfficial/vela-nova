@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/horizen-pes-nova/payment-app/utils"
 )
@@ -176,6 +177,14 @@ func ProcessRequest(senderPtr *Address, payloadJSON, stateJSON string) ProcessRe
 			currentState.Accounts[recipientHex].Balance.Add(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount)
 			currentState.Nonce++
 
+			// Record transfer in history
+			currentState.TransferHistory = append(currentState.TransferHistory, TransferRecord{
+				From:      sender,
+				To:        instructions.Transfer.To,
+				Amount:    instructions.Transfer.Amount,
+				Timestamp: time.Now(),
+			})
+
 			// Create events for both parties
 			senderEventData := SenderEvent{
 				Type:    "transfer_sent",
@@ -304,14 +313,30 @@ func GenerateDeanonymizationReport(payloadJSON, stateJSON string) Deanonymizatio
 		return DeanonymizationResult{Error: fmt.Sprintf("Failed to parse application state: %v", err)}
 	}
 
-	// Create deanonymization report
-	report := UnencryptedDeanonymizationReportData{
-		Accounts: currentState.Accounts,
-		Nonce:    currentState.Nonce,
+	// Filter transfer history if account filter is specified
+	transferHistory := currentState.TransferHistory
+	if len(payload.AccountFilter) > 0 {
+		filterSet := make(map[Address]struct{}, len(payload.AccountFilter))
+		for _, addr := range payload.AccountFilter {
+			filterSet[addr] = struct{}{}
+		}
+		var filtered []TransferRecord
+		for _, tr := range transferHistory {
+			_, fromMatch := filterSet[tr.From]
+			_, toMatch := filterSet[tr.To]
+			if fromMatch || toMatch {
+				filtered = append(filtered, tr)
+			}
+		}
+		transferHistory = filtered
 	}
 
-	// read contents of the payload and decide how to build the report.
-	//if payload.... TODO
+	// Create deanonymization report
+	report := UnencryptedDeanonymizationReportData{
+		Accounts:        currentState.Accounts,
+		Nonce:           currentState.Nonce,
+		TransferHistory: transferHistory,
+	}
 
 	// Serialize the report
 	reportBytes, err := json.Marshal(report)

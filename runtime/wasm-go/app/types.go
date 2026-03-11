@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/horizen-pes-nova/payment-app/utils"
@@ -147,11 +148,20 @@ type AccountState struct {
 	Balance *Uint256 `json:"balance"`
 }
 
+// TransferRecord represents a single transfer operation stored in the application state
+type TransferRecord struct {
+	From      Address   `json:"from"`
+	To        Address   `json:"to"`
+	Amount    *Uint256  `json:"amount"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    int64                    `json:"appId"`
-	Accounts map[string]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	AppID           int64                    `json:"appId"`
+	Accounts        map[string]*AccountState `json:"accounts"`
+	Nonce           uint64                   `json:"nonce"`
+	TransferHistory []TransferRecord         `json:"transferHistory"`
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
@@ -174,14 +184,14 @@ type PayloadInstructions struct {
 }
 
 type UnencryptedDeanonymizationReportData struct {
-	Accounts map[string]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	Accounts        map[string]*AccountState `json:"accounts"`
+	Nonce           uint64                   `json:"nonce"`
+	TransferHistory []TransferRecord         `json:"transferHistory"`
 }
 
 // ReportPayloadInstructions represents a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
-// we can omit empty accounts
 type ReportPayloadInstructions struct {
+	AccountFilter []Address `json:"accountFilter,omitempty"`
 }
 
 // --- Local replacements for Host types ---

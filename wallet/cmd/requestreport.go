@@ -20,7 +20,8 @@ func NewRequestReportCommand(config *app.Config, blockchainClient blockchain.Cli
 
 type RequestReportCommand struct {
 	*app.ChainCommand
-	maxFeeValue string
+	maxFeeValue   string
+	accountFilter []string
 }
 
 func (c *RequestReportCommand) Command() *cobra.Command {
@@ -49,7 +50,17 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 			}
 			defer c.CloseClient()
 
-			payload := runtimeapp.ReportPayloadInstructions{} //empty for now
+			var filter []runtimeapp.Address
+			for _, addrStr := range c.accountFilter {
+				addr, err := runtimeapp.HexToAddress(addrStr)
+				if err != nil {
+					fmt.Printf("Error: invalid account filter address %q: %v\n", addrStr, err)
+					return
+				}
+				filter = append(filter, addr)
+			}
+
+			payload := runtimeapp.ReportPayloadInstructions{AccountFilter: filter}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				fmt.Printf("Error encrypting deanonymization payload: %v\n", err)
@@ -75,5 +86,6 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringSliceVarP(&c.accountFilter, "account-filter", "a", nil, "Comma-separated list of addresses to filter the report (e.g., 0xABC...,0xDEF...)")
 	return cmd
 }
