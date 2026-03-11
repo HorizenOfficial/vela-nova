@@ -3,14 +3,16 @@ package testutil
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/common/apperrors"
-	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,9 +22,16 @@ func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.Bl
 }
 
 func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
+	t.Helper()
+
 	blockchainClient := SetupNewBlockChainClient(testHelper)
+	deadline := time.Now().Add(15 * time.Second)
 
 	for {
+		if time.Now().After(deadline) {
+			panic(fmt.Sprintf("timeout waiting for next pending request to complete in %s", t.Name()))
+		}
+
 		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
@@ -42,13 +51,22 @@ func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refun
 			require.NoError(t, err)
 			return
 		}
+
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
 func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
+	t.Helper()
+
 	blockchainClient := SetupNewBlockChainClient(testHelper)
+	deadline := time.Now().Add(15 * time.Second)
 
 	for {
+		if time.Now().After(deadline) {
+			panic(fmt.Sprintf("timeout waiting for next pending request to fail in %s", t.Name()))
+		}
+
 		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
 		require.NoError(t, err)
 		if request != nil {
@@ -68,6 +86,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 			return
 		}
 
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
