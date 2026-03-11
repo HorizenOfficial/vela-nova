@@ -351,7 +351,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 						continue
 					}
 					if toTs > 0 && tx.Timestamp > toTs {
-						continue
+						break
 					}
 					filtered = append(filtered, tx)
 				}
