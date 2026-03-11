@@ -10,6 +10,7 @@ import (
 var Now = func() int64 { return time.Now().Unix() }
 
 const MaxInvoiceIDLength = 100
+const MaxTransactions = 50
 
 // ----- module internal types
 

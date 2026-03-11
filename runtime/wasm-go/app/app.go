@@ -24,6 +24,9 @@ func recordTransaction(state *ApplicationInternalState, txType string, from, to 
 		Timestamp: Now(),
 		InvoiceID: invoiceID,
 	})
+	if len(state.Transactions) > MaxTransactions {
+		state.Transactions = state.Transactions[len(state.Transactions)-MaxTransactions:]
+	}
 }
 
 func LoadModule(appId int64) types.LoadModuleResult {
