@@ -16,6 +16,7 @@ import (
 
 type GetPrivateBalanceCommand struct {
 	*app.ChainCommand
+	withSeed bool
 }
 
 func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
@@ -31,7 +32,7 @@ func EventFilter(b []byte) bool {
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
+func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521, seedSubTypes []string) ([]byte, error) {
 	if subgraphClient == nil {
 		return nil, fmt.Errorf("subgraph client not initialized")
 	}
@@ -45,7 +46,7 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		teePubKey,
 		*privKey,
 		NOVA_APPLICATION_ID,
-		"",
+		seedSubTypes,
 		1,
 		EventFilter,
 	)
@@ -88,7 +89,15 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521)
+			var seedSubTypes []string
+			if c.withSeed && c.Config.KeySecp != nil {
+				seed, seedErr := GenerateSeed(c.Config.KeySecp)
+				if seedErr != nil {
+					log.Fatalf("failed to generate seed: %v", seedErr)
+				}
+				seedSubTypes = EventSubTypesFromSeed(seed, DefaultSubtypeN)
+			}
+			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, seedSubTypes)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}
@@ -105,5 +114,6 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			fmt.Println(app.WeiToEtherStr(jsonData.Balance.ToInt()))
 		},
 	}
+	cmd.Flags().BoolVar(&c.withSeed, "with-seed", false, "Use seed-derived subtypes to filter events (requires prior registration with --with-seed)")
 	return cmd
 }
