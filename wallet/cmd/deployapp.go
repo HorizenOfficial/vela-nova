@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -89,8 +89,8 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 		return fmt.Errorf("deploy upload artifactId mismatch: expected=%s remote=%s", expectedArtifactID, uploadResp.ArtifactID)
 	}
 
-	deployPayload, err := json.Marshal(common.DeployDescriptor{
-		Mode:       common.DeployModeArtifactRef,
+	deployPayload, err := json.Marshal(velacommon.DeployDescriptor{
+		Mode:       velacommon.DeployModeArtifactRef,
 		ArtifactID: uploadResp.ArtifactID,
 		WasmSHA256: uploadResp.WasmSHA256,
 	})
