@@ -243,6 +243,73 @@ func TestDeployAppCommand_OverwritesExistingApplicationID(t *testing.T) {
 	require.Equal(t, common.NewApplicationId(42), savedCfg.ApplicationID)
 }
 
+// TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID verifies the full
+// persistence round-trip across a simulated wallet restart:
+//
+//  1. A wallet.conf is created with an empty ApplicationID.
+//  2. The deployapp command runs, the contract assigns ApplicationID=42,
+//     and SaveApplicationID writes it to wallet.conf.
+//  3. LoadConfigFromFile re-reads wallet.conf from disk (simulating a fresh
+//     wallet process starting up after the deploy).
+//  4. A deposit command is executed using the reloaded config. The test asserts
+//     that SubmitRequest receives ApplicationID=42 — proving the value survived
+//     the write-to-disk / read-from-disk cycle and is usable by subsequent commands.
+func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+
+	// Phase 1: Create wallet.conf with empty ApplicationID and deploy
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{
+		AuthorityServiceURL:       "http://placeholder",
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  1,
+	})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := &deployAppTestBlockchainClient{}
+	deployCfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  1,
+	}
+
+	deployCmd := NewDeployAppCommand(deployCfg, mockBC, confFile)
+	deployCmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	deployCmd.wasmPath = wasmPath
+	deployCmd.maxFeeValue = "100 wei"
+
+	err := deployCmd.run(context.Background())
+	require.NoError(t, err)
+
+	// Phase 2: Simulate wallet restart — load config fresh from the file
+	reloadedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), reloadedCfg.ApplicationID,
+		"reloaded config should have the ApplicationID written by deploy")
+
+	// Phase 3: Use the reloaded config for a deposit command — verify it passes
+	// the correct ApplicationID to SubmitRequest
+	depositCmd := NewDepositCommand(reloadedCfg, mockBC)
+	depositCmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
+	cmd.Flags().Set("amount", "1 wei")
+	cmd.Flags().Set("max-value-fee", "1 wei")
+	cmd.Run(cmd, nil)
+
+	// The mock captured the SubmitRequest call — verify it used ApplicationID 42
+	require.Len(t, mockBC.pending, 1, "deposit should have submitted one request")
+	require.Equal(t, common.NewApplicationId(42), mockBC.pending[0].ApplicationID,
+		"deposit should use the ApplicationID that was persisted by deploy")
+}
+
 func writeTempWASM(t *testing.T, wasm []byte) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "app.wasm")
