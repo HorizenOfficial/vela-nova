@@ -1,10 +1,15 @@
 package main_test
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,8 +18,10 @@ import (
 	"time"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -49,7 +56,9 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	depositEvent, err := suite.WaitForEvent(user, "deposit", timeout)
+	userSeed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
@@ -81,7 +90,9 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, suite.SubmitRequest(withdrawalReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	withdrawalEvent, err := suite.WaitForEvent(user, "withdrawal", timeout)
+	userSeed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -133,6 +144,47 @@ func buildAndLoadWasmModule(t *testing.T) []byte {
 }
 
 
+func uploadArtifactAndBuildDescriptorPayload(t *testing.T, suite *systemTests.SystemTestSuite, wasmBytecode []byte) []byte {
+	t.Helper()
+
+	store, err := deployartifact.NewStore(suite.GetArtifactsPath())
+	require.NoError(t, err)
+	uploadAPI := deployartifact.NewAPI(store, 50, logger.NewLogger(&logger.Config{Kind: "zerolog", Console: false}))
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fileWriter, err := writer.CreateFormFile("wasm", "app.wasm")
+	require.NoError(t, err)
+	_, err = fileWriter.Write(wasmBytecode)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/deploy/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	uploadAPI.HandleUpload(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var uploadResp deployartifact.UploadResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &uploadResp))
+
+	localSum := sha256.Sum256(wasmBytecode)
+	localSHA := hex.EncodeToString(localSum[:])
+	localArtifactID, err := common.BuildArtifactID(localSHA)
+	require.NoError(t, err)
+	require.Equal(t, localSHA, uploadResp.WasmSHA256)
+	require.Equal(t, localArtifactID, uploadResp.ArtifactID)
+
+	descriptor := common.DeployDescriptor{
+		Mode:       common.DeployModeArtifactRef,
+		ArtifactID: uploadResp.ArtifactID,
+		WasmSHA256: uploadResp.WasmSHA256,
+	}
+	payload, err := json.Marshal(descriptor)
+	require.NoError(t, err)
+	return payload
+}
+
 func TestPaymentAppFullFlow(t *testing.T) {
 	if os.Getenv("CI_FLAG") != "" {
 		t.Skip("Skipping long running test in CI environment")
@@ -147,35 +199,42 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, suite.StartManager())
 
 	appID := common.NewApplicationId(1)
-	userAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	auditorAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
-	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	timeout := 100 * time.Second
 
 	cryptoHelper := systemTests.NewCryptoHelper()
 
+	userAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
+
 	// Deploy the application
+	deployPayload := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
 	deployReq := &common.Request{
 		RequestType:   common.Deploy,
 		ApplicationID: appID,
 		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       wasmBytecode,
+		Payload:       deployPayload,
 		Sender:        userAddress,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
 		DepositAmount: common.NewBig(0),
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err := suite.WaitForAppStateInDB(appID, timeout)
+	_, err = suite.WaitForAppStateInDB(appID, timeout)
 	require.NoError(t, err)
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
 	require.NoError(t, err)
 
 	// Register user key
+	enclavePubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+
 	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
 	require.NoError(t, err)
 	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey())
+	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), enclavePubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateKeyReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -184,7 +243,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
 	require.NoError(t, err)
 	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey())
+	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), enclavePubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))

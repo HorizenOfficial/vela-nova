@@ -38,7 +38,7 @@ func readWasm(t *testing.T) []byte {
 
 func TestIntegration_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -56,7 +56,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 
 func TestIntegration_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -83,7 +83,7 @@ func TestIntegration_Deposit(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -164,7 +164,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -210,7 +210,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	type reportStruct struct {
@@ -245,7 +245,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -355,7 +355,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -511,7 +511,7 @@ func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId commo
 // after each host call.
 func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -575,7 +575,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 // (which still use SerializeAndWriteResult → BytesToPtr) do not leak memory.
 func TestIntegration_ErrorPathMemory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -628,7 +628,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 // by creating many accounts and generating a report that serializes all of them.
 func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 1)
 	defer runtime.Close()
 
 	ctx := context.Background()
