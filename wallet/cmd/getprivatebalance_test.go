@@ -8,12 +8,16 @@ import (
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/stretchr/testify/assert"
 )
+
+var testAppID = common.NewApplicationId(1)
 
 // Test blockchain client that returns a fixed TEE public key.
 type TestGetPrivateBalanceBlockChainClient struct {
@@ -46,18 +50,21 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 		teePub:     teePub,
 	}
 
-	sgClient := subgraph.NewMockClient().WithUserEvents(NOVA_APPLICATION_ID, []subgraph.UserEvent{
+	sgClient := subgraph.NewMockClient().WithUserEvents(testAppID, []subgraph.UserEvent{
 		{
-			ApplicationID: NOVA_APPLICATION_ID,
+			ApplicationID: testAppID,
 			EncryptedData: encrypted,
 		},
 	})
 	// Execute the command
-	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
-		RpcUrl:  "https://base-sepolia.drpc.org",
-	}, client)
+	cfg := &app.Config{
+		KeySecp:       key1,
+		KeyP521:       key2,
+		RpcUrl:        "https://base-sepolia.drpc.org",
+		ApplicationID: testAppID,
+	}
+	testutil.WriteTempConf(t, cfg)
+	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(cfg, client)
 	getPrivateBalanceCmd.SubgraphClient = sgClient
 	cmd := getPrivateBalanceCmd.Command()
 	cmd.Run(cmd, nil)
@@ -92,13 +99,16 @@ func TestGetPrivateBalance_NoEventsReturnsZero(t *testing.T) {
 	}
 
 	// Empty events - no user events returned from subgraph
-	sgClient := subgraph.NewMockClient().WithUserEvents(NOVA_APPLICATION_ID, []subgraph.UserEvent{})
+	sgClient := subgraph.NewMockClient().WithUserEvents(testAppID, []subgraph.UserEvent{})
 
-	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
-		RpcUrl:  "https://base-sepolia.drpc.org",
-	}, client)
+	cfg := &app.Config{
+		KeySecp:       key1,
+		KeyP521:       key2,
+		RpcUrl:        "https://base-sepolia.drpc.org",
+		ApplicationID: testAppID,
+	}
+	testutil.WriteTempConf(t, cfg)
+	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(cfg, client)
 	getPrivateBalanceCmd.SubgraphClient = sgClient
 	cmd := getPrivateBalanceCmd.Command()
 	cmd.Run(cmd, nil)
@@ -135,18 +145,21 @@ func TestGetPrivateBalance_InvalidEventFilteredOut(t *testing.T) {
 		teePub:     teePub,
 	}
 
-	sgClient := subgraph.NewMockClient().WithUserEvents(NOVA_APPLICATION_ID, []subgraph.UserEvent{
+	sgClient := subgraph.NewMockClient().WithUserEvents(testAppID, []subgraph.UserEvent{
 		{
-			ApplicationID: NOVA_APPLICATION_ID,
+			ApplicationID: testAppID,
 			EncryptedData: encrypted,
 		},
 	})
 
-	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
-		RpcUrl:  "https://base-sepolia.drpc.org",
-	}, client)
+	cfg := &app.Config{
+		KeySecp:       key1,
+		KeyP521:       key2,
+		RpcUrl:        "https://base-sepolia.drpc.org",
+		ApplicationID: testAppID,
+	}
+	testutil.WriteTempConf(t, cfg)
+	getPrivateBalanceCmd := NewGetPrivateBalanceCommand(cfg, client)
 	getPrivateBalanceCmd.SubgraphClient = sgClient
 	cmd := getPrivateBalanceCmd.Command()
 	cmd.Run(cmd, nil)

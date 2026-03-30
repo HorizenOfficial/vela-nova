@@ -69,12 +69,14 @@ func TestDecryptReport(t *testing.T) {
 	client := testutil.SetupNewBlockChainClient(testHelper)
 
 	// Execute the command
-	cmd := NewDecryptReportCommand(&app.Config{
-		KeySecp: key1,
-		KeyP521: key2,
+	cfg := &app.Config{
+		KeySecp:                   key1,
+		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, client).Command()
+	}
+	testutil.WriteTempConf(t, cfg)
+	cmd := NewDecryptReportCommand(cfg, client).Command()
 	cmd.Flags().Set("path", filePath)
 	cmd.Run(cmd, nil)
 

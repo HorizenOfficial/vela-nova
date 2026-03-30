@@ -24,8 +24,9 @@ import (
 )
 
 type deployAppTestBlockchainClient struct {
-	pending []*common.Request
-	nextID  byte
+	pending       []*common.Request
+	deployPayload []byte
+	nextID        byte
 }
 
 func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, depositAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
@@ -44,6 +45,15 @@ func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protoco
 	})
 
 	return requestID, 0, nil
+}
+
+func (c *deployAppTestBlockchainClient) SubmitDeployRequest(_ context.Context, protocolVersion uint8, payload []byte, maxFeeValue *big.Int) (common.ApplicationIdType, common.RequestIdType, uint64, error) {
+	c.nextID++
+	var requestID common.RequestIdType
+	requestID[31] = c.nextID
+	c.deployPayload = payload
+	// Simulate contract assigning applicationId = 42
+	return common.NewApplicationId(42), requestID, 0, nil
 }
 
 func (c *deployAppTestBlockchainClient) GetPendingRequests(_ context.Context) ([]*common.Request, error) {
@@ -94,6 +104,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	wasmBytes := []byte("dummy-wasm-module")
 	wasmPath := writeTempWASM(t, wasmBytes)
 	shaHex := shaHex(wasmBytes)
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 
 	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
@@ -121,7 +132,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 		BlockchainPollingTimeout:  1,
 	}
 
-	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
 	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
@@ -129,25 +140,25 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	err := cmd.run(context.Background())
 	require.NoError(t, err)
 
-	pending, err := mockBC.GetPendingRequests(context.Background())
-	require.NoError(t, err)
-	require.Len(t, pending, 1)
-
-	req := pending[0]
-	require.Equal(t, common.Deploy, req.RequestType)
-	require.NotEmpty(t, req.Payload)
+	require.NotEmpty(t, mockBC.deployPayload)
 
 	var payload map[string]any
-	require.NoError(t, json.Unmarshal(req.Payload, &payload))
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
 	require.Equal(t, "artifact_ref", payload["mode"])
 	require.Equal(t, "sha256:"+shaHex, payload["artifactId"])
 	require.Equal(t, shaHex, payload["wasmSha256"])
+
+	// Verify ApplicationID was persisted to wallet.conf and can be read back
+	savedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), savedCfg.ApplicationID)
 }
 
 func TestDeployAppCommand_FailsWithoutArtifactServiceURL(t *testing.T) {
 	wasmPath := writeTempWASM(t, []byte("dummy-wasm-module"))
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 
-	cmd := NewDeployAppCommand(&app.Config{}, blockchain.NewMockClient())
+	cmd := NewDeployAppCommand(&app.Config{}, blockchain.NewMockClient(), confFile)
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
@@ -167,6 +178,7 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	}))
 	defer artifactServer.Close()
 
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 	mockBC := &deployAppTestBlockchainClient{}
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
@@ -174,7 +186,7 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 		BlockchainPollingTimeout:  1,
 	}
 
-	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
 	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
@@ -182,9 +194,53 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	err := cmd.run(context.Background())
 	require.ErrorContains(t, err, "deploy upload hash mismatch")
 
-	pending, getErr := mockBC.GetPendingRequests(context.Background())
-	require.NoError(t, getErr)
-	require.Len(t, pending, 0)
+	require.Empty(t, mockBC.deployPayload)
+}
+
+func TestDeployAppCommand_OverwritesExistingApplicationID(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+
+	// Pre-existing wallet.conf with a different ApplicationID
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{
+		ApplicationID: common.NewApplicationId(7),
+	})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  1,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.NoError(t, err)
+
+	// Read the raw file — old value should be commented out
+	data, err := os.ReadFile(confFile)
+	require.NoError(t, err)
+	content := string(data)
+	require.Contains(t, content, "# ApplicationID=7")
+	require.Contains(t, content, "ApplicationID=42")
+
+	// Round-trip: LoadConfigFromFile should read the new value
+	savedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), savedCfg.ApplicationID)
 }
 
 func writeTempWASM(t *testing.T, wasm []byte) string {

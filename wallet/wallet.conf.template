@@ -5,5 +5,7 @@ ProcessorAddress=
 TeeAuthenticatorAddress=
 AuthorityServiceURL=
 SubgraphURL=
+# On-chain application ID assigned during deploy (required for all commands except deployapp and key management)
+ApplicationID=
 BlockchainPollingInterval=
 BlockchainPollingTimeout=

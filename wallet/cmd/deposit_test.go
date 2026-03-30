@@ -34,12 +34,14 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	depositCmd := NewDepositCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	depositCmd := NewDepositCommand(cfg, blockchainClient)
 	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := depositCmd.Command()
 
@@ -78,12 +80,14 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	depositCmd := NewDepositCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	depositCmd := NewDepositCommand(cfg, blockchainClient)
 	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := depositCmd.Command()
 
@@ -120,14 +124,19 @@ func TestDepositCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	depositCmd := NewDepositCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	depositCmd := NewDepositCommand(cfg, blockchainClient)
 	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := depositCmd.Command()
 
@@ -167,14 +176,19 @@ func TestDepositCmdFailure(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	depositCmd := NewDepositCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	depositCmd := NewDepositCommand(cfg, blockchainClient)
 	depositCmd.SubgraphClient = testutil.SubgraphClientFailure()
 	cmd := depositCmd.Command()
 
@@ -213,11 +227,14 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 
 	depositCmd := NewDepositCommand(&app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}, blockchainClient)

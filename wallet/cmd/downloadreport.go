@@ -92,7 +92,7 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 	}
 	chainID := id.Uint64()
 
-	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, NOVA_APPLICATION_ID, c.Config.KeySecp)
+	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, c.Config.ApplicationID, c.Config.KeySecp)
 
 	nonceResp, err := client.FetchNonce(ctx)
 	if err != nil {

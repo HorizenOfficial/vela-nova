@@ -31,7 +31,7 @@ func EventFilter(b []byte) bool {
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
+func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521, applicationID common.ApplicationIdType) ([]byte, error) {
 	if subgraphClient == nil {
 		return nil, fmt.Errorf("subgraph client not initialized")
 	}
@@ -44,7 +44,7 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		subgraphClient,
 		teePubKey,
 		*privKey,
-		NOVA_APPLICATION_ID,
+		applicationID,
 		"",
 		1,
 		EventFilter,
@@ -88,7 +88,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521)
+			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}

@@ -86,7 +86,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 
 			depositAmount := big.NewInt(0)
 			requestType := common.Deanonymize
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, depositAmount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to generate a deanonymization report: %v\n", err)
 				return
@@ -98,7 +98,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				fmt.Printf("Deanonymization request failed: %v\n", err)
 				return
 			}
-			fmt.Printf("Deanonymization request completed successfully. Report id: %s_%s\n", NOVA_APPLICATION_ID, requestID)
+			fmt.Printf("Deanonymization request completed successfully. Report id: %d_%s\n", c.Config.ApplicationID, requestID)
 
 		},
 	}

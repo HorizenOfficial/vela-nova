@@ -91,7 +91,7 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 
 			//submit request
 			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return
