@@ -126,6 +126,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 }
 
 // StubSubgraphClient returns canned RequestCompleted responses for tests.
+// Both GetRequestCompletedByID and GetDeployRequestCompletedByID return the same Result/Err.
 type StubSubgraphClient struct {
 	Result *subgraph.RequestCompleted
 	Err    error

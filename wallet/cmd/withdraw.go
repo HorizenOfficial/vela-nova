@@ -34,6 +34,10 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 		Short: `withdraw funds from the Vela system`,
 		Long:  `withdraw funds from the Vela system and send them to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 			amount, err := app.ParseEtherValue(c.value)
 			if err != nil {

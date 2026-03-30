@@ -34,6 +34,10 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		Short: `requests a deanonymization report of the Nova app`,
 		Long:  `requests a deanonymization report of the Nova app. Use --report-type to select 'balances' (default) or 'tx_history'.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
 			if err != nil {

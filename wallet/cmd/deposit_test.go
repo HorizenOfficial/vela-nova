@@ -12,6 +12,7 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,7 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             common.NewApplicationId(1),
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}
@@ -83,6 +85,7 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             common.NewApplicationId(1),
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
 	}
@@ -231,13 +234,15 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 
-	depositCmd := NewDepositCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
 		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	depositCmd := NewDepositCommand(cfg, blockchainClient)
 	depositCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := depositCmd.Command()
 

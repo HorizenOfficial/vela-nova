@@ -20,7 +20,8 @@ import (
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 )
 
-// AuthorityClient wraps calls to the authority service.
+// AuthorityClient wraps authenticated calls to the authority service (nonce and report retrieval).
+// WASM upload does not require authentication and is handled separately in the deployapp command.
 type AuthorityClient struct {
 	BaseURL    string
 	ChainID    uint64

@@ -22,6 +22,11 @@ import (
 
 const ConfFileName = "wallet.conf"
 
+// ErrPollingTimeout is returned by WaitFor* methods when the polling timeout expires
+// before a result is received from the subgraph. This does NOT mean the request failed
+// on-chain — it may still be pending or completed.
+var ErrPollingTimeout = fmt.Errorf("polling timeout expired")
+
 type Config struct {
 	KeyP521                  *cryptotypes.PrivateKeyP521
 	KeySecp                  *cryptotypes.PrivateKeySecp256k1
@@ -79,9 +84,11 @@ func fileExists(path string) bool {
 }
 
 // SaveApplicationID updates the ApplicationID in the wallet.conf file.
-// If an existing ApplicationID line is found, it is commented out with a
-// timestamp and the new value is written below it. If no existing line is
-// found, the new value is appended to the file.
+// If an existing ApplicationID line is found with a different value, it is
+// commented out with a timestamp and the new value is written below it.
+// If the existing value is the same, the line is replaced in place (no comment).
+// If no existing line is found, the new value is appended to the file.
+// Handles both "ApplicationID=X" and "ApplicationID = X" (spaces around =).
 func SaveApplicationID(confFile string, appID common.ApplicationIdType) error {
 	data, err := os.ReadFile(confFile)
 	if err != nil {
@@ -97,15 +104,23 @@ func SaveApplicationID(confFile string, appID common.ApplicationIdType) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
-		if !found && strings.HasPrefix(trimmed, "ApplicationID=") && !strings.HasPrefix(trimmed, "#") {
-			oldValue := strings.TrimPrefix(trimmed, "ApplicationID=")
-			if oldValue != "" && oldValue != strconv.FormatUint(uint64(appID), 10) {
-				out = append(out, fmt.Sprintf("# Previous ApplicationID (replaced by deployapp on %s)", timestamp))
-				out = append(out, "# "+trimmed)
+		// Match "ApplicationID=X", "ApplicationID = X", etc. (properties format allows spaces around =)
+		isAppIDLine := false
+		if !found && !strings.HasPrefix(trimmed, "#") && strings.HasPrefix(trimmed, "ApplicationID") {
+			rest := strings.TrimPrefix(trimmed, "ApplicationID")
+			rest = strings.TrimSpace(rest)
+			if len(rest) > 0 && rest[0] == '=' {
+				isAppIDLine = true
+				oldValue := strings.TrimSpace(rest[1:])
+				if oldValue != "" && oldValue != strconv.FormatUint(uint64(appID), 10) {
+					out = append(out, fmt.Sprintf("# Previous ApplicationID (replaced by deployapp on %s)", timestamp))
+					out = append(out, "# "+trimmed)
+				}
+				out = append(out, newValue)
+				found = true
 			}
-			out = append(out, newValue)
-			found = true
-		} else {
+		}
+		if !isAppIDLine {
 			out = append(out, line)
 		}
 	}
@@ -288,6 +303,15 @@ func (c *ChainCommand) InitChainClient(ctx context.Context) error {
 	return nil
 }
 
+// RequireApplicationID returns an error if ApplicationID is not configured.
+// Commands that submit requests to a deployed application should call this early.
+func (c *ChainCommand) RequireApplicationID() error {
+	if c.Config.ApplicationID == 0 {
+		return fmt.Errorf("ApplicationID is not configured: run deployapp first or set ApplicationID in wallet.conf")
+	}
+	return nil
+}
+
 func (c *ChainCommand) CloseClient() error {
 	if c.BlockchainClient == nil {
 		return fmt.Errorf("client not initialized")
@@ -329,7 +353,7 @@ func (c *ChainCommand) WaitForRequestCompleted(requestID common.RequestIdType, c
 
 		case <-timeoutCh:
 			fmt.Println("Timeout expired while waiting for confirmation from Vela")
-			return fmt.Errorf("timeout expired while waiting for confirmation from Vela")
+			return fmt.Errorf("%w while waiting for confirmation from Vela", ErrPollingTimeout)
 		}
 	}
 
@@ -369,7 +393,7 @@ func (c *ChainCommand) WaitForDeployRequestCompleted(requestID common.RequestIdT
 
 		case <-timeoutCh:
 			fmt.Println("Timeout expired while waiting for deploy confirmation from Vela")
-			return fmt.Errorf("timeout expired while waiting for deploy confirmation from Vela")
+			return fmt.Errorf("%w while waiting for deploy confirmation from Vela", ErrPollingTimeout)
 		}
 	}
 

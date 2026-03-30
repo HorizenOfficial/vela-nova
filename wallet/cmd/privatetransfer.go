@@ -36,6 +36,9 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 		Short: `submits a private transfer request to a receiver address`,
 		Long:  `submits a private transfer request to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				log.Fatalf("Error: %v", err)
+			}
 			//get receiver
 			to, err := app.ValidateAndChecksumAddress(c.receiver)
 			if err != nil {

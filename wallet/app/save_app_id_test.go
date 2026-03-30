@@ -93,6 +93,26 @@ func TestSaveConfigToFile_RoundTrip(t *testing.T) {
 	assert.NotNil(t, loaded.KeyP521)
 }
 
+func TestSaveApplicationID_SpacesAroundEquals(t *testing.T) {
+	conf := filepath.Join(t.TempDir(), "wallet.conf")
+	require.NoError(t, os.WriteFile(conf, []byte("keyP521=\nApplicationID = 7\nkeySecp256k1=\n"), 0o644))
+
+	err := SaveApplicationID(conf, common.NewApplicationId(42))
+	require.NoError(t, err)
+
+	data, _ := os.ReadFile(conf)
+	content := string(data)
+	assert.Contains(t, content, "ApplicationID=42")
+	assert.Contains(t, content, "# ApplicationID = 7")
+	// Old value should not appear as an active line
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "ApplicationID = 7" {
+			t.Error("old 'ApplicationID = 7' should be commented out, not active")
+		}
+	}
+}
+
 func TestSaveApplicationID_EmptyValue(t *testing.T) {
 	conf := filepath.Join(t.TempDir(), "wallet.conf")
 	require.NoError(t, os.WriteFile(conf, []byte("ApplicationID=\n"), 0o644))

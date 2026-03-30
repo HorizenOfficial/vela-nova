@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -47,12 +49,6 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 	cmd.Flags().StringVar(&c.wasmPath, "wasm", "", "Path to wasm module file to upload and deploy")
 	_ = cmd.MarkFlagRequired("wasm")
 	return cmd
-}
-
-type deployDescriptorPayload struct {
-	Mode       string `json:"mode"`
-	ArtifactID string `json:"artifactId"`
-	WasmSHA256 string `json:"wasmSha256"`
 }
 
 func (c *DeployAppCommand) run(ctx context.Context) error {
@@ -93,8 +89,8 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 		return fmt.Errorf("deploy upload artifactId mismatch: expected=%s remote=%s", expectedArtifactID, uploadResp.ArtifactID)
 	}
 
-	deployPayload, err := json.Marshal(deployDescriptorPayload{
-		Mode:       "artifact_ref",
+	deployPayload, err := json.Marshal(common.DeployDescriptor{
+		Mode:       common.DeployModeArtifactRef,
 		ArtifactID: uploadResp.ArtifactID,
 		WasmSHA256: uploadResp.WasmSHA256,
 	})
@@ -114,17 +110,37 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 
 	fmt.Printf("Deploy request submitted. Assigned ApplicationID: %d\n", appID)
 	fmt.Println("Waiting for deploy confirmation from Vela")
-	if err := c.WaitForDeployRequestCompleted(requestID, ctx); err != nil {
-		return fmt.Errorf("deploy app failed: %w", err)
+	waitErr := c.WaitForDeployRequestCompleted(requestID, ctx)
+
+	if waitErr != nil && !errors.Is(waitErr, app.ErrPollingTimeout) {
+		// Explicit failure from the executor (e.g., invalid WASM, already deployed).
+		// The application was NOT registered on-chain — do not persist the ApplicationID.
+		return fmt.Errorf("deploy app failed: %w", waitErr)
 	}
 
-	fmt.Printf("Deploy app completed successfully. ApplicationID: %d\n", appID)
-
+	// Persist the ApplicationID on success OR timeout.
+	//
+	// On timeout, the deploy may have succeeded on-chain but the subgraph confirmation
+	// was not received in time. We save the ID so the user does not lose it.
+	//
+	// If the deploy actually failed on-chain despite the timeout (rare: requires the
+	// subgraph to be down while the executor rejects the request), the user will see
+	// an "invalid application ID" error on the next command. Recovery options:
+	//   1. Re-run "deployapp" — it uploads the WASM again, gets a fresh appID, and
+	//      overwrites the stale value in wallet.conf (old value is commented out).
+	//   2. Manually check the subgraph or contract to verify registration, then
+	//      edit wallet.conf if needed.
 	if err := app.SaveApplicationID(c.confFile, appID); err != nil {
 		return fmt.Errorf("failed to save ApplicationID to %s: %w", c.confFile, err)
 	}
 	fmt.Printf("ApplicationID=%d saved to %s\n", appID, c.confFile)
 
+	if waitErr != nil {
+		// Timeout path — ID is saved but confirmation was not received.
+		return fmt.Errorf("deploy confirmation timed out (ApplicationID %d saved to %s): %w", appID, c.confFile, waitErr)
+	}
+
+	fmt.Printf("Deploy app completed successfully. ApplicationID: %d\n", appID)
 	return nil
 }
 

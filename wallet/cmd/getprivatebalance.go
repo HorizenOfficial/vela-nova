@@ -64,6 +64,9 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				log.Fatalf("Error: %v", err)
+			}
 			ctx := context.Background()
 			if cmd != nil && cmd.Context() != nil {
 				ctx = cmd.Context()

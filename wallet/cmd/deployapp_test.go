@@ -129,7 +129,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
 	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
@@ -183,7 +183,7 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
 	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
@@ -219,7 +219,7 @@ func TestDeployAppCommand_OverwritesExistingApplicationID(t *testing.T) {
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
 	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
@@ -263,7 +263,7 @@ func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
 	confFile := cmdtestutil.WriteTempConf(t, &app.Config{
 		AuthorityServiceURL:       "http://placeholder",
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	})
 
 	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -278,7 +278,7 @@ func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
 	deployCfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
 	deployCmd := NewDeployAppCommand(deployCfg, mockBC, confFile)

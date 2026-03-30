@@ -30,6 +30,10 @@ func (c *DepositCommand) Command() *cobra.Command {
 		Short: `deposit funds into the Vela system`,
 		Long:  `deposit funds into the Vela system`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 			amount, err := app.ParseEtherValue(c.depositAmount)
 			if err != nil {
