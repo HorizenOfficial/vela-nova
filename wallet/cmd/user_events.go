@@ -22,9 +22,7 @@ var userEventsPageSize = 1000
 //
 // eventSubTypes controls subtype filtering:
 //   - nil or empty: no subtype filter — all events are returned.
-//   - single entry: passed directly to the subgraph query as a server-side filter.
-//   - multiple entries (e.g. seed-derived subtypes): the subgraph is queried without
-//     a subtype filter, and events are matched locally against the set before decryption.
+//   - one or more entries: passed directly to the subgraph query as a server-side filter.
 func FetchAndDecryptUserEvents(
 	ctx context.Context,
 	sg subgraph.Client,
@@ -42,23 +40,6 @@ func FetchAndDecryptUserEvents(
 		return nil, fmt.Errorf("tee public key is required")
 	}
 
-	// Determine subgraph query filter and local subtype set.
-	var querySubType string
-	var localSubTypeSet map[string]bool
-	switch len(eventSubTypes) {
-	case 0:
-		// No filter — query all events.
-	case 1:
-		// Single subtype — pass directly to the subgraph.
-		querySubType = eventSubTypes[0]
-	default:
-		// Multiple subtypes (seed-derived) — query all, filter locally.
-		localSubTypeSet = make(map[string]bool, len(eventSubTypes))
-		for _, st := range eventSubTypes {
-			localSubTypeSet[st] = true
-		}
-	}
-
 	maxResults := limit
 	if maxResults < 0 {
 		maxResults = 0
@@ -74,7 +55,7 @@ func FetchAndDecryptUserEvents(
 	var decryptedEvents [][]byte
 	var before *big.Int
 	for {
-		events, err := sg.GetUserEvents(ctx, applicationID, querySubType, pageSize, before)
+		events, err := sg.GetUserEventsBySubTypes(ctx, applicationID, eventSubTypes, pageSize, before)
 		if err != nil {
 			return nil, err
 		}
@@ -83,11 +64,6 @@ func FetchAndDecryptUserEvents(
 		}
 
 		for _, ev := range events {
-			// When using seed-derived subtypes, skip events that don't match.
-			if localSubTypeSet != nil && !localSubTypeSet[ev.EventSubType] {
-				continue
-			}
-
 			plain, err := crypto.Decrypt(teePubKey, &privKey, ev.EncryptedData)
 			if err != nil {
 				if errors.Is(err, crypto.ErrDecrypt) {

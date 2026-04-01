@@ -108,6 +108,10 @@ func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdTyp
 	return nil, nil
 }
 
+func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, []string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
 func SubgraphClientOK() subgraph.Client {
 	return StubSubgraphClient{Result: &subgraph.RequestCompleted{Status: common.RequestResultOK}}
 }

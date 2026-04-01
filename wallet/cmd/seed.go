@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
@@ -94,11 +92,5 @@ func BuildAssociateKeyPayloadWithSeed(
 // event subtypes from a seed. Each subtype is "0x" + hex(HMAC-SHA256(seed, byte(i)))
 // for i in [1, n].
 func EventSubTypesFromSeed(seed []byte, n int) []string {
-	subtypes := make([]string, n)
-	for i := 1; i <= n; i++ {
-		mac := hmac.New(sha256.New, seed)
-		mac.Write([]byte{byte(i)})
-		subtypes[i-1] = "0x" + hex.EncodeToString(mac.Sum(nil))
-	}
-	return subtypes
+	return subtypes.GenerateSubtypesN(seed, n)
 }
