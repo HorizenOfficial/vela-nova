@@ -17,6 +17,7 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	cmdtestutil "github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	velatestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -308,6 +309,61 @@ func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
 	require.Len(t, mockBC.pending, 1, "deposit should have submitted one request")
 	require.Equal(t, common.NewApplicationId(42), mockBC.pending[0].ApplicationID,
 		"deposit should use the ApplicationID that was persisted by deploy")
+}
+
+// TestDeployAppCommand_UnauthorizedDeployerReverts verifies that the smart contract
+// rejects deploy requests from accounts that lack the DEPLOYER_ROLE.
+//
+// This is an integration test against a simulated blockchain (not a mock). It exercises
+// the real ProcessorEndpoint contract's access control. The DEPLOYER_ROLE is granted to
+// testHelper.Deployer during contract deployment; the Submitter account is a regular user
+// without that role.
+//
+// The rejection happens at the contract level (before the manager/executor are involved),
+// so this test does not need the full system test infrastructure — just a blockchain client
+// configured with a non-deployer signing key.
+func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	testHelper := velatestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	// Create a blockchain client using the Submitter account, which does NOT have
+	// the DEPLOYER_ROLE. Only testHelper.Deployer has that role (granted during
+	// contract construction).
+	unauthorizedClient := blockchain.SetupNewBlockChainClientConnected(
+		testHelper.Client(),
+		testHelper.ProcessorContractAddress,
+		testHelper.TeeSignerAddress,
+		testHelper.Submitter,
+	)
+
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	cmd := NewDeployAppCommand(cfg, unauthorizedClient, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DeployerNotAllowed",
+		"contract should reject deploy from an account without DEPLOYER_ROLE")
 }
 
 func writeTempWASM(t *testing.T, wasm []byte) string {
