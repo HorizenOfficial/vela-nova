@@ -16,7 +16,6 @@ import (
 
 type GetPrivateBalanceCommand struct {
 	*app.ChainCommand
-	withSeed bool
 }
 
 func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
@@ -89,14 +88,14 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			var seedSubTypes []string
-			if c.withSeed && c.Config.KeySecp != nil {
-				seed, seedErr := GenerateSeed(c.Config.KeySecp)
-				if seedErr != nil {
-					log.Fatalf("failed to generate seed: %v", seedErr)
-				}
-				seedSubTypes = EventSubTypesFromSeed(seed, DefaultSubtypeN)
+			if c.Config.KeySecp == nil {
+				log.Fatal("secp256k1 key not found in the wallet (required to derive event subtypes)")
 			}
+			seed, seedErr := GenerateSeed(c.Config.KeySecp)
+			if seedErr != nil {
+				log.Fatalf("failed to generate seed: %v", seedErr)
+			}
+			seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
 			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, seedSubTypes)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
@@ -114,6 +113,5 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			fmt.Println(app.WeiToEtherStr(jsonData.Balance.ToInt()))
 		},
 	}
-	cmd.Flags().BoolVar(&c.withSeed, "with-seed", false, "Use seed-derived subtypes to filter events (requires prior registration with --with-seed)")
 	return cmd
 }

@@ -20,7 +20,6 @@ func NewRegisterUserCommand(config *app.Config, blockchainClient blockchain.Clie
 type RegisterUserCommand struct {
 	*app.ChainCommand
 	maxFeeValue string
-	withSeed    bool
 }
 
 func (c *RegisterUserCommand) Command() *cobra.Command {
@@ -55,24 +54,19 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				return
 			}
 
-			var payload []byte
-			if c.withSeed {
-				if c.Config.KeySecp == nil {
-					fmt.Println("Error: secp256k1 key not found in the wallet (required for --with-seed)")
-					return
-				}
-				teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
-				if err != nil {
-					fmt.Printf("Error retrieving TEE public key: %v\n", err)
-					return
-				}
-				payload, err = BuildAssociateKeyPayloadWithSeed(c.Config.KeyP521, c.Config.KeySecp, teePubKey)
-				if err != nil {
-					fmt.Printf("Error building payload with seed: %v\n", err)
-					return
-				}
-			} else {
-				payload = c.Config.KeyP521.PublicKey().Bytes()
+			if c.Config.KeySecp == nil {
+				fmt.Println("Error: secp256k1 key not found in the wallet")
+				return
+			}
+			teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+			if err != nil {
+				fmt.Printf("Error retrieving TEE public key: %v\n", err)
+				return
+			}
+			payload, err := BuildAssociateKeyPayloadWithSeed(c.Config.KeyP521, c.Config.KeySecp, teePubKey)
+			if err != nil {
+				fmt.Printf("Error building payload with seed: %v\n", err)
+				return
 			}
 
 			depositAmount := big.NewInt(0)
@@ -96,6 +90,5 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
-	cmd.Flags().BoolVar(&c.withSeed, "with-seed", false, "Include an encrypted seed for privacy-preserving event subtypes")
 	return cmd
 }
