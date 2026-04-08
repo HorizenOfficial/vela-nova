@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"testing"
 
+	"strings"
+
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
@@ -17,6 +19,12 @@ import (
 	"github.com/HorizenOfficial/vela/pkg/wasm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	ethToken     = ethCommon.Address{}                                                    // zero address = ETH
+	usdcToken    = ethCommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") // fake USDC for tests
+	usdcTokenHex = strings.ToLower(usdcToken.Hex())                                      // lowercase to match wasm types.Address.Hex()
 )
 
 func readWasm(t *testing.T) []byte {
@@ -36,9 +44,45 @@ func readWasm(t *testing.T) []byte {
 	return wasmBytes
 }
 
+// getBalanceFromState extracts a per-token balance from deserialized state.
+// Returns "0" if the account or token entry does not exist.
+func getBalanceFromState(t *testing.T, stateBytes []byte, accountHex, tokenHex string) string {
+	t.Helper()
+	var stateData app.ApplicationInternalState
+	require.NoError(t, json.Unmarshal(stateBytes, &stateData))
+	acc, ok := stateData.Accounts[accountHex]
+	if !ok || acc.Balances == nil {
+		return "0"
+	}
+	bal, ok := acc.Balances[tokenHex]
+	if !ok {
+		return "0"
+	}
+	return bal.String()
+}
+
+// deployWithTokens deploys the app with the given allowed tokens and returns the initial state.
+func deployWithTokens(t *testing.T, runtime *wasm.WasmtimeRuntime, appId common.ApplicationIdType, wasmBytes []byte, tokens ...string) []byte {
+	t.Helper()
+	ctx := context.Background()
+	params := app.DeployParams{AllowedTokens: tokens}
+	paramsBytes, err := json.Marshal(params)
+	require.NoError(t, err)
+	state, fuel, err := runtime.Deploy(ctx, appId, paramsBytes, wasmBytes)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
+	return state
+}
+
+// ethAddressHex returns the zero-address hex (ETH token hex) for balance map lookups.
+func ethAddressHex() string {
+	return ethToken.Hex()
+}
+
 func TestIntegration_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -52,11 +96,43 @@ func TestIntegration_LoadModule(t *testing.T) {
 	var stateData app.ApplicationInternalState
 	require.NoError(t, json.Unmarshal(state, &stateData))
 	assert.Equal(t, appId, common.ApplicationIdType(stateData.AppID))
+	assert.True(t, stateData.AllowedTokens[ethAddressHex()], "ETH should be allowed by default")
+}
+
+func TestIntegration_Deploy(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
+	defer runtime.Close()
+
+	appId := common.NewApplicationId(1)
+
+	t.Run("EmptyParams", func(t *testing.T) {
+		ctx := context.Background()
+		state, fuel, err := runtime.Deploy(ctx, appId, []byte("{}"), wasmBytes)
+		require.NoError(t, err)
+		require.NotNil(t, state)
+		require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
+
+		var stateData app.ApplicationInternalState
+		require.NoError(t, json.Unmarshal(state, &stateData))
+		assert.True(t, stateData.AllowedTokens[ethAddressHex()], "ETH always allowed")
+		assert.Len(t, stateData.AllowedTokens, 1)
+	})
+
+	t.Run("WithAllowedTokens", func(t *testing.T) {
+		state := deployWithTokens(t, runtime, appId, wasmBytes, usdcTokenHex)
+
+		var stateData app.ApplicationInternalState
+		require.NoError(t, json.Unmarshal(state, &stateData))
+		assert.True(t, stateData.AllowedTokens[ethAddressHex()], "ETH always allowed")
+		assert.True(t, stateData.AllowedTokens[usdcTokenHex], "USDC should be allowed")
+		assert.Len(t, stateData.AllowedTokens, 2)
+	})
 }
 
 func TestIntegration_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -69,21 +145,65 @@ func TestIntegration_Deposit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	var stateData app.ApplicationInternalState
-	require.NoError(t, json.Unmarshal(newState, &stateData))
-	require.Contains(t, stateData.Accounts, senderHex)
 	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
-	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
+	assert.Equal(t, expectedBalance.String(), getBalanceFromState(t, newState, senderHex, ethAddressHex()))
+}
+
+func TestIntegration_Deposit_ERC20(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	depositAmount := big.NewInt(1_000_000) // 1 USDC (6 decimals)
+
+	// Deploy with USDC allowed
+	state := deployWithTokens(t, runtime, appId, wasmBytes, usdcTokenHex)
+
+	// Deposit USDC
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, ethSender, usdcToken, depositAmount, state, wasmBytes)
+	require.Nil(t, failure)
+	require.Len(t, events, 1)
+	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
+
+	// Verify per-token balance
+	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
+	assert.Equal(t, expectedBalance.String(), getBalanceFromState(t, newState, senderHex, usdcTokenHex))
+	// ETH balance should be zero
+	assert.Equal(t, "0", getBalanceFromState(t, newState, senderHex, ethAddressHex()))
+}
+
+func TestIntegration_Deposit_RejectsNonAllowlistedToken(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	ethSender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
+	depositAmount := big.NewInt(1_000_000)
+
+	// Deploy with ETH only (no USDC)
+	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	require.NoError(t, err)
+
+	// Try to deposit USDC — should fail
+	_, _, _, failure := runtime.Deposit(ctx, appId, ethSender, usdcToken, depositAmount, state, wasmBytes)
+	require.NotNil(t, failure, "deposit of non-allowlisted token should fail")
+	assert.Contains(t, failure.Error(), "not allowed")
 }
 
 func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -98,7 +218,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -123,12 +243,10 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 		// Verify the state was updated
-		var stateData app.ApplicationInternalState
-		require.NoError(t, json.Unmarshal(newState, &stateData))
-		expectedBalance := types.NewUint256(0)
-		expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
-		assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
-		assert.Equal(t, transferValue.String(), stateData.Accounts[recipientHex].Balance.String())
+		expectedSenderBal := types.NewUint256(0)
+		expectedSenderBal.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *transferValue)
+		assert.Equal(t, expectedSenderBal.String(), getBalanceFromState(t, newState, senderHex, ethAddressHex()))
+		assert.Equal(t, transferValue.String(), getBalanceFromState(t, newState, recipientHex, ethAddressHex()))
 
 		return events
 	}
@@ -162,9 +280,61 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	})
 }
 
+func TestIntegration_ProcessRequest_Transfer_ERC20(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	recipientHex := fmt.Sprintf("0xadd%037x", 2)
+	depositAmount := big.NewInt(2_000_000) // 2 USDC
+	transferValue := types.NewUint256(500_000) // 0.5 USDC
+
+	// Deploy with USDC allowed
+	state := deployWithTokens(t, runtime, appId, wasmBytes, usdcTokenHex)
+
+	// Deposit USDC
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, usdcToken, depositAmount, state, wasmBytes)
+	require.Nil(t, failure)
+
+	// Transfer USDC
+	recAddress, err := types.HexToAddress(recipientHex)
+	require.NoError(t, err)
+	usdcAddr, err := types.HexToAddress(usdcTokenHex)
+	require.NoError(t, err)
+
+	payload := app.PayloadInstructions{
+		Type: "transfer",
+		Transfer: &app.TransferInstruction{
+			To:           recAddress,
+			TokenAddress: usdcAddr,
+			Amount:       transferValue,
+		},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	newState, events, withdrawals, _, _, failure := runtime.ProcessRequest(
+		ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
+	require.Len(t, events, 2)
+	require.Len(t, withdrawals, 0)
+
+	// Verify USDC balances updated
+	expectedSenderBal := types.NewUint256(1_500_000) // 2M - 500K
+	assert.Equal(t, expectedSenderBal.String(), getBalanceFromState(t, newState, senderHex, usdcTokenHex))
+	assert.Equal(t, transferValue.String(), getBalanceFromState(t, newState, recipientHex, usdcTokenHex))
+
+	// ETH balances should be zero
+	assert.Equal(t, "0", getBalanceFromState(t, newState, senderHex, ethAddressHex()))
+}
+
 func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -182,7 +352,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -199,18 +369,64 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	require.Len(t, withdrawals, 1)
 	assert.Equal(t, ethWithdrawAddr, withdrawals[0].DestinationAddress)
 	assert.Equal(t, withdrawValue.String(), withdrawals[0].Amount.String())
+	assert.Equal(t, ethCommon.Address{}, withdrawals[0].TokenAddress, "ETH withdrawal should have zero token address")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
-	var stateData app.ApplicationInternalState
-	require.NoError(t, json.Unmarshal(newState, &stateData))
 	expectedBalance := types.NewUint256(0)
 	expectedBalance.Sub(*new(types.Uint256).SetBytes(depositAmount.Bytes()), *withdrawValue)
-	assert.Equal(t, expectedBalance.String(), stateData.Accounts[senderHex].Balance.String())
+	assert.Equal(t, expectedBalance.String(), getBalanceFromState(t, newState, senderHex, ethAddressHex()))
+}
+
+func TestIntegration_ProcessRequest_Withdrawal_ERC20(t *testing.T) {
+	wasmBytes := readWasm(t)
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
+	defer runtime.Close()
+
+	ctx := context.Background()
+	appId := common.NewApplicationId(1)
+	senderHex := fmt.Sprintf("0xadd%037x", 1)
+	ethSender := ethCommon.HexToAddress(senderHex)
+	depositAmount := big.NewInt(2_000_000)
+	withdrawValue := types.NewUint256(500_000)
+	withdrawAddrHex := "0x1234567890123456789012345678901234567890"
+	withdrawAddress, err := types.HexToAddress(withdrawAddrHex)
+	require.NoError(t, err)
+	usdcAddr, err := types.HexToAddress(usdcTokenHex)
+	require.NoError(t, err)
+
+	// Deploy with USDC
+	state := deployWithTokens(t, runtime, appId, wasmBytes, usdcTokenHex)
+
+	// Deposit USDC
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, usdcToken, depositAmount, state, wasmBytes)
+	require.Nil(t, failure)
+
+	// Withdraw USDC
+	payload := app.PayloadInstructions{
+		Type: "withdraw",
+		Withdraw: &app.WithdrawInstruction{
+			To:           withdrawAddress,
+			TokenAddress: usdcAddr,
+			Amount:       withdrawValue,
+		},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	newState, events, withdrawals, _, _, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+	require.Nil(t, failure)
+	require.Len(t, events, 1)
+	require.Len(t, withdrawals, 1)
+	assert.Equal(t, usdcToken, withdrawals[0].TokenAddress, "withdrawal should carry USDC token address")
+	assert.Equal(t, withdrawValue.String(), withdrawals[0].Amount.String())
+
+	expectedBalance := types.NewUint256(1_500_000)
+	assert.Equal(t, expectedBalance.String(), getBalanceFromState(t, newState, senderHex, usdcTokenHex))
 }
 
 func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	type reportStruct struct {
@@ -227,7 +443,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -240,12 +456,13 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	require.NoError(t, json.Unmarshal(reportBytes, &report))
 	require.Contains(t, report.Accounts, sender)
 	expectedBalance := new(types.Uint256).SetBytes(depositAmount.Bytes())
-	assert.Equal(t, expectedBalance.String(), report.Accounts[sender].Balance.String())
+	ethHex := ethAddressHex()
+	assert.Equal(t, expectedBalance.String(), report.Accounts[sender].Balances[ethHex].String())
 }
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -264,7 +481,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 
 	recAddress, err := types.HexToAddress(recipientHex)
@@ -315,6 +532,8 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	assert.Equal(t, "transfer", report.Transactions[1].Type)
 	assert.Equal(t, "INV-001", report.Transactions[1].InvoiceID)
 	assert.Equal(t, "withdrawal", report.Transactions[2].Type)
+	// Verify balances map in report
+	require.NotNil(t, report.Balances)
 
 	// tx_history report for recipient — should only see the transfer
 	recipientAddr, err := types.HexToAddress(recipientHex)
@@ -355,7 +574,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -372,7 +591,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 
 	recAddress, err := types.HexToAddress(recipientHex)
@@ -440,7 +659,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	t.Run("NoFilter_ReturnsAll", func(t *testing.T) {
 		report := requestTxHistory(t, 0, 0)
 		require.Len(t, report.Transactions, 3)
-		assert.NotNil(t, report.Balance, "report should include balance")
+		assert.NotNil(t, report.Balances, "report should include balances")
 	})
 
 	t.Run("FromTimestamp_FilterOldest", func(t *testing.T) {
@@ -487,12 +706,14 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 		assert.Contains(t, string(reportBytes), `"transactions":[]`, "empty transactions should be [] not null")
 	})
 
-	t.Run("BalanceIncluded", func(t *testing.T) {
+	t.Run("BalancesIncluded", func(t *testing.T) {
 		report := requestTxHistory(t, 0, 0)
-		require.NotNil(t, report.Balance)
+		require.NotNil(t, report.Balances)
 		// sender deposited 2 ETH, transferred 0.5 ETH, withdrew 0.1 ETH => 1.4 ETH remaining
 		expectedBalance := types.NewUint256(1_400_000_000_000_000_000)
-		assert.Equal(t, expectedBalance.String(), report.Balance.String())
+		ethHex := ethAddressHex()
+		require.Contains(t, report.Balances, ethHex)
+		assert.Equal(t, expectedBalance.String(), report.Balances[ethHex].String())
 	})
 }
 
@@ -511,7 +732,7 @@ func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId commo
 // after each host call.
 func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -531,7 +752,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after LoadModule")
 
 	// Deposit
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
 	require.Nil(t, failure)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after Deposit")
 
@@ -575,7 +796,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 // (which still use SerializeAndWriteResult → BytesToPtr) do not leak memory.
 func TestIntegration_ErrorPathMemory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -590,7 +811,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deposit so sender has a balance
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, big.NewInt(100), state, wasmBytes)
 	require.Nil(t, failure)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after initial deposit")
 
@@ -619,7 +840,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after non-existent account error")
 
 	// Error: invalid state JSON
-	_, _, _, failure = runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), []byte("{bad-json}"), wasmBytes)
+	_, _, _, failure = runtime.Deposit(ctx, appId, ethSender, ethToken, big.NewInt(100), []byte("{bad-json}"), wasmBytes)
 	require.NotNil(t, failure, "expected error for invalid state")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after invalid state error")
 }
@@ -628,7 +849,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 // by creating many accounts and generating a report that serializes all of them.
 func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -641,7 +862,7 @@ func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	const numAccounts = 100
 	for i := range numAccounts {
 		addr := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
-		newState, _, _, failure := runtime.Deposit(ctx, appId, addr, big.NewInt(int64(1000+i)), state, wasmBytes)
+		newState, _, _, failure := runtime.Deposit(ctx, appId, addr, ethToken, big.NewInt(int64(1000+i)), state, wasmBytes)
 		require.Nil(t, failure, "deposit failed for account %d", i)
 		state = newState
 	}

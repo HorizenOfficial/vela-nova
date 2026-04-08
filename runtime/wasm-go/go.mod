@@ -7,8 +7,9 @@ go 1.24.0
 toolchain go1.24.3
 
 // Can be useful for local developments
-//replace github.com/HorizenOfficial/vela => ../../../vela
-//replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
+replace github.com/HorizenOfficial/vela => ../../../vela
+
+replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
 
 require (
 	github.com/HorizenOfficial/vela v0.0.25

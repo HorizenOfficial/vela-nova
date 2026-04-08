@@ -1,10 +1,15 @@
 package main_test
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,11 +17,13 @@ import (
 	"testing"
 	"time"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
+	"github.com/HorizenOfficial/vela/pkg/executor"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +56,9 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	depositEvent, err := suite.WaitForEvent(user, "deposit", timeout)
+	userSeed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
@@ -81,7 +90,9 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, suite.SubmitRequest(withdrawalReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	withdrawalEvent, err := suite.WaitForEvent(user, "withdrawal", timeout)
+	userSeed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -132,13 +143,55 @@ func buildAndLoadWasmModule(t *testing.T) []byte {
 	return wasmBytecode
 }
 
+// uploadArtifactAndBuildDescriptorPayload uploads a WASM artifact to the local
+// artifact store and returns a deploy descriptor payload (JSON) that references it.
+func uploadArtifactAndBuildDescriptorPayload(t *testing.T, suite *systemTests.SystemTestSuite, wasmBytecode []byte) []byte {
+	t.Helper()
+
+	store, err := deployartifact.NewStore(suite.GetArtifactsPath())
+	require.NoError(t, err)
+	uploadAPI := deployartifact.NewAPI(store, 50, logger.NewLogger(&logger.Config{Kind: "zerolog", Console: false}))
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fileWriter, err := writer.CreateFormFile("wasm", "app.wasm")
+	require.NoError(t, err)
+	_, err = fileWriter.Write(wasmBytecode)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/deploy/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	uploadAPI.HandleUpload(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var uploadResp deployartifact.UploadResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &uploadResp))
+
+	localSum := sha256.Sum256(wasmBytecode)
+	localSHA := hex.EncodeToString(localSum[:])
+	localArtifactID, err := common.BuildArtifactID(localSHA)
+	require.NoError(t, err)
+	require.Equal(t, localSHA, uploadResp.WasmSHA256)
+	require.Equal(t, localArtifactID, uploadResp.ArtifactID)
+
+	descriptor := common.DeployDescriptor{
+		Mode:       common.DeployModeArtifactRef,
+		ArtifactID: uploadResp.ArtifactID,
+		WasmSHA256: uploadResp.WasmSHA256,
+	}
+	payload, err := json.Marshal(descriptor)
+	require.NoError(t, err)
+	return payload
+}
 
 func TestPaymentAppFullFlow(t *testing.T) {
 	if os.Getenv("CI_FLAG") != "" {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger(), newTestLogger())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger2(), newTestLogger2())
 	defer suite.Cleanup()
 
 	wasmBytecode := buildAndLoadWasmModule(t)
@@ -147,35 +200,43 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, suite.StartManager())
 
 	appID := common.NewApplicationId(1)
-	userAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	auditorAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
-	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	timeout := 100 * time.Second
 
 	cryptoHelper := systemTests.NewCryptoHelper()
 
-	// Deploy the application
+	userAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
+
+	// Deploy the application using deploy descriptor (upload artifact first)
+	deployPayload := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
 	deployReq := &common.Request{
 		RequestType:   common.Deploy,
 		ApplicationID: appID,
 		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       wasmBytecode,
+		Payload:       deployPayload,
 		Sender:        userAddress,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		DepositAmount: common.NewBig(0),
+		AssetAmount:   common.NewBig(0),
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err := suite.WaitForAppStateInDB(appID, timeout)
+	_, err = suite.WaitForAppStateInDB(appID, timeout)
 	require.NoError(t, err)
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
+	require.NoError(t, err)
+
+	// Get executor communication key for associate key requests
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
 	// Register user key
 	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
 	require.NoError(t, err)
 	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey())
+	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateKeyReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -184,7 +245,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
 	require.NoError(t, err)
 	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey())
+	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -198,9 +259,6 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, withdrawAmount)
 
 	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
-	executorPubKey, err := suite.GetExecutorCommunicationKey()
-	require.NoError(t, err)
-
 	reqID = commontestutil.GenerateRandomRequestID()
 	deanonReq, err := cryptoHelper.CreateDeanonymizationRequest(appID, reqID, auditorAddress, []byte("{}"), executorPubKey)
 	require.NoError(t, err)
@@ -240,12 +298,15 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.True(t, ok, "accounts is not a map")
 	require.Len(t, accounts, 1, "expected exactly one account in report")
 
+	ethTokenHex := ethCommon.Address{}.Hex()
 	expectedBalance := new(big.Int).Sub(depositAmount, withdrawAmount)
 	for _, acct := range accounts {
 		acctMap, ok := acct.(map[string]interface{})
 		require.True(t, ok, "account entry is not a map")
-		balanceStr, ok := acctMap["balance"].(string)
-		require.True(t, ok, "balance is not a string")
+		balances, ok := acctMap["balances"].(map[string]interface{})
+		require.True(t, ok, "balances is not a map")
+		balanceStr, ok := balances[ethTokenHex].(string)
+		require.True(t, ok, "ETH balance is not a string")
 		require.True(t, len(balanceStr) > 2 && balanceStr[:2] == "0x", "balance is not hex")
 		balance, ok := new(big.Int).SetString(balanceStr[2:], 16)
 		require.True(t, ok, "failed to parse balance hex")
@@ -266,6 +327,20 @@ func newTestLogger() logger.Logger {
 			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
 			RemoteLogNetwork: "tcp",
 			NetworkLevel:     "trace"},
+	)
+	return testLogger
+}
+
+func newTestLogger2() logger.Logger {
+	testLogger := logger.NewLogger(
+		&logger.Config{
+			Kind:         "zerolog",
+			ConsoleColor: false, // colors can print escape chars on tty
+			Console:      true,
+			ConsoleLevel: "trace",
+			//FileName:     "qqq.log",
+			FileLevel:    "trace",
+			NetworkLevel: "trace"},
 	)
 	return testLogger
 }

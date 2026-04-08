@@ -10,6 +10,13 @@ import (
 
 // These functions handle the WASM I/O and call the high-level logic functions.
 
+//export deploy
+func deploy(appId int64, paramsPtr *byte, paramsLen int32) *byte {
+	paramsJSON := utils.PtrToString(paramsPtr, paramsLen)
+	result := app.Deploy(appId, paramsJSON)
+	return types.SerializeAndWriteResult(result)
+}
+
 //export load_module
 func load_module(appId int64) *byte {
 	result := app.LoadModule(appId)
@@ -17,13 +24,13 @@ func load_module(appId int64) *byte {
 }
 
 //export deposit
-func deposit(appId int64, senderPtr *byte, senderLen int32, valuePtr *byte, valueLen int32, statePtr *byte, stateLen int32) *byte {
-	// TODO: in future we must use the appId for adding it to the generated event
+func deposit(appId int64, senderPtr *byte, senderLen int32, tokenPtr *byte, tokenLen int32, valuePtr *byte, valueLen int32, statePtr *byte, stateLen int32) *byte {
 	_ = appId
 	sender := types.PtrToAddress(senderPtr, senderLen)
+	token := types.PtrToAddress(tokenPtr, tokenLen)
 	stateJSON := utils.PtrToString(statePtr, stateLen)
 	value := types.PtrToUint256(valuePtr, valueLen)
-	result := app.DepositFunds(sender, value, stateJSON)
+	result := app.DepositFunds(sender, token, value, stateJSON)
 	return types.SerializeAndWriteResult(result)
 }
 
