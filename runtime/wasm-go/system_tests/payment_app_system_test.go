@@ -191,7 +191,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger2(), newTestLogger2())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newConsoleLogger(), newConsoleLogger())
 	defer suite.Cleanup()
 
 	wasmBytecode := buildAndLoadWasmModule(t)
@@ -315,32 +315,31 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	}
 }
 
-func newTestLogger() logger.Logger {
-	testLogger := logger.NewLogger(
+// newNetworkLogger creates a zeronetwork logger that forwards to the log server.
+// Currently unused: the suite allocates an ephemeral log-server port, so the
+// hardcoded 5000 doesn't match. Kept for when the suite exposes the actual port.
+func newNetworkLogger() logger.Logger {
+	return logger.NewLogger(
 		&logger.Config{
-			Kind:         "zeronetwork",
-			ConsoleColor: false, // colors can print escape chars on tty
-			Console:      false,
-			ConsoleLevel: "trace",
-			//FileName:     "qqq.log",
+			Kind:             "zeronetwork",
+			ConsoleColor:     false,
+			Console:          false,
+			ConsoleLevel:     "trace",
 			FileLevel:        "trace",
 			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
 			RemoteLogNetwork: "tcp",
 			NetworkLevel:     "trace"},
 	)
-	return testLogger
 }
 
-func newTestLogger2() logger.Logger {
-	testLogger := logger.NewLogger(
+func newConsoleLogger() logger.Logger {
+	return logger.NewLogger(
 		&logger.Config{
 			Kind:         "zerolog",
-			ConsoleColor: false, // colors can print escape chars on tty
+			ConsoleColor: false,
 			Console:      true,
 			ConsoleLevel: "trace",
-			//FileName:     "qqq.log",
 			FileLevel:    "trace",
 			NetworkLevel: "trace"},
 	)
-	return testLogger
 }

@@ -49,6 +49,12 @@ func Deploy(appId int64, paramsJSON string) types.DeployResult {
 			}
 		}
 		for _, tokenHex := range params.AllowedTokens {
+			if _, err := types.HexToAddress(tokenHex); err != nil {
+				utils.LogError("Deploy: invalid token address %q: %v", tokenHex, err)
+				return types.DeployResult{
+					Error: fmt.Sprintf("invalid token address %q: %v", tokenHex, err),
+				}
+			}
 			allowedTokens[tokenHex] = true
 		}
 	}
@@ -96,12 +102,19 @@ func LoadModule(appId int64) types.LoadModuleResult {
 	}
 }
 
-// getTokenBalance returns the balance for a specific token, or a zero value if not found.
-func getTokenBalance(acc *AccountState, tokenHex string) *types.Uint256 {
+// getOrCreateTokenBalance returns the balance for a specific token, initialising
+// the map entry to zero if it does not yet exist.  The returned pointer is always
+// stored in acc.Balances, so mutations are reflected in the state.
+func getOrCreateTokenBalance(acc *AccountState, tokenHex string) *types.Uint256 {
+	if acc.Balances == nil {
+		acc.Balances = make(map[string]*types.Uint256)
+	}
 	if bal, ok := acc.Balances[tokenHex]; ok {
 		return bal
 	}
-	return types.NewUint256(0)
+	bal := types.NewUint256(0)
+	acc.Balances[tokenHex] = bal
+	return bal
 }
 
 // resolveTokenHex returns the hex of the token address, defaulting to ETH if the address is zero.
@@ -134,7 +147,7 @@ func DepositFunds(senderPtr *types.Address, tokenPtr *types.Address, value *type
 		return types.DepositResult{Error: fmt.Sprintf("Failed to parse application state: %v", err)}
 	}
 
-	tokenHex := tokenPtr.Hex()
+	tokenHex := resolveTokenHex(*tokenPtr)
 
 	// Validate token against app allowlist
 	if !currentState.AllowedTokens[tokenHex] {
@@ -156,16 +169,8 @@ func DepositFunds(senderPtr *types.Address, tokenPtr *types.Address, value *type
 			}
 			currentState.Accounts[senderHex] = acc
 		}
-		if acc.Balances == nil {
-			acc.Balances = make(map[string]*types.Uint256)
-		}
-
 		// Get or initialize per-token balance
-		balance, exists := acc.Balances[tokenHex]
-		if !exists {
-			balance = types.NewUint256(0)
-			acc.Balances[tokenHex] = balance
-		}
+		balance := getOrCreateTokenBalance(acc, tokenHex)
 
 		// Add deposit to per-token balance (overflow check)
 		oldBalance := *balance
@@ -279,7 +284,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: fmt.Sprintf("Account %s does not exist!", senderHex)}
 			}
 
-			senderBalance := getTokenBalance(currentState.Accounts[senderHex], tokenHex)
+			senderBalance := getOrCreateTokenBalance(currentState.Accounts[senderHex], tokenHex)
 			if senderBalance.Cmp(*instructions.Transfer.Amount) < 0 {
 				utils.LogError("ProcessRequest: insufficient balance for transfer")
 				return types.ProcessResult{Error: "Insufficient balance for transfer"}
@@ -290,19 +295,11 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			// Ensure recipient account exists
 			if currentState.Accounts[recipientHex] == nil {
 				currentState.Accounts[recipientHex] = &AccountState{
-					Address:  instructions.Transfer.To,
-					Balances: make(map[string]*types.Uint256),
+					Address: instructions.Transfer.To,
 				}
 			}
-			if currentState.Accounts[recipientHex].Balances == nil {
-				currentState.Accounts[recipientHex].Balances = make(map[string]*types.Uint256)
-			}
 
-			// Ensure recipient has a balance entry for this token
-			recipientBalance := getTokenBalance(currentState.Accounts[recipientHex], tokenHex)
-			if _, exists := currentState.Accounts[recipientHex].Balances[tokenHex]; !exists {
-				currentState.Accounts[recipientHex].Balances[tokenHex] = recipientBalance
-			}
+			recipientBalance := getOrCreateTokenBalance(currentState.Accounts[recipientHex], tokenHex)
 
 			// Execute transfer (save both balances for revert on overflow)
 			oldSenderBalance := *senderBalance
@@ -387,7 +384,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: fmt.Sprintf("Account %s does not exist", senderHex)}
 			}
 
-			senderBalance := getTokenBalance(currentState.Accounts[senderHex], tokenHex)
+			senderBalance := getOrCreateTokenBalance(currentState.Accounts[senderHex], tokenHex)
 
 			if senderBalance.Cmp(*instructions.Withdraw.Amount) < 0 {
 				utils.LogError("ProcessRequest: insufficient balance for account %s", senderHex)
