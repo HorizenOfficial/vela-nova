@@ -191,7 +191,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newConsoleLogger(), newConsoleLogger())
+	// The suite accepts logger configs (not instances) so it can inject the
+	// ephemeral log-server port into RemoteLogParams before creating the loggers.
+	// This guarantees the zeronetwork logger connects to the correct address.
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newNetworkLogConfig(), newNetworkLogConfig())
 	defer suite.Cleanup()
 
 	wasmBytecode := buildAndLoadWasmModule(t)
@@ -315,31 +318,28 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	}
 }
 
-// newNetworkLogger creates a zeronetwork logger that forwards to the log server.
-// Currently unused: the suite allocates an ephemeral log-server port, so the
-// hardcoded 5000 doesn't match. Kept for when the suite exposes the actual port.
-func newNetworkLogger() logger.Logger {
-	return logger.NewLogger(
-		&logger.Config{
-			Kind:             "zeronetwork",
-			ConsoleColor:     false,
-			Console:          false,
-			ConsoleLevel:     "trace",
-			FileLevel:        "trace",
-			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
-			RemoteLogNetwork: "tcp",
-			NetworkLevel:     "trace"},
-	)
+// newNetworkLogConfig returns a zeronetwork logger config.
+// The suite injects the correct log-server port into RemoteLogParams before
+// creating the logger, so no hardcoded port is needed here.
+func newNetworkLogConfig() *logger.Config {
+	return &logger.Config{
+		Kind:             "zeronetwork",
+		ConsoleColor:     false,
+		Console:          true,
+		ConsoleLevel:     "trace",
+		FileLevel:        "trace",
+		RemoteLogNetwork: "tcp",
+		NetworkLevel:     "trace",
+	}
 }
 
-func newConsoleLogger() logger.Logger {
-	return logger.NewLogger(
-		&logger.Config{
-			Kind:         "zerolog",
-			ConsoleColor: false,
-			Console:      true,
-			ConsoleLevel: "trace",
-			FileLevel:    "trace",
-			NetworkLevel: "trace"},
-	)
+func newConsoleLogConfig() *logger.Config {
+	return &logger.Config{
+		Kind:         "zerolog",
+		ConsoleColor: false,
+		Console:      true,
+		ConsoleLevel: "trace",
+		FileLevel:    "trace",
+		NetworkLevel: "trace",
+	}
 }
