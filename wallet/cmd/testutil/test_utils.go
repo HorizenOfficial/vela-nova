@@ -18,7 +18,46 @@ import (
 
 func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.BlockChainClient {
 	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+}
 
+// DeployApplication submits a deploy request using the Deployer account (which holds the
+// DEPLOYER_ROLE) and synchronously completes it so the application is registered on-chain
+// before the test's command runs. Returns the dynamically assigned application ID.
+func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.ApplicationIdType {
+	t.Helper()
+
+	testHelper.SubmitDeployRequest(nil, big.NewInt(100))
+
+	blockchainClient := SetupNewBlockChainClient(testHelper)
+	deadline := time.Now().Add(15 * time.Second)
+
+	for {
+		if time.Now().After(deadline) {
+			panic(fmt.Sprintf("timeout waiting for deploy request in %s", t.Name()))
+		}
+
+		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		require.NoError(t, err)
+		if request != nil {
+			var newStateRoot [32]byte
+			_, err = rand.Read(newStateRoot[:])
+			require.NoError(t, err)
+			update := &common.UpdatePayload{
+				ApplicationID:  request.ApplicationID,
+				RequestID:      request.RequestID,
+				PrevStateRoot:  stateRoot,
+				NewStateRoot:   newStateRoot,
+				Signature:      make([]byte, 65),
+				RefundAmount:   common.NewBig(0),
+				ApplicationFee: common.NewBig(100), // must equal the maxFeeValue passed to SubmitDeployRequest
+			}
+			err = blockchainClient.SubmitStateUpdate(context.Background(), update)
+			require.NoError(t, err)
+			return request.ApplicationID
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {

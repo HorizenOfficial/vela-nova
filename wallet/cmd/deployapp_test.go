@@ -90,6 +90,10 @@ func (*deployAppTestBlockchainClient) IsConnected() bool {
 	return true
 }
 
+func (*deployAppTestBlockchainClient) SubmitDeployRequest(_ context.Context, protocolVersion uint8, payload []byte, maxFeeValue *big.Int) (common.ApplicationIdType, common.RequestIdType, uint64, error) {
+	return 0, common.RequestIdType{}, 0, nil
+}
+
 func TestDeployAppCommand_Success(t *testing.T) {
 	wasmBytes := []byte("dummy-wasm-module")
 	wasmPath := writeTempWASM(t, wasmBytes)

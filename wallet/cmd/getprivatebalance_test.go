@@ -36,6 +36,9 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
 	teePub := teeKey.PublicKey()
 
+	seed, _ := GenerateSeed(key1)
+	subtypesList := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
 	// Balance must be hex-encoded with 0x prefix for common.Big unmarshaling
 	// 12345 decimal = 0x3039 hex
 	mockEvent := []byte(`{"` + BALANCE_JSON_KEY + `": "0x3039"}`)
@@ -50,6 +53,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 		{
 			ApplicationID: NOVA_APPLICATION_ID,
 			EncryptedData: encrypted,
+			EventSubType:  subtypesList[0],
 		},
 	})
 	// Execute the command
