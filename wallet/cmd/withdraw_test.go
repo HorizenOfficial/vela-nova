@@ -35,14 +35,19 @@ func TestWithdrawCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	withdrawCmd := NewWithdrawCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	withdrawCmd := NewWithdrawCommand(cfg, blockchainClient)
 	withdrawCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := withdrawCmd.Command()
 
@@ -85,14 +90,19 @@ func TestWithdrawCmdFailure(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	withdrawCmd := NewWithdrawCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  10,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	withdrawCmd := NewWithdrawCommand(cfg, blockchainClient)
 	withdrawCmd.SubgraphClient = testutil.SubgraphClientFailure()
 	cmd := withdrawCmd.Command()
 

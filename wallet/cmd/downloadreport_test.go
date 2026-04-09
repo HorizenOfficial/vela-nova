@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
+	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
@@ -67,6 +68,7 @@ func TestDownloadReportWithoutDecryptSavesReport(t *testing.T) {
 		AuthorityServiceURL: ts.URL,
 		RpcUrl:              rpcSrv.URL,
 	}
+	testutil.WriteTempConf(t, cfg)
 
 	tmpDir := t.TempDir()
 	destPath := filepath.Join(tmpDir, "out.json")

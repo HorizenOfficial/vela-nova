@@ -29,14 +29,19 @@ func TestRegisterUserCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	regCmd := NewRegisterUserCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	regCmd := NewRegisterUserCommand(cfg, blockchainClient)
 	regCmd.SubgraphClient = testutil.SubgraphClientOK()
 	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -73,14 +78,19 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	regCmd := NewRegisterUserCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 2,
 		BlockchainPollingTimeout:  60,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	regCmd := NewRegisterUserCommand(cfg, blockchainClient)
 	regCmd.SubgraphClient = testutil.SubgraphClientFailure()
 	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")
@@ -117,14 +127,19 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
-	regCmd := NewRegisterUserCommand(&app.Config{
+	cfg := &app.Config{
 		KeySecp:                   key1,
 		KeyP521:                   key2,
+		ApplicationID:             appID,
 		BlockchainPollingInterval: 1,
 		BlockchainPollingTimeout:  2,
-	}, blockchainClient)
+	}
+	testutil.WriteTempConf(t, cfg)
+	regCmd := NewRegisterUserCommand(cfg, blockchainClient)
 	regCmd.SubgraphClient = testutil.SubgraphClientEmpty()
 	cmd := regCmd.Command()
 	cmd.Flags().Set("max-value-fee", "100 wei")

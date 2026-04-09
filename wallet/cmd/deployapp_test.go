@@ -17,6 +17,7 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	cmdtestutil "github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	velatestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -24,11 +25,12 @@ import (
 )
 
 type deployAppTestBlockchainClient struct {
-	pending []*common.Request
-	nextID  byte
+	pending       []*common.Request
+	deployPayload []byte
+	nextID        byte
 }
 
-func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, depositAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
+func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, tokenAddress ethCommon.Address, assetAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
 	c.nextID++
 	var requestID common.RequestIdType
 	requestID[31] = c.nextID
@@ -39,11 +41,21 @@ func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protoco
 		RequestID:       requestID,
 		RequestType:     requestType,
 		Payload:         payload,
-		DepositAmount:   common.ToBig(depositAmount),
+		TokenAddress:    tokenAddress,
+		AssetAmount:     common.ToBig(assetAmount),
 		MaxFeeValue:     common.ToBig(maxFeeValue),
 	})
 
 	return requestID, 0, nil
+}
+
+func (c *deployAppTestBlockchainClient) SubmitDeployRequest(_ context.Context, protocolVersion uint8, payload []byte, maxFeeValue *big.Int) (common.ApplicationIdType, common.RequestIdType, uint64, error) {
+	c.nextID++
+	var requestID common.RequestIdType
+	requestID[31] = c.nextID
+	c.deployPayload = payload
+	// Simulate contract assigning applicationId = 42
+	return common.NewApplicationId(42), requestID, 0, nil
 }
 
 func (c *deployAppTestBlockchainClient) GetPendingRequests(_ context.Context) ([]*common.Request, error) {
@@ -70,11 +82,11 @@ func (*deployAppTestBlockchainClient) LatestBlockNumber(context.Context) (uint64
 	return 0, nil
 }
 
-func (*deployAppTestBlockchainClient) GetPendingPayments(context.Context, ethCommon.Address) (*big.Int, error) {
+func (*deployAppTestBlockchainClient) GetPendingClaims(context.Context, ethCommon.Address, ethCommon.Address) (*big.Int, error) {
 	return big.NewInt(0), nil
 }
 
-func (*deployAppTestBlockchainClient) WithdrawPayments(context.Context, ethCommon.Address) error {
+func (*deployAppTestBlockchainClient) Claim(context.Context, ethCommon.Address, ethCommon.Address) error {
 	return nil
 }
 
@@ -94,6 +106,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	wasmBytes := []byte("dummy-wasm-module")
 	wasmPath := writeTempWASM(t, wasmBytes)
 	shaHex := shaHex(wasmBytes)
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 
 	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
@@ -118,10 +131,10 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
-	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
 	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
@@ -129,25 +142,25 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	err := cmd.run(context.Background())
 	require.NoError(t, err)
 
-	pending, err := mockBC.GetPendingRequests(context.Background())
-	require.NoError(t, err)
-	require.Len(t, pending, 1)
-
-	req := pending[0]
-	require.Equal(t, common.Deploy, req.RequestType)
-	require.NotEmpty(t, req.Payload)
+	require.NotEmpty(t, mockBC.deployPayload)
 
 	var payload map[string]any
-	require.NoError(t, json.Unmarshal(req.Payload, &payload))
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
 	require.Equal(t, "artifact_ref", payload["mode"])
 	require.Equal(t, "sha256:"+shaHex, payload["artifactId"])
 	require.Equal(t, shaHex, payload["wasmSha256"])
+
+	// Verify ApplicationID was persisted to wallet.conf and can be read back
+	savedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), savedCfg.ApplicationID)
 }
 
 func TestDeployAppCommand_FailsWithoutArtifactServiceURL(t *testing.T) {
 	wasmPath := writeTempWASM(t, []byte("dummy-wasm-module"))
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 
-	cmd := NewDeployAppCommand(&app.Config{}, blockchain.NewMockClient())
+	cmd := NewDeployAppCommand(&app.Config{}, blockchain.NewMockClient(), confFile)
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
@@ -167,14 +180,15 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	}))
 	defer artifactServer.Close()
 
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
 	mockBC := &deployAppTestBlockchainClient{}
 	cfg := &app.Config{
 		AuthorityServiceURL:       artifactServer.URL,
 		BlockchainPollingInterval: 1,
-		BlockchainPollingTimeout:  1,
+		BlockchainPollingTimeout:  5,
 	}
 
-	cmd := NewDeployAppCommand(cfg, mockBC)
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
 	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
@@ -182,9 +196,175 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	err := cmd.run(context.Background())
 	require.ErrorContains(t, err, "deploy upload hash mismatch")
 
-	pending, getErr := mockBC.GetPendingRequests(context.Background())
-	require.NoError(t, getErr)
-	require.Len(t, pending, 0)
+	require.Empty(t, mockBC.deployPayload)
+}
+
+func TestDeployAppCommand_OverwritesExistingApplicationID(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+
+	// Pre-existing wallet.conf with a different ApplicationID
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{
+		ApplicationID: common.NewApplicationId(7),
+	})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.NoError(t, err)
+
+	// Read the raw file — old value should be commented out
+	data, err := os.ReadFile(confFile)
+	require.NoError(t, err)
+	content := string(data)
+	require.Contains(t, content, "# ApplicationID=7")
+	require.Contains(t, content, "ApplicationID=42")
+
+	// Round-trip: LoadConfigFromFile should read the new value
+	savedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), savedCfg.ApplicationID)
+}
+
+// TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID verifies the full
+// persistence round-trip across a simulated wallet restart:
+//
+//  1. A wallet.conf is created with an empty ApplicationID.
+//  2. The deployapp command runs, the contract assigns ApplicationID=42,
+//     and SaveApplicationID writes it to wallet.conf.
+//  3. LoadConfigFromFile re-reads wallet.conf from disk (simulating a fresh
+//     wallet process starting up after the deploy).
+//  4. A deposit command is executed using the reloaded config. The test asserts
+//     that SubmitRequest receives ApplicationID=42 — proving the value survived
+//     the write-to-disk / read-from-disk cycle and is usable by subsequent commands.
+func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+
+	// Phase 1: Create wallet.conf with empty ApplicationID and deploy
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{
+		AuthorityServiceURL:       "http://placeholder",
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	mockBC := &deployAppTestBlockchainClient{}
+	deployCfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	deployCmd := NewDeployAppCommand(deployCfg, mockBC, confFile)
+	deployCmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	deployCmd.wasmPath = wasmPath
+	deployCmd.maxFeeValue = "100 wei"
+
+	err := deployCmd.run(context.Background())
+	require.NoError(t, err)
+
+	// Phase 2: Simulate wallet restart — load config fresh from the file
+	reloadedCfg, err := app.LoadConfigFromFile(confFile)
+	require.NoError(t, err)
+	require.Equal(t, common.NewApplicationId(42), reloadedCfg.ApplicationID,
+		"reloaded config should have the ApplicationID written by deploy")
+
+	// Phase 3: Use the reloaded config for a deposit command — verify it passes
+	// the correct ApplicationID to SubmitRequest
+	depositCmd := NewDepositCommand(reloadedCfg, mockBC)
+	depositCmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd := depositCmd.Command()
+	cmd.Flags().Set("amount", "1 wei")
+	cmd.Flags().Set("max-value-fee", "1 wei")
+	cmd.Run(cmd, nil)
+
+	// The mock captured the SubmitRequest call — verify it used ApplicationID 42
+	require.Len(t, mockBC.pending, 1, "deposit should have submitted one request")
+	require.Equal(t, common.NewApplicationId(42), mockBC.pending[0].ApplicationID,
+		"deposit should use the ApplicationID that was persisted by deploy")
+}
+
+// TestDeployAppCommand_UnauthorizedDeployerReverts verifies that the smart contract
+// rejects deploy requests from accounts that lack the DEPLOYER_ROLE.
+//
+// This is an integration test against a simulated blockchain (not a mock). It exercises
+// the real ProcessorEndpoint contract's access control. The DEPLOYER_ROLE is granted to
+// testHelper.Deployer during contract deployment; the Submitter account is a regular user
+// without that role.
+//
+// The rejection happens at the contract level (before the manager/executor are involved),
+// so this test does not need the full system test infrastructure — just a blockchain client
+// configured with a non-deployer signing key.
+func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHex := shaHex(wasmBytes)
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHex,
+			"wasmSha256": shaHex,
+		})
+	}))
+	defer artifactServer.Close()
+
+	testHelper := velatestutil.NewSimTestHelper(t, true, true, nil, nil)
+	defer testHelper.Close()
+
+	// Create a blockchain client using the Submitter account, which does NOT have
+	// the DEPLOYER_ROLE. Only testHelper.Deployer has that role (granted during
+	// contract construction).
+	unauthorizedClient := blockchain.SetupNewBlockChainClientConnected(
+		testHelper.Client(),
+		testHelper.ProcessorContractAddress,
+		testHelper.TeeSignerAddress,
+		testHelper.Submitter,
+	)
+
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	cmd := NewDeployAppCommand(cfg, unauthorizedClient, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+
+	err := cmd.run(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DeployerNotAllowed",
+		"contract should reject deploy from an account without DEPLOYER_ROLE")
 }
 
 func writeTempWASM(t *testing.T, wasm []byte) string {

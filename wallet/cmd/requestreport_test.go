@@ -23,12 +23,14 @@ func TestRequestReportCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
+	appID := testutil.DeployTestApplication(t, testHelper)
+
 	Key1 := &cryptotypes.PrivateKeySecp256k1{PrivateKey: testHelper.ManagerPrivKey}
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	// Set the authority to be the testHelper manager account
-	tx := testHelper.AddAuthority(big.NewInt(1), testHelper.ManagerAccount.From) // TODO ML NOVA_APPLICATION_ID should be used but there are consistency problems, will be fixed, already created a task but adding this TODO to not forget that we need to take care about this here as well
+	// Set the authority to be the testHelper manager account for the deployed app
+	tx := testHelper.AddAuthority(new(big.Int).SetUint64(uint64(appID)), testHelper.ManagerAccount.From)
 	testHelper.WaitMined(tx)
 
 	t.Run("Command successful", func(t *testing.T) {
@@ -40,12 +42,15 @@ func TestRequestReportCmd(t *testing.T) {
 
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		reportCmd := NewRequestReportCommand(&app.Config{
+		cfg := &app.Config{
 			KeySecp:                   Key1,
 			KeyP521:                   key2,
+			ApplicationID:             appID,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient)
+		}
+		testutil.WriteTempConf(t, cfg)
+		reportCmd := NewRequestReportCommand(cfg, blockchainClient)
 		reportCmd.SubgraphClient = testutil.SubgraphClientOK()
 		cmd := reportCmd.Command()
 		cmd.Flags().Set("max-value-fee", "100 wei")
@@ -75,12 +80,15 @@ func TestRequestReportCmd(t *testing.T) {
 
 		// Execute the command
 		blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
-		reportCmd := NewRequestReportCommand(&app.Config{
+		cfg := &app.Config{
 			KeySecp:                   Key1,
 			KeyP521:                   key2,
+			ApplicationID:             appID,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  60,
-		}, blockchainClient)
+		}
+		testutil.WriteTempConf(t, cfg)
+		reportCmd := NewRequestReportCommand(cfg, blockchainClient)
 		reportCmd.SubgraphClient = testutil.SubgraphClientFailure()
 		cmd := reportCmd.Command()
 		cmd.Flags().Set("max-value-fee", "100 wei")

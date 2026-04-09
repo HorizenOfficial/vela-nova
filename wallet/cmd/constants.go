@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	"github.com/HorizenOfficial/vela/pkg/common"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 )
 
-var NOVA_APPLICATION_ID = common.NewApplicationId(1)
+// ETH_TOKEN is the sentinel address representing native ETH.
+// Matches Structs.sol: address constant ETH_TOKEN = address(0).
+var ETH_TOKEN = ethCommon.Address{}
 
 const PROTOCOL_VERSION uint8 = 0
 const BLOCK_BATCH_SIZE = 100000
-const BALANCE_JSON_KEY = "balance"

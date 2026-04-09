@@ -20,6 +20,7 @@ type PrivateTransferCommand struct {
 	value       string
 	maxFeeValue string
 	invoiceID   string
+	token       string
 }
 
 func NewPrivateTransferCommand(config *app.Config, blockchainClient blockchain.Client) *PrivateTransferCommand {
@@ -36,14 +37,30 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 		Short: `submits a private transfer request to a receiver address`,
 		Long:  `submits a private transfer request to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
+			// Resolve token
+			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
+
 			//get receiver
 			to, err := app.ValidateAndChecksumAddress(c.receiver)
 			if err != nil {
 				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
 			}
 
-			//get amount
-			amount, err := app.ParseEtherValue(c.value)
+			// Parse amount with correct decimals
+			var amount *big.Int
+			if tokenInfo.Address == ETH_TOKEN {
+				amount, err = app.ParseEtherValue(c.value)
+			} else {
+				amount, err = c.Config.Tokens.ParseAmount(c.value, tokenInfo)
+			}
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
@@ -60,11 +77,9 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				ctx = cmd.Context()
 			}
 			if c.BlockchainClient == nil {
-				//create blockchain client
 				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
-
 				}
 			}
 			defer c.CloseClient()
@@ -79,19 +94,31 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 				return
 			}
 
-			//build payload with type transfer
+			// Resolve token address for the encrypted payload
+			tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
+			if err != nil {
+				log.Fatalf("Error: invalid token address: %v\n", err)
+			}
+
+			//build payload with type transfer (token identity goes in the encrypted payload)
 			payload := runtimeapp.PayloadInstructions{
-				Type:     "transfer",
-				Transfer: &runtimeapp.TransferInstruction{To: toAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes()), InvoiceID: c.invoiceID},
+				Type: "transfer",
+				Transfer: &runtimeapp.TransferInstruction{
+					To:           toAddr,
+					TokenAddress: tokenAddr,
+					Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
+					InvoiceID:    c.invoiceID,
+				},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
 				log.Fatalf("Error encrypting private transfer payload: %v", err)
 			}
 
-			//submit request
+			// On-chain: no business asset deposited (it's a private-state transfer),
+			// so tokenAddress=ETH_TOKEN and assetAmount=0.
 			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
 				return
@@ -106,9 +133,10 @@ func (c *PrivateTransferCommand) Command() *cobra.Command {
 			fmt.Println("Private transfer completed successfully")
 		},
 	}
-	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to process (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount 147777 Wei")
-	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer. Eg --to 0xabc123...")
-	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount to transfer (e.g., '1.5 ETH', '100' for ERC-20)")
+	cmd.Flags().StringVarP(&c.receiver, "to", "t", "", "The receiver address of the private transfer")
+	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (always ETH)")
 	cmd.Flags().StringVarP(&c.invoiceID, "invoice-id", "i", "", "Optional invoice ID to include in the transfer event")
+	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")
 	return cmd
 }

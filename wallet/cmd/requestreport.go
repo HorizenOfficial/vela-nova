@@ -34,6 +34,10 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 		Short: `requests a deanonymization report of the Nova app`,
 		Long:  `requests a deanonymization report of the Nova app. Use --report-type to select 'balances' (default) or 'tx_history'.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
 			if err != nil {
@@ -84,9 +88,8 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				return
 			}
 
-			depositAmount := big.NewInt(0)
 			requestType := common.Deanonymize
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, depositAmount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to generate a deanonymization report: %v\n", err)
 				return
@@ -98,7 +101,7 @@ func (c *RequestReportCommand) Command() *cobra.Command {
 				fmt.Printf("Deanonymization request failed: %v\n", err)
 				return
 			}
-			fmt.Printf("Deanonymization request completed successfully. Report id: %s_%s\n", NOVA_APPLICATION_ID, requestID)
+			fmt.Printf("Deanonymization request completed successfully. Report id: %d_%s\n", c.Config.ApplicationID, requestID)
 
 		},
 	}

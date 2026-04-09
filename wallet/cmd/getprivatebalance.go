@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
@@ -16,6 +17,7 @@ import (
 
 type GetPrivateBalanceCommand struct {
 	*app.ChainCommand
+	token string
 }
 
 func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Client) *GetPrivateBalanceCommand {
@@ -25,13 +27,17 @@ func NewGetPrivateBalanceCommand(config *app.Config, customClient blockchain.Cli
 	}
 }
 
-func EventFilter(b []byte) bool {
+// eventHasBalance returns true if the decrypted event JSON contains a "balance" key.
+func eventHasBalance(b []byte) bool {
 	var m map[string]any
-	err := json.Unmarshal(b, &m)
-	return err == nil && m[BALANCE_JSON_KEY] != nil
+	if err := json.Unmarshal(b, &m); err != nil {
+		return false
+	}
+	return m["balance"] != nil
 }
 
-func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
+// findLatestEvent fetches the most recent decrypted event that contains balance information.
+func findLatestEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521, applicationID common.ApplicationIdType) ([]byte, error) {
 	if subgraphClient == nil {
 		return nil, fmt.Errorf("subgraph client not initialized")
 	}
@@ -44,18 +50,47 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		subgraphClient,
 		teePubKey,
 		*privKey,
-		NOVA_APPLICATION_ID,
+		applicationID,
 		"",
 		1,
-		EventFilter,
+		eventHasBalance,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("can't retrieve events: %w", err)
 	}
 	if len(events) == 0 {
-		return []byte(`{"` + BALANCE_JSON_KEY + `": "0x0"}`), nil
+		return nil, nil // no events found
 	}
 	return events[0], nil
+}
+
+// extractBalance extracts the balance for the given token from a decrypted event.
+// It handles the event format where "balance" is the per-token balance and
+// "tokenAddress" identifies which token the balance refers to.
+func extractBalance(eventJSON []byte, tokenHex string) string {
+	var m map[string]any
+	if err := json.Unmarshal(eventJSON, &m); err != nil {
+		return "0x0"
+	}
+
+	// Check if the event has a tokenAddress field that matches
+	if tokenAddr, hasToken := m["tokenAddress"]; hasToken {
+		if addrStr, ok := tokenAddr.(string); ok {
+			if !strings.EqualFold(addrStr, tokenHex) {
+				// Event is for a different token
+				return "0x0"
+			}
+		}
+	}
+
+	// Read the "balance" field
+	if balVal, ok := m["balance"]; ok {
+		if balStr, ok := balVal.(string); ok {
+			return balStr
+		}
+	}
+
+	return "0x0"
 }
 
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
@@ -64,6 +99,16 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
+			// Resolve token
+			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			if err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
 			ctx := context.Background()
 			if cmd != nil && cmd.Context() != nil {
 				ctx = cmd.Context()
@@ -87,23 +132,28 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to get TEE public key: %v", err)
 			}
 
-			//find event
-			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521)
+			event, err := findLatestEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}
 
-			//get json from event
-			var jsonData struct {
-				Balance *common.Big
+			tokenHex := strings.ToLower(tokenInfo.Address.Hex())
+
+			if event == nil {
+				fmt.Printf("0 %s\n", tokenInfo.Symbol)
+				return
 			}
-			err = json.Unmarshal(event, &jsonData)
-			if err != nil {
-				log.Fatalf("failed to convert event to json: %v", err)
+
+			balanceHex := extractBalance(event, tokenHex)
+
+			var balance common.Big
+			if err := json.Unmarshal([]byte(`"`+balanceHex+`"`), &balance); err != nil {
+				log.Fatalf("failed to parse balance: %v", err)
 			}
-			//print balance
-			fmt.Println(app.WeiToEtherStr(jsonData.Balance.ToInt()))
+
+			fmt.Println(c.Config.Tokens.FormatAmount(balance.ToInt(), tokenInfo))
 		},
 	}
+	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")
 	return cmd
 }
