@@ -41,6 +41,8 @@ type Config struct {
 	BlockchainPollingInterval int64
 	// BlockchainPollingTimeout is the max time interval at which to wait for events from the blockchain
 	BlockchainPollingTimeout int64
+	// PrivateBalanceScanDepth is the max number of events to scan when looking for a token balance
+	PrivateBalanceScanDepth int
 	// Tokens is the token registry loaded from token.* properties in wallet.conf
 	Tokens *TokenRegistry
 }
@@ -190,6 +192,10 @@ func SaveConfigToFile(cfg *Config, path string) error {
 		lines = append(lines, "BlockchainPollingTimeout=")
 	}
 
+	if cfg.PrivateBalanceScanDepth > 0 {
+		lines = append(lines, fmt.Sprintf("PrivateBalanceScanDepth=%d", cfg.PrivateBalanceScanDepth))
+	}
+
 	// Serialize token registry entries
 	if cfg.Tokens != nil {
 		for _, t := range cfg.Tokens.bySymbol {
@@ -281,6 +287,7 @@ func LoadConfigFromFile(confFileName string) (*Config, error) {
 			ApplicationID:             applicationID,
 			BlockchainPollingInterval: config.GetInt64("BlockchainPollingInterval", 2),
 			BlockchainPollingTimeout:  config.GetInt64("BlockchainPollingTimeout", 60),
+			PrivateBalanceScanDepth:   int(config.GetInt64("PrivateBalanceScanDepth", 200)),
 			Tokens:                    tokenRegistry,
 		}, nil
 

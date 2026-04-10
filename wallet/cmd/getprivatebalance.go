@@ -15,6 +15,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultScanDepth = 200
+const scanBatchSize = 100
+
 type GetPrivateBalanceCommand struct {
 	*app.ChainCommand
 	token string
@@ -36,61 +39,79 @@ func eventHasBalance(b []byte) bool {
 	return m["balance"] != nil
 }
 
-// findLatestEvent fetches the most recent decrypted event that contains balance information.
-func findLatestEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521, applicationID common.ApplicationIdType) ([]byte, error) {
+// findTokenBalance scans decrypted events backwards (most recent first) looking for
+// an event whose tokenAddress matches the requested token. Returns the balance hex
+// string, or "" if not found within the scan depth.
+func findTokenBalance(
+	ctx context.Context,
+	subgraphClient subgraph.Client,
+	teePubKey *cryptotypes.PublicKeyP521,
+	privKey *cryptotypes.PrivateKeyP521,
+	applicationID common.ApplicationIdType,
+	tokenHex string,
+	maxEvents int,
+) (string, error) {
 	if subgraphClient == nil {
-		return nil, fmt.Errorf("subgraph client not initialized")
+		return "", fmt.Errorf("subgraph client not initialized")
 	}
 	if teePubKey == nil || privKey == nil {
-		return nil, fmt.Errorf("missing keys to decrypt user events")
+		return "", fmt.Errorf("missing keys to decrypt user events")
 	}
 
-	events, err := FetchAndDecryptUserEvents(
-		ctx,
-		subgraphClient,
-		teePubKey,
-		*privKey,
-		applicationID,
-		"",
-		1,
-		eventHasBalance,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("can't retrieve events: %w", err)
-	}
-	if len(events) == 0 {
-		return nil, nil // no events found
-	}
-	return events[0], nil
-}
+	scanned := 0
+	for scanned < maxEvents {
+		batchSize := scanBatchSize
+		if scanned+batchSize > maxEvents {
+			batchSize = maxEvents - scanned
+		}
 
-// extractBalance extracts the balance for the given token from a decrypted event.
-// It handles the event format where "balance" is the per-token balance and
-// "tokenAddress" identifies which token the balance refers to.
-func extractBalance(eventJSON []byte, tokenHex string) string {
-	var m map[string]any
-	if err := json.Unmarshal(eventJSON, &m); err != nil {
-		return "0x0"
-	}
+		events, err := FetchAndDecryptUserEvents(
+			ctx,
+			subgraphClient,
+			teePubKey,
+			*privKey,
+			applicationID,
+			"",
+			batchSize,
+			eventHasBalance,
+		)
+		if err != nil {
+			return "", fmt.Errorf("can't retrieve events: %w", err)
+		}
 
-	// Check if the event has a tokenAddress field that matches
-	if tokenAddr, hasToken := m["tokenAddress"]; hasToken {
-		if addrStr, ok := tokenAddr.(string); ok {
-			if !strings.EqualFold(addrStr, tokenHex) {
-				// Event is for a different token
-				return "0x0"
+		// Check each event for a matching tokenAddress
+		for _, eventJSON := range events {
+			var m map[string]any
+			if err := json.Unmarshal(eventJSON, &m); err != nil {
+				continue
+			}
+
+			// Check if tokenAddress matches
+			if tokenAddr, hasToken := m["tokenAddress"]; hasToken {
+				if addrStr, ok := tokenAddr.(string); ok {
+					if !strings.EqualFold(addrStr, tokenHex) {
+						continue // different token, skip
+					}
+				}
+			}
+
+			// Found a matching event — read its balance
+			if balVal, ok := m["balance"]; ok {
+				if balStr, ok := balVal.(string); ok {
+					return balStr, nil
+				}
 			}
 		}
-	}
 
-	// Read the "balance" field
-	if balVal, ok := m["balance"]; ok {
-		if balStr, ok := balVal.(string); ok {
-			return balStr
+		scanned += len(events)
+
+		// If we got fewer events than requested, there are no more
+		if len(events) < batchSize {
+			break
 		}
 	}
 
-	return "0x0"
+	return "", nil // not found
 }
 
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
@@ -132,19 +153,23 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to get TEE public key: %v", err)
 			}
 
-			event, err := findLatestEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID)
-			if err != nil {
-				log.Fatalf("failed to find event: %v", err)
-			}
-
 			tokenHex := strings.ToLower(tokenInfo.Address.Hex())
 
-			if event == nil {
-				fmt.Printf("0 %s\n", tokenInfo.Symbol)
-				return
+			scanDepth := c.Config.PrivateBalanceScanDepth
+			if scanDepth <= 0 {
+				scanDepth = defaultScanDepth
 			}
 
-			balanceHex := extractBalance(event, tokenHex)
+			balanceHex, err := findTokenBalance(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID, tokenHex, scanDepth)
+			if err != nil {
+				log.Fatalf("failed to find balance: %v", err)
+			}
+
+			if balanceHex == "" {
+				fmt.Printf("No %s balance found in the last %d events.\n", tokenInfo.Symbol, scanDepth)
+				fmt.Println("For an authoritative balance, use: requestreport --report-type balances")
+				return
+			}
 
 			var balance common.Big
 			if err := json.Unmarshal([]byte(`"`+balanceHex+`"`), &balance); err != nil {

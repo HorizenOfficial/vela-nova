@@ -15,6 +15,7 @@ import (
 	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/common/apperrors"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,6 +150,18 @@ func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.Applic
 }
 
 func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetRefunds(context.Context, common.ApplicationIdType, *common.RequestIdType, int) ([]subgraph.OnChainRefund, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetWithdrawals(context.Context, common.ApplicationIdType, *common.RequestIdType, int) ([]subgraph.OnChainWithdrawal, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetClaimsExecuted(context.Context, ethCommon.Address, *ethCommon.Address, int) ([]subgraph.ClaimExecuted, error) {
 	return nil, nil
 }
 

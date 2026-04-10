@@ -9,6 +9,8 @@ SubgraphURL=
 ApplicationID=
 BlockchainPollingInterval=
 BlockchainPollingTimeout=
+# Maximum number of events to scan when looking for a token balance (default: 200)
+# PrivateBalanceScanDepth=200
 
 # ERC-20 token registry (optional)
 # Define tokens so the wallet can resolve symbols (e.g. --token USDC)
