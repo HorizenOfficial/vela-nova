@@ -19,8 +19,8 @@ import (
 
 	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
-	"github.com/HorizenOfficial/vela/pkg/executor"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -44,7 +44,9 @@ type hostWithdrawalEvent struct {
 }
 
 // depositToPaymentApp is a helper function to deposit funds and validate the deposit event.
-func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, appID common.ApplicationIdType, reqID common.RequestIdType, user ethCommon.Address, amount *big.Int) {
+// When useSeed is true the event is matched via the hashed subtype set (seed-registered user).
+// When useSeed is false the event is matched via the plaintext "deposit" subtype (no-seed user).
+func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, appID common.ApplicationIdType, reqID common.RequestIdType, user ethCommon.Address, amount *big.Int, useSeed bool) {
 	t.Helper()
 	timeout := 100 * time.Second
 
@@ -56,10 +58,17 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	userSeed, err := cryptoHelper.ComputeSeed(user)
-	require.NoError(t, err)
-	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
-	require.NoError(t, err)
+	var depositEvent *common.Event
+	if useSeed {
+		userSeed, err := cryptoHelper.ComputeSeed(user)
+		require.NoError(t, err)
+		depositEvent, err = suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+		require.NoError(t, err)
+	} else {
+		depositEvent, err = suite.WaitForEvent(user, "deposit", timeout)
+		require.NoError(t, err)
+	}
+
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
 
@@ -253,13 +262,41 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	// Deposit 2 ETH and validate event fields
+	// Deposit 2 ETH and validate event fields (seed-registered user -> hashed subtypes)
 	depositAmount := big.NewInt(2000000000000000000)
-	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, depositAmount)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, depositAmount, true)
 
 	// Withdraw 0.5 ETH and validate event fields
 	withdrawAmount := big.NewInt(500000000000000000)
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, withdrawAmount)
+
+	// --- No-seed user: register without a seed, deposit, and verify that
+	// WaitForEvent with the plaintext "deposit" subtype works. When no seed
+	// is registered the framework preserves the WASM-provided subtype as-is.
+	noSeedUser, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	noSeedKey, err := cryptoHelper.GenerateUserKey(noSeedUser)
+	require.NoError(t, err)
+
+	// Build an AssociateKey request with only the P521 public key (133 bytes, no seed)
+	reqID = commontestutil.GenerateRandomRequestID()
+	noSeedAssocReq := &common.Request{
+		ApplicationID: appID,
+		RequestID:     reqID,
+		RequestType:   common.AssociateKey,
+		Payload:       noSeedKey.PublicKey().Bytes(), // 133 bytes, no encrypted seed
+		Sender:        noSeedUser,
+		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
+		AssetAmount:   common.NewBig(0),
+		TokenAddress:  ethCommon.Address{},
+		MaxFeeValue:   common.NewBig(100),
+	}
+	require.NoError(t, suite.SubmitRequest(noSeedAssocReq))
+	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+
+	// Deposit 1 ETH for the no-seed user; plaintext "deposit" subtype should match
+	noSeedDepositAmount := big.NewInt(1000000000000000000)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), noSeedUser, noSeedDepositAmount, false)
 
 	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
 	reqID = commontestutil.GenerateRandomRequestID()
@@ -296,25 +333,32 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.Contains(t, reportData, "accounts")
 	require.Contains(t, reportData, "nonce")
 
-	// Verify user balance reflects deposit minus withdrawal (2 ETH - 0.5 ETH = 1.5 ETH)
+	// Verify balances: seed user (2 ETH - 0.5 ETH = 1.5 ETH) and no-seed user (1 ETH)
 	accounts, ok := reportData["accounts"].(map[string]interface{})
 	require.True(t, ok, "accounts is not a map")
-	require.Len(t, accounts, 1, "expected exactly one account in report")
+	require.Len(t, accounts, 2, "expected two accounts in report (seed user + no-seed user)")
 
 	ethTokenHex := ethCommon.Address{}.Hex()
-	expectedBalance := new(big.Int).Sub(depositAmount, withdrawAmount)
-	for _, acct := range accounts {
+	expectedBalances := map[ethCommon.Address]*big.Int{
+		userAddress: new(big.Int).Sub(depositAmount, withdrawAmount), // 1.5 ETH
+		noSeedUser:  noSeedDepositAmount,                             // 1 ETH
+	}
+	for addrHex, acct := range accounts {
 		acctMap, ok := acct.(map[string]interface{})
 		require.True(t, ok, "account entry is not a map")
 		balances, ok := acctMap["balances"].(map[string]interface{})
 		require.True(t, ok, "balances is not a map")
 		balanceStr, ok := balances[ethTokenHex].(string)
-		require.True(t, ok, "ETH balance is not a string")
+		require.True(t, ok, "ETH balance is not a string for account %s", addrHex)
 		require.True(t, len(balanceStr) > 2 && balanceStr[:2] == "0x", "balance is not hex")
 		balance, ok := new(big.Int).SetString(balanceStr[2:], 16)
 		require.True(t, ok, "failed to parse balance hex")
-		require.Equal(t, 0, expectedBalance.Cmp(balance),
-			"expected balance %s, got %s", expectedBalance, balance)
+
+		addr := ethCommon.HexToAddress(addrHex)
+		expected, known := expectedBalances[addr]
+		require.True(t, known, "unexpected account %s in report", addrHex)
+		require.Equal(t, 0, expected.Cmp(balance),
+			"account %s: expected balance %s, got %s", addrHex, expected, balance)
 	}
 }
 

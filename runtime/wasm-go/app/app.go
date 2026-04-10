@@ -11,8 +11,8 @@ import (
 
 // --- High-Level Application Logic ---
 
-// zeroAddressHex is the hex representation of the zero address (ETH).
-var zeroAddressHex = (types.Address{}).Hex()
+// ethTokenHex is the hex representation of the ETH token address (zero address).
+var ethTokenHex = (types.Address{}).Hex()
 
 // recordTransaction appends a transaction record to the state's transaction log.
 // Must be called after state.Nonce++ so the nonce matches the corresponding event.
@@ -38,7 +38,7 @@ func recordTransaction(state *ApplicationInternalState, txType string, from, to,
 func Deploy(appId int64, paramsJSON string) types.DeployResult {
 	allowedTokens := make(map[string]bool)
 	// ETH is always allowed
-	allowedTokens[zeroAddressHex] = true
+	allowedTokens[ethTokenHex] = true
 
 	if paramsJSON != "" {
 		var params DeployParams
@@ -85,7 +85,7 @@ func LoadModule(appId int64) types.LoadModuleResult {
 	initialState := &ApplicationInternalState{
 		AppID:         uint64(appId),
 		Accounts:      make(map[string]*AccountState),
-		AllowedTokens: map[string]bool{zeroAddressHex: true},
+		AllowedTokens: map[string]bool{ethTokenHex: true},
 	}
 	stateJSON, err := json.Marshal(initialState)
 	if err != nil {
@@ -120,7 +120,7 @@ func getOrCreateTokenBalance(acc *AccountState, tokenHex string) *types.Uint256 
 // resolveTokenHex returns the hex of the token address, defaulting to ETH if the address is zero.
 func resolveTokenHex(tokenAddress types.Address) string {
 	if tokenAddress == (types.Address{}) {
-		return zeroAddressHex
+		return ethTokenHex
 	}
 	return tokenAddress.Hex()
 }

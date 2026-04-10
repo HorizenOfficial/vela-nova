@@ -104,10 +104,9 @@ func TestIntegration_Deploy(t *testing.T) {
 	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
-	appId := common.NewApplicationId(1)
-
 	t.Run("EmptyParams", func(t *testing.T) {
 		ctx := context.Background()
+		appId := common.NewApplicationId(1)
 		state, fuel, err := runtime.Deploy(ctx, appId, []byte("{}"), wasmBytes)
 		require.NoError(t, err)
 		require.NotNil(t, state)
@@ -120,6 +119,7 @@ func TestIntegration_Deploy(t *testing.T) {
 	})
 
 	t.Run("WithAllowedTokens", func(t *testing.T) {
+		appId := common.NewApplicationId(2)
 		state := deployWithTokens(t, runtime, appId, wasmBytes, usdcTokenHex)
 
 		var stateData app.ApplicationInternalState
