@@ -1,7 +1,9 @@
 package main_test
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -108,6 +110,27 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, err)
 }
 
+// storeWasmArtifact writes wasmBytecode into the manager's artifact blob store
+// (artifactsPath/blobs/<sha256>.wasm) and returns the JSON DeployDescriptor payload
+// that references it — required by the vela v0.0.26 deploy protocol.
+func storeWasmArtifact(t *testing.T, artifactsPath string, wasmBytecode []byte) []byte {
+	t.Helper()
+	sum := sha256.Sum256(wasmBytecode)
+	shaHex := hex.EncodeToString(sum[:])
+
+	blobsDir := filepath.Join(artifactsPath, "blobs")
+	require.NoError(t, os.MkdirAll(blobsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(blobsDir, shaHex+".wasm"), wasmBytecode, 0o644))
+
+	payload, err := json.Marshal(map[string]string{
+		"mode":       "artifact_ref",
+		"artifactId": "sha256:" + shaHex,
+		"wasmSha256": shaHex,
+	})
+	require.NoError(t, err)
+	return payload
+}
+
 // buildAndLoadWasmModule is a helper function to build the wasm module and read its bytecode.
 func buildAndLoadWasmModule(t *testing.T) []byte {
 	// Get the project root directory to construct absolute paths
@@ -148,6 +171,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 
 	wasmBytecode := buildAndLoadWasmModule(t)
 
+	// vela v0.0.26: deploy uses artifact references. Store the wasm blob in the
+	// suite's artifacts path and build the JSON descriptor payload.
+	deployPayload := storeWasmArtifact(t, suite.GetArtifactsPath(), wasmBytecode)
+
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
 
@@ -164,10 +191,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		RequestType:   common.Deploy,
 		ApplicationID: appID,
 		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       wasmBytecode,
+		Payload:       deployPayload,
 		Sender:        userAddress,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		AssetAmount: common.NewBig(0),
+		AssetAmount:   common.NewBig(0),
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
