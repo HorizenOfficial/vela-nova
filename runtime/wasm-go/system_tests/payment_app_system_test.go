@@ -162,7 +162,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		Payload:       wasmBytecode,
 		Sender:        userAddress,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		DepositAmount: common.NewBig(0),
+		AssetAmount: common.NewBig(0),
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
@@ -171,11 +171,14 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
 	require.NoError(t, err)
 
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+
 	// Register user key
 	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
 	require.NoError(t, err)
 	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey())
+	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateKeyReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -184,7 +187,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
 	require.NoError(t, err)
 	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey())
+	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -198,7 +201,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, withdrawAmount)
 
 	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
-	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	executorPubKey, err = suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
 	reqID = commontestutil.GenerateRandomRequestID()
@@ -254,18 +257,16 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	}
 }
 
-func newTestLogger() logger.Logger {
-	testLogger := logger.NewLogger(
-		&logger.Config{
-			Kind:         "zeronetwork",
-			ConsoleColor: false, // colors can print escape chars on tty
-			Console:      false,
-			ConsoleLevel: "trace",
-			//FileName:     "qqq.log",
-			FileLevel:        "trace",
-			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
-			RemoteLogNetwork: "tcp",
-			NetworkLevel:     "trace"},
-	)
-	return testLogger
+func newTestLogger() *logger.Config {
+	return &logger.Config{
+		Kind:         "zeronetwork",
+		ConsoleColor: false, // colors can print escape chars on tty
+		Console:      false,
+		ConsoleLevel: "trace",
+		//FileName:     "qqq.log",
+		FileLevel:        "trace",
+		RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
+		RemoteLogNetwork: "tcp",
+		NetworkLevel:     "trace",
+	}
 }

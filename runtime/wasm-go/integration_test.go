@@ -38,7 +38,7 @@ func readWasm(t *testing.T) []byte {
 
 func TestIntegration_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -56,7 +56,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 
 func TestIntegration_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -69,7 +69,7 @@ func TestIntegration_Deposit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
@@ -83,7 +83,7 @@ func TestIntegration_Deposit(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -98,7 +98,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -164,7 +164,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -182,7 +182,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -210,7 +210,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	type reportStruct struct {
@@ -227,7 +227,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -245,7 +245,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -264,7 +264,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 
 	recAddress, err := types.HexToAddress(recipientHex)
@@ -355,7 +355,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 
 func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -372,7 +372,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 	require.NoError(t, err)
 
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, depositAmount, state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 
 	recAddress, err := types.HexToAddress(recipientHex)
@@ -511,7 +511,7 @@ func requireMemoryClean(t *testing.T, runtime *wasm.WasmtimeRuntime, appId commo
 // after each host call.
 func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -531,7 +531,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after LoadModule")
 
 	// Deposit
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
 	require.Nil(t, failure)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after Deposit")
 
@@ -575,7 +575,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 // (which still use SerializeAndWriteResult → BytesToPtr) do not leak memory.
 func TestIntegration_ErrorPathMemory(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -590,7 +590,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deposit so sender has a balance
-	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), state, wasmBytes)
+	state, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, big.NewInt(100), state, wasmBytes)
 	require.Nil(t, failure)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after initial deposit")
 
@@ -619,7 +619,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after non-existent account error")
 
 	// Error: invalid state JSON
-	_, _, _, failure = runtime.Deposit(ctx, appId, ethSender, big.NewInt(100), []byte("{bad-json}"), wasmBytes)
+	_, _, _, failure = runtime.Deposit(ctx, appId, ethSender, ethCommon.Address{}, big.NewInt(100), []byte("{bad-json}"), wasmBytes)
 	require.NotNil(t, failure, "expected error for invalid state")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after invalid state error")
 }
@@ -628,7 +628,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 // by creating many accounts and generating a report that serializes all of them.
 func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	wasmBytes := readWasm(t)
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -641,7 +641,7 @@ func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	const numAccounts = 100
 	for i := range numAccounts {
 		addr := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
-		newState, _, _, failure := runtime.Deposit(ctx, appId, addr, big.NewInt(int64(1000+i)), state, wasmBytes)
+		newState, _, _, failure := runtime.Deposit(ctx, appId, addr, ethCommon.Address{}, big.NewInt(int64(1000+i)), state, wasmBytes)
 		require.Nil(t, failure, "deposit failed for account %d", i)
 		state = newState
 	}
