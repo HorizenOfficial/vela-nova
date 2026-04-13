@@ -22,9 +22,9 @@ import (
 )
 
 var (
-	ethToken     = ethCommon.Address{}                                                    // zero address = ETH
-	usdcToken    = ethCommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") // fake USDC for tests
-	usdcTokenHex = strings.ToLower(usdcToken.Hex())                                      // lowercase to match wasm types.Address.Hex()
+	ethToken     = ethCommon.Address{}                                                      // zero address = ETH
+	usdcToken    = ethCommon.HexToAddress("0xcafeBABE00000000000000000000000000000001") // synthetic test-only USDC address
+	usdcTokenHex = strings.ToLower(usdcToken.Hex())                                        // lowercase to match wasm types.Address.Hex()
 )
 
 func readWasm(t *testing.T) []byte {
