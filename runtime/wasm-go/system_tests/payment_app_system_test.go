@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
@@ -17,6 +16,7 @@ import (
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -51,7 +51,11 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	depositEvent, err := suite.WaitForEvent(user, "deposit", timeout)
+	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
+	// Compute all possible subtypes for this user and wait for any of them.
+	seed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
@@ -83,7 +87,10 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, suite.SubmitRequest(withdrawalReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	withdrawalEvent, err := suite.WaitForEvent(user, "withdrawal", timeout)
+	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
+	seed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -179,12 +186,17 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, suite.StartManager())
 
 	appID := common.NewApplicationId(1)
-	userAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	auditorAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	timeout := 100 * time.Second
 
+	// vela v0.0.26: CreateAssociateKeyRequest requires a secp256k1 signing key whose
+	// derived Ethereum address matches the sender. Use GenerateUserIdentity so the
+	// address is derived from the key (rather than hardcoded hex addresses).
 	cryptoHelper := systemTests.NewCryptoHelper()
+	userAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
 
 	// Deploy the application
 	deployReq := &common.Request{
@@ -198,7 +210,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err := suite.WaitForAppStateInDB(appID, timeout)
+	_, err = suite.WaitForAppStateInDB(appID, timeout)
 	require.NoError(t, err)
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
 	require.NoError(t, err)

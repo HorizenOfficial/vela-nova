@@ -16,6 +16,15 @@ func load_module(appId int64) *byte {
 	return types.SerializeAndWriteResult(result)
 }
 
+//export deploy
+func deploy(appId int64, paramsPtr *byte, paramsLen int32) *byte {
+	// paramsPtr/paramsLen carry optional constructor params; ignored by this app.
+	// DeployResult has the same JSON shape as LoadModuleResult.
+	_, _ = paramsPtr, paramsLen
+	result := app.LoadModule(appId)
+	return types.SerializeAndWriteResult(result)
+}
+
 //export deposit
 func deposit(appId int64, senderPtr *byte, senderLen int32, tokenPtr *byte, tokenLen int32, valuePtr *byte, valueLen int32, statePtr *byte, stateLen int32) *byte {
 	// TODO: in future we must use the appId for adding it to the generated event
