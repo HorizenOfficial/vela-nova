@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -59,7 +60,7 @@ func (c *DepositCommand) Command() *cobra.Command {
 			var payload []byte
 
 			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, amount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, ethCommon.Address{}, amount, maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to deposit amount %s: %v\n", c.depositAmount, err)
 				return

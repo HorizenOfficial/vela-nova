@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -105,7 +106,7 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 	defer c.BlockchainClient.Close()
 
 	requestType := common.Deploy
-	requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, deployPayload, big.NewInt(0), maxFeeValue)
+	requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, deployPayload, ethCommon.Address{}, big.NewInt(0), maxFeeValue)
 	if err != nil {
 		return fmt.Errorf("error sending request to deploy app: %w", err)
 	}

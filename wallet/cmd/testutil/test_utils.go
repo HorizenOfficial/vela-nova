@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
@@ -115,7 +116,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 				PrevStateRoot:  stateRoot,
 				NewStateRoot:   stateRoot, // same as prev state root for failed requests
 				Signature:      make([]byte, 65),
-				RefundAmount:   common.ToBig(request.DepositAmount.ToInt()),
+				RefundAmount:   common.ToBig(request.AssetAmount.ToInt()),
 				ApplicationFee: common.NewBig(0),
 				ErrorCode:      apperrors.New(apperrors.CodeInternalFallback, "internal error").Category(),
 				ErrorMsg:       "internal error",
@@ -148,6 +149,22 @@ func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdTyp
 }
 
 func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, []string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetDeployRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetRefunds(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainRefund, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetWithdrawals(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainWithdrawal, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetClaimsExecuted(_ context.Context, _ ethCommon.Address, _ *ethCommon.Address, _ int) ([]subgraph.ClaimExecuted, error) {
 	return nil, nil
 }
 

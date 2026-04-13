@@ -44,7 +44,7 @@ func (c *GetPendingPaymentsCommand) Command() *cobra.Command {
 			defer c.CloseClient()
 
 			address := ethCommon.HexToAddress(c.Config.KeySecp.PublicKey().Address())
-			amount, err := c.BlockchainClient.GetPendingPayments(ctx, address)
+			amount, err := c.BlockchainClient.GetPendingClaims(ctx, ethCommon.Address{}, address)
 			if err != nil {
 				fmt.Printf("Error retrieving pending payments: %v\n", err)
 				return
