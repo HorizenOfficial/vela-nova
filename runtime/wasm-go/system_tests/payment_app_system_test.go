@@ -138,6 +138,11 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
+	// manager.LoadConfig() in vela v0.0.26 requires MANAGER_ARTIFACTS_PATH to be set.
+	// NewSystemTestSuiteWithConfigs will override this with its own temp dir, but LoadConfig
+	// must pass validation first.
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
 	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger(), newTestLogger())
 	defer suite.Cleanup()
 
