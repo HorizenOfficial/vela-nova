@@ -17,9 +17,11 @@ func load_module(appId int64) *byte {
 }
 
 //export deposit
-func deposit(appId int64, senderPtr *byte, senderLen int32, valuePtr *byte, valueLen int32, statePtr *byte, stateLen int32) *byte {
+func deposit(appId int64, senderPtr *byte, senderLen int32, tokenPtr *byte, tokenLen int32, valuePtr *byte, valueLen int32, statePtr *byte, stateLen int32) *byte {
 	// TODO: in future we must use the appId for adding it to the generated event
 	_ = appId
+	// tokenPtr/tokenLen carry the ERC-20 token address (0x0 = ETH); ignored by this app
+	_, _ = tokenPtr, tokenLen
 	sender := types.PtrToAddress(senderPtr, senderLen)
 	stateJSON := utils.PtrToString(statePtr, stateLen)
 	value := types.PtrToUint256(valuePtr, valueLen)
