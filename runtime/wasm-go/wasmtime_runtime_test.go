@@ -59,7 +59,7 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	// Test LoadModule
@@ -98,7 +98,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	// Load module first
@@ -112,7 +112,7 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Test Deposit
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, sender, ethCommon.Address{}, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure, "Deposit should succeed")
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
@@ -162,7 +162,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -177,7 +177,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
+	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethCommon.Address{}, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -287,7 +287,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -302,7 +302,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
+	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethCommon.Address{}, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -367,7 +367,7 @@ func TestWasmtimeRuntime_ProcessRequest_Deanonymize(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -380,7 +380,7 @@ func TestWasmtimeRuntime_ProcessRequest_Deanonymize(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateWithData, _, fuel, failure := runtime.Deposit(ctx, appId, sender, depositAmount, initialState, wasmBytes)
+	stateWithData, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethCommon.Address{}, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -414,7 +414,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	// Create runtime
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -430,7 +430,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	t.Log("Step 2: Make deposit for user1")
 	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
-	state, events, fuel, failure := runtime.Deposit(ctx, appId, user1, depositAmount, state, wasmBytes)
+	state, events, fuel, failure := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
@@ -498,7 +498,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -530,7 +530,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -547,7 +547,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 		user := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
 
 		depositAmount := big.NewInt(1000000000000000000) // 1 ETH
-		newState, _, _, failure := runtime.Deposit(ctx, appId, user, depositAmount, state, wasmBytes)
+		newState, _, _, failure := runtime.Deposit(ctx, appId, user, ethCommon.Address{}, depositAmount, state, wasmBytes)
 		require.Nil(t, failure)
 		state = newState
 	}
@@ -573,7 +573,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -587,7 +587,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -604,7 +604,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -623,7 +623,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 		// This might succeed depending on implementation, but state should be testable
 		if err == nil {
 			// Verify we can't use invalid app ID for operations
-			_, _, fuel, err := runtime.Deposit(ctx, appId, user1, big.NewInt(1000), []byte("{}"), wasmBytes)
+			_, _, fuel, err := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, big.NewInt(1000),[]byte("{}"), wasmBytes)
 			assert.Error(t, err)
 			require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 		}
@@ -631,7 +631,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 
 	t.Run("NilState", func(t *testing.T) {
 		appId := common.NewApplicationId(1)
-		_, _, fuel, err := runtime.Deposit(ctx, appId, user1, big.NewInt(1000), nil, wasmBytes)
+		_, _, fuel, err := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, big.NewInt(1000), nil, wasmBytes)
 		assert.Error(t, err)
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 	})
@@ -641,7 +641,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -696,7 +696,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -710,7 +710,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	deposit := new(big.Int).Div(depositAmount, big.NewInt(2))
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, user1, deposit, state, wasmBytes)
+	state, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, deposit, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -732,7 +732,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 }
 
 func TestWasmtimeRuntime_LargePayload(t *testing.T) {
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -765,7 +765,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -775,7 +775,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	// Use corrupted state
 	corruptedState := []byte("corrupted state data")
 
-	state, events, fuel, err := runtime.Deposit(ctx, appId, user1, big.NewInt(1000), corruptedState, wasmBytes)
+	state, events, fuel, err := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, big.NewInt(1000), corruptedState, wasmBytes)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to parse application state")
 	require.Equal(t, []byte(nil), state)
@@ -787,7 +787,7 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -803,7 +803,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()
@@ -815,7 +815,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Test zero depositAmount deposit
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, user1, big.NewInt(0), state, wasmBytes)
+	newState, events, fuel, failure := runtime.Deposit(ctx, appId, user1, ethCommon.Address{}, big.NewInt(0), state, wasmBytes)
 
 	require.Nil(t, failure)
 	require.Len(t, events, 0, "Zero depositAmount deposit should not generate any events")
@@ -828,7 +828,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	// Build and load the compiled WASM module
 	wasmBytes := readWasm(t)
 
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger())
+	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
 
 	ctx := context.Background()

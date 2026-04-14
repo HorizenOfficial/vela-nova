@@ -31,7 +31,7 @@ func EventFilter(b []byte) bool {
 	return err == nil && m[BALANCE_JSON_KEY] != nil
 }
 
-func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521) ([]byte, error) {
+func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *cryptotypes.PublicKeyP521, privKey *cryptotypes.PrivateKeyP521, seedSubTypes []string) ([]byte, error) {
 	if subgraphClient == nil {
 		return nil, fmt.Errorf("subgraph client not initialized")
 	}
@@ -45,7 +45,7 @@ func FindEvent(ctx context.Context, subgraphClient subgraph.Client, teePubKey *c
 		teePubKey,
 		*privKey,
 		NOVA_APPLICATION_ID,
-		"",
+		seedSubTypes,
 		1,
 		EventFilter,
 	)
@@ -88,7 +88,15 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 			}
 
 			//find event
-			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521)
+			if c.Config.KeySecp == nil {
+				log.Fatal("secp256k1 key not found in the wallet (required to derive event subtypes)")
+			}
+			seed, seedErr := GenerateSeed(c.Config.KeySecp)
+			if seedErr != nil {
+				log.Fatalf("failed to generate seed: %v", seedErr)
+			}
+			seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+			event, err := FindEvent(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, seedSubTypes)
 			if err != nil {
 				log.Fatalf("failed to find event: %v", err)
 			}

@@ -25,9 +25,15 @@ func TestRegisterUserCmd(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
+	teeKey, _ := crypto.GeneratePrivateKeyP521()
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
+
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
@@ -69,9 +75,16 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	require.NoError(t, err)
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
+
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
@@ -113,9 +126,16 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	require.NoError(t, err)
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
+
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
 
 	blockchainClient := testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command

@@ -1,9 +1,10 @@
 package main_test
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	"github.com/stretchr/testify/require"
@@ -49,7 +51,11 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	depositEvent, err := suite.WaitForEvent(user, "deposit", timeout)
+	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
+	// Compute all possible subtypes for this user and wait for any of them.
+	seed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
@@ -81,7 +87,10 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, suite.SubmitRequest(withdrawalReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	withdrawalEvent, err := suite.WaitForEvent(user, "withdrawal", timeout)
+	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
+	seed, err := cryptoHelper.ComputeSeed(user)
+	require.NoError(t, err)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -106,6 +115,27 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, err)
 	err = cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey)
 	require.NoError(t, err)
+}
+
+// storeWasmArtifact writes wasmBytecode into the manager's artifact blob store
+// (artifactsPath/blobs/<sha256>.wasm) and returns the JSON DeployDescriptor payload
+// that references it — required by the vela v0.0.26 deploy protocol.
+func storeWasmArtifact(t *testing.T, artifactsPath string, wasmBytecode []byte) []byte {
+	t.Helper()
+	sum := sha256.Sum256(wasmBytecode)
+	shaHex := hex.EncodeToString(sum[:])
+
+	blobsDir := filepath.Join(artifactsPath, "blobs")
+	require.NoError(t, os.MkdirAll(blobsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(blobsDir, shaHex+".wasm"), wasmBytecode, 0o644))
+
+	payload, err := json.Marshal(map[string]string{
+		"mode":       "artifact_ref",
+		"artifactId": "sha256:" + shaHex,
+		"wasmSha256": shaHex,
+	})
+	require.NoError(t, err)
+	return payload
 }
 
 // buildAndLoadWasmModule is a helper function to build the wasm module and read its bytecode.
@@ -138,44 +168,61 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
+	// manager.LoadConfig() in vela v0.0.26 requires MANAGER_ARTIFACTS_PATH to be set.
+	// NewSystemTestSuiteWithConfigs will override this with its own temp dir, but LoadConfig
+	// must pass validation first.
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
 	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger(), newTestLogger())
 	defer suite.Cleanup()
 
 	wasmBytecode := buildAndLoadWasmModule(t)
 
+	// vela v0.0.26: deploy uses artifact references. Store the wasm blob in the
+	// suite's artifacts path and build the JSON descriptor payload.
+	deployPayload := storeWasmArtifact(t, suite.GetArtifactsPath(), wasmBytecode)
+
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
 
 	appID := common.NewApplicationId(1)
-	userAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	auditorAddress := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	timeout := 100 * time.Second
 
+	// vela v0.0.26: CreateAssociateKeyRequest requires a secp256k1 signing key whose
+	// derived Ethereum address matches the sender. Use GenerateUserIdentity so the
+	// address is derived from the key (rather than hardcoded hex addresses).
 	cryptoHelper := systemTests.NewCryptoHelper()
+	userAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
 
 	// Deploy the application
 	deployReq := &common.Request{
 		RequestType:   common.Deploy,
 		ApplicationID: appID,
 		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       wasmBytecode,
+		Payload:       deployPayload,
 		Sender:        userAddress,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		DepositAmount: common.NewBig(0),
+		AssetAmount:   common.NewBig(0),
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err := suite.WaitForAppStateInDB(appID, timeout)
+	_, err = suite.WaitForAppStateInDB(appID, timeout)
 	require.NoError(t, err)
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
+	require.NoError(t, err)
+
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
 	// Register user key
 	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
 	require.NoError(t, err)
 	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey())
+	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateKeyReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -184,7 +231,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
 	require.NoError(t, err)
 	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey())
+	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
@@ -198,7 +245,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, withdrawAmount)
 
 	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
-	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	executorPubKey, err = suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
 	reqID = commontestutil.GenerateRandomRequestID()
@@ -254,18 +301,16 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	}
 }
 
-func newTestLogger() logger.Logger {
-	testLogger := logger.NewLogger(
-		&logger.Config{
-			Kind:         "zeronetwork",
-			ConsoleColor: false, // colors can print escape chars on tty
-			Console:      false,
-			ConsoleLevel: "trace",
-			//FileName:     "qqq.log",
-			FileLevel:        "trace",
-			RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
-			RemoteLogNetwork: "tcp",
-			NetworkLevel:     "trace"},
-	)
-	return testLogger
+func newTestLogger() *logger.Config {
+	return &logger.Config{
+		Kind:         "zeronetwork",
+		ConsoleColor: false, // colors can print escape chars on tty
+		Console:      false,
+		ConsoleLevel: "trace",
+		//FileName:     "qqq.log",
+		FileLevel:        "trace",
+		RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
+		RemoteLogNetwork: "tcp",
+		NetworkLevel:     "trace",
+	}
 }

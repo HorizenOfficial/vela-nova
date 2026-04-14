@@ -28,7 +28,7 @@ type deployAppTestBlockchainClient struct {
 	nextID  byte
 }
 
-func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, depositAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
+func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, _ ethCommon.Address, assetAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
 	c.nextID++
 	var requestID common.RequestIdType
 	requestID[31] = c.nextID
@@ -39,7 +39,7 @@ func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protoco
 		RequestID:       requestID,
 		RequestType:     requestType,
 		Payload:         payload,
-		DepositAmount:   common.ToBig(depositAmount),
+		AssetAmount:     common.ToBig(assetAmount),
 		MaxFeeValue:     common.ToBig(maxFeeValue),
 	})
 
@@ -70,11 +70,11 @@ func (*deployAppTestBlockchainClient) LatestBlockNumber(context.Context) (uint64
 	return 0, nil
 }
 
-func (*deployAppTestBlockchainClient) GetPendingPayments(context.Context, ethCommon.Address) (*big.Int, error) {
+func (*deployAppTestBlockchainClient) GetPendingClaims(_ context.Context, _ ethCommon.Address, _ ethCommon.Address) (*big.Int, error) {
 	return big.NewInt(0), nil
 }
 
-func (*deployAppTestBlockchainClient) WithdrawPayments(context.Context, ethCommon.Address) error {
+func (*deployAppTestBlockchainClient) Claim(_ context.Context, _ ethCommon.Address, _ ethCommon.Address) error {
 	return nil
 }
 
@@ -88,6 +88,10 @@ func (*deployAppTestBlockchainClient) Connect(context.Context) error {
 
 func (*deployAppTestBlockchainClient) IsConnected() bool {
 	return true
+}
+
+func (*deployAppTestBlockchainClient) SubmitDeployRequest(_ context.Context, protocolVersion uint8, payload []byte, maxFeeValue *big.Int) (common.ApplicationIdType, common.RequestIdType, uint64, error) {
+	return 0, common.RequestIdType{}, 0, nil
 }
 
 func TestDeployAppCommand_Success(t *testing.T) {

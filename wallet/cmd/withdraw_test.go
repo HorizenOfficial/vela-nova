@@ -35,6 +35,11 @@ func TestWithdrawCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	withdrawCmd := NewWithdrawCommand(&app.Config{
@@ -84,6 +89,11 @@ func TestWithdrawCmdFailure(t *testing.T) {
 	require.NoError(t, err)
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
+
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command

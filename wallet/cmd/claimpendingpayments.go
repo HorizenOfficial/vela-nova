@@ -46,7 +46,7 @@ func (c *ClaimPendingPaymentsCommand) Command() *cobra.Command {
 
 			address := ethCommon.HexToAddress(c.Config.KeySecp.PublicKey().Address())
 
-			amount, err := c.BlockchainClient.GetPendingPayments(ctx, address)
+			amount, err := c.BlockchainClient.GetPendingClaims(ctx, ethCommon.Address{}, address)
 			if err != nil {
 				fmt.Printf("Error retrieving pending payments: %v\n", err)
 				return
@@ -56,7 +56,7 @@ func (c *ClaimPendingPaymentsCommand) Command() *cobra.Command {
 				return
 			}
 
-			err = c.BlockchainClient.WithdrawPayments(ctx, address)
+			err = c.BlockchainClient.Claim(ctx, ethCommon.Address{}, address)
 			if err != nil {
 				fmt.Printf("Error claiming pending payments: %v\n", err)
 				return

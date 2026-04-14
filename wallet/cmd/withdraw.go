@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
@@ -83,7 +84,7 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 
 			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, ethCommon.Address{}, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to withdraw amount %s: %v\n", c.value, err)
 				return

@@ -120,6 +120,11 @@ func TestDepositCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	depositCmd := NewDepositCommand(&app.Config{
@@ -167,6 +172,11 @@ func TestDepositCmdFailure(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
 
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
+
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 	// Execute the command
 	depositCmd := NewDepositCommand(&app.Config{
@@ -212,6 +222,11 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
 	defer testHelper.Close()
+
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 

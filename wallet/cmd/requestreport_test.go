@@ -23,12 +23,17 @@ func TestRequestReportCmd(t *testing.T) {
 	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
+	appID := testutil.DeployApplication(t, testHelper)
+	origAppID := NOVA_APPLICATION_ID
+	NOVA_APPLICATION_ID = appID
+	defer func() { NOVA_APPLICATION_ID = origAppID }()
+
 	Key1 := &cryptotypes.PrivateKeySecp256k1{PrivateKey: testHelper.ManagerPrivKey}
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
 	// Set the authority to be the testHelper manager account
-	tx := testHelper.AddAuthority(big.NewInt(1), testHelper.ManagerAccount.From) // TODO ML NOVA_APPLICATION_ID should be used but there are consistency problems, will be fixed, already created a task but adding this TODO to not forget that we need to take care about this here as well
+	tx := testHelper.AddAuthority(new(big.Int).SetUint64(uint64(appID)), testHelper.ManagerAccount.From)
 	testHelper.WaitMined(tx)
 
 	t.Run("Command successful", func(t *testing.T) {

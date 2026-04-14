@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
@@ -18,7 +19,46 @@ import (
 
 func SetupNewBlockChainClient(testHelper *testutil.SimTestHelper) *blockchain.BlockChainClient {
 	return blockchain.SetupNewBlockChainClientConnected(testHelper.Client(), testHelper.ProcessorContractAddress, testHelper.TeeSignerAddress, testHelper.ManagerAccount)
+}
 
+// DeployApplication submits a deploy request using the Deployer account (which holds the
+// DEPLOYER_ROLE) and synchronously completes it so the application is registered on-chain
+// before the test's command runs. Returns the dynamically assigned application ID.
+func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.ApplicationIdType {
+	t.Helper()
+
+	testHelper.SubmitDeployRequest(nil, big.NewInt(100))
+
+	blockchainClient := SetupNewBlockChainClient(testHelper)
+	deadline := time.Now().Add(15 * time.Second)
+
+	for {
+		if time.Now().After(deadline) {
+			panic(fmt.Sprintf("timeout waiting for deploy request in %s", t.Name()))
+		}
+
+		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		require.NoError(t, err)
+		if request != nil {
+			var newStateRoot [32]byte
+			_, err = rand.Read(newStateRoot[:])
+			require.NoError(t, err)
+			update := &common.UpdatePayload{
+				ApplicationID:  request.ApplicationID,
+				RequestID:      request.RequestID,
+				PrevStateRoot:  stateRoot,
+				NewStateRoot:   newStateRoot,
+				Signature:      make([]byte, 65),
+				RefundAmount:   common.NewBig(0),
+				ApplicationFee: common.NewBig(100), // must equal the maxFeeValue passed to SubmitDeployRequest
+			}
+			err = blockchainClient.SubmitStateUpdate(context.Background(), update)
+			require.NoError(t, err)
+			return request.ApplicationID
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
@@ -76,7 +116,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 				PrevStateRoot:  stateRoot,
 				NewStateRoot:   stateRoot, // same as prev state root for failed requests
 				Signature:      make([]byte, 65),
-				RefundAmount:   common.ToBig(request.DepositAmount.ToInt()),
+				RefundAmount:   common.ToBig(request.AssetAmount.ToInt()),
 				ApplicationFee: common.NewBig(0),
 				ErrorCode:      apperrors.New(apperrors.CodeInternalFallback, "internal error").Category(),
 				ErrorMsg:       "internal error",
@@ -105,6 +145,26 @@ func (StubSubgraphClient) HealthCheck(context.Context) error {
 }
 
 func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, []string, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetDeployRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetRefunds(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainRefund, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetWithdrawals(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainWithdrawal, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetClaimsExecuted(_ context.Context, _ ethCommon.Address, _ *ethCommon.Address, _ int) ([]subgraph.ClaimExecuted, error) {
 	return nil, nil
 }
 
