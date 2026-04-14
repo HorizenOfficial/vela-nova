@@ -128,6 +128,27 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, err)
 }
 
+// storeWasmArtifact writes wasmBytecode into the manager's artifact blob store
+// (artifactsPath/blobs/<sha256>.wasm) and returns the JSON DeployDescriptor payload
+// that references it — required by the vela v0.0.26 deploy protocol.
+func storeWasmArtifact(t *testing.T, artifactsPath string, wasmBytecode []byte) []byte {
+	t.Helper()
+	sum := sha256.Sum256(wasmBytecode)
+	shaHex := hex.EncodeToString(sum[:])
+
+	blobsDir := filepath.Join(artifactsPath, "blobs")
+	require.NoError(t, os.MkdirAll(blobsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(blobsDir, shaHex+".wasm"), wasmBytecode, 0o644))
+
+	payload, err := json.Marshal(map[string]string{
+		"mode":       "artifact_ref",
+		"artifactId": "sha256:" + shaHex,
+		"wasmSha256": shaHex,
+	})
+	require.NoError(t, err)
+	return payload
+}
+
 // buildAndLoadWasmModule is a helper function to build the wasm module and read its bytecode.
 func buildAndLoadWasmModule(t *testing.T) []byte {
 	// Get the project root directory to construct absolute paths
@@ -200,6 +221,11 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
+	// manager.LoadConfig() requires MANAGER_ARTIFACTS_PATH to be set.
+	// NewSystemTestSuiteWithConfigs will override this with its own temp dir, but LoadConfig
+	// must pass validation first.
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
 	// The suite accepts logger configs (not instances) so it can inject the
 	// ephemeral log-server port into RemoteLogParams before creating the loggers.
 	// This guarantees the zeronetwork logger connects to the correct address.
@@ -214,8 +240,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	appID := common.NewApplicationId(1)
 	timeout := 100 * time.Second
 
+	// vela v0.0.26: CreateAssociateKeyRequest requires a secp256k1 signing key whose
+	// derived Ethereum address matches the sender. Use GenerateUserIdentity so the
+	// address is derived from the key (rather than hardcoded hex addresses).
 	cryptoHelper := systemTests.NewCryptoHelper()
-
 	userAddress, err := cryptoHelper.GenerateUserIdentity()
 	require.NoError(t, err)
 	auditorAddress, err := cryptoHelper.GenerateUserIdentity()

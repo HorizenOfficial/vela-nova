@@ -43,6 +43,9 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
 	teePub := teeKey.PublicKey()
 
+	seed, _ := GenerateSeed(key1)
+	subtypesList := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
 	// Balance must be hex-encoded with 0x prefix for common.Big unmarshaling
 	// 12345 decimal = 0x3039 hex
 	mockEvent := []byte(`{"balance": "0x3039"}`)
@@ -57,6 +60,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 		{
 			ApplicationID: testAppID,
 			EncryptedData: encrypted,
+			EventSubType:  subtypesList[0],
 		},
 	})
 	// Execute the command
@@ -218,6 +222,10 @@ func (c privateBalanceCase) run(t *testing.T, tokens *app.TokenRegistry) string 
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
+	seed, err := GenerateSeed(userSecp)
+	require.NoError(t, err)
+	subtypesList := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
 	var sgEvents []subgraph.UserEvent
 	for _, payload := range c.events {
 		enc, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte(payload))
@@ -225,6 +233,7 @@ func (c privateBalanceCase) run(t *testing.T, tokens *app.TokenRegistry) string 
 		sgEvents = append(sgEvents, subgraph.UserEvent{
 			ApplicationID: testAppID,
 			EncryptedData: enc,
+			EventSubType:  subtypesList[0],
 		})
 	}
 	sg := subgraph.NewMockClient().WithUserEvents(testAppID, sgEvents)

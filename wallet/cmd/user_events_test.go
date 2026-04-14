@@ -42,7 +42,7 @@ func TestFetchAndDecryptUserEvents_LimitOne(t *testing.T) {
 		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "a", BlockNumber: 2},
 	})
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 1, nil)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("msg-2"), result[0])
@@ -72,7 +72,7 @@ func TestFetchAndDecryptUserEvents_Filter(t *testing.T) {
 		return strings.Contains(string(data), "keep")
 	}
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 10, filter)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 10, filter)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("keep-this"), result[0])
@@ -100,12 +100,12 @@ func TestFetchAndDecryptUserEvents_UserSpecificDecryption(t *testing.T) {
 		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "c", BlockNumber: 2},
 	})
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKeyA, appID, "", 10, nil)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKeyA, appID, nil, 10, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("user-a"), result[0])
 
-	result, err = FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKeyB, appID, "", 10, nil)
+	result, err = FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKeyB, appID, nil, 10, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("user-b"), result[0])
@@ -137,7 +137,7 @@ func TestFetchAndDecryptUserEvents_PaginatesUntilMatch(t *testing.T) {
 		return strings.Contains(string(data), "target")
 	}
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 1, filter)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, filter)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("target"), result[0])
@@ -163,7 +163,7 @@ func TestFetchAndDecryptUserEvents_MaxResults(t *testing.T) {
 		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "d", BlockNumber: 1},
 	})
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 1, nil)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("first"), result[0])
@@ -189,7 +189,7 @@ func TestFetchAndDecryptUserEvents_NoLimit(t *testing.T) {
 		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "e", BlockNumber: 1},
 	})
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 0, nil)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 0, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	require.Equal(t, []byte("one"), result[0])
@@ -216,8 +216,80 @@ func TestFetchAndDecryptUserEvents_OrderWithinBlock(t *testing.T) {
 		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "f", BlockNumber: 10, LogIndex: 2},
 	})
 
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, "", 1, nil)
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, []byte("second-log"), result[0])
+}
+
+func TestFetchAndDecryptUserEvents_SeedSubTypesFilter(t *testing.T) {
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+	userKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+	secpKey, err := crypto.GeneratePrivateKeySecp256k1()
+	require.NoError(t, err)
+
+	// Generate seed-derived subtypes for this user.
+	seed, err := GenerateSeed(secpKey)
+	require.NoError(t, err)
+	subtypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
+	appID := common.NewApplicationId(7)
+	reqID1 := testutil.GenerateRandomRequestID()
+	reqID2 := testutil.GenerateRandomRequestID()
+	reqID3 := testutil.GenerateRandomRequestID()
+
+	// One event with a matching seed subtype, one with a non-matching subtype,
+	// and one from another user (different encryption key).
+	evMatch, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("seed-match"))
+	require.NoError(t, err)
+	evNoMatch, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("no-match"))
+	require.NoError(t, err)
+	evOther, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("other-subtype"))
+	require.NoError(t, err)
+
+	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: evMatch, EventSubType: subtypes[0], BlockNumber: 3},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: evNoMatch, EventSubType: "unknown-subtype", BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID3, EncryptedData: evOther, EventSubType: "deposit", BlockNumber: 1},
+	})
+
+	// With seed subtypes: only the matching event is returned.
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, subtypes, 0, nil)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	require.Equal(t, []byte("seed-match"), result[0])
+
+	// Without seed subtypes (nil): all decryptable events are returned.
+	result, err = FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 0, nil)
+	require.NoError(t, err)
+	require.Len(t, result, 3)
+}
+
+func TestFetchAndDecryptUserEvents_SingleSubType(t *testing.T) {
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+	userKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	appID := common.NewApplicationId(8)
+	reqID1 := testutil.GenerateRandomRequestID()
+	reqID2 := testutil.GenerateRandomRequestID()
+
+	ev1, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("deposit-event"))
+	require.NoError(t, err)
+	ev2, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("transfer-event"))
+	require.NoError(t, err)
+
+	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1, EventSubType: "deposit", BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2, EventSubType: "transfer", BlockNumber: 1},
+	})
+
+	// Single subtype passed: uses subgraph-level filter (mock returns all, but the
+	// subgraph in production would filter server-side).
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, []string{"deposit"}, 0, nil)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result), 1)
 }

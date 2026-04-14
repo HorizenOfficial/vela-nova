@@ -48,6 +48,7 @@ func findTokenBalance(
 	teePubKey *cryptotypes.PublicKeyP521,
 	privKey *cryptotypes.PrivateKeyP521,
 	applicationID common.ApplicationIdType,
+	seedSubTypes []string,
 	tokenHex string,
 	maxEvents int,
 ) (string, error) {
@@ -71,7 +72,7 @@ func findTokenBalance(
 			teePubKey,
 			*privKey,
 			applicationID,
-			"",
+			seedSubTypes,
 			batchSize,
 			eventHasBalance,
 		)
@@ -153,6 +154,15 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				log.Fatalf("failed to get TEE public key: %v", err)
 			}
 
+			if c.Config.KeySecp == nil {
+				log.Fatal("secp256k1 key not found in the wallet (required to derive event subtypes)")
+			}
+			seed, seedErr := GenerateSeed(c.Config.KeySecp)
+			if seedErr != nil {
+				log.Fatalf("failed to generate seed: %v", seedErr)
+			}
+			seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
 			tokenHex := strings.ToLower(tokenInfo.Address.Hex())
 
 			scanDepth := c.Config.PrivateBalanceScanDepth
@@ -160,7 +170,7 @@ func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 				scanDepth = defaultScanDepth
 			}
 
-			balanceHex, err := findTokenBalance(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID, tokenHex, scanDepth)
+			balanceHex, err := findTokenBalance(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID, seedSubTypes, tokenHex, scanDepth)
 			if err != nil {
 				log.Fatalf("failed to find balance: %v", err)
 			}

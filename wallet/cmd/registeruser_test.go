@@ -25,8 +25,9 @@ func TestRegisterUserCmd(t *testing.T) {
 
 	var key1, _ = crypto.GeneratePrivateKeySecp256k1()
 	var key2, _ = crypto.GeneratePrivateKeyP521()
+	teeKey, _ := crypto.GeneratePrivateKeyP521()
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -74,8 +75,10 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	require.NoError(t, err)
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -123,8 +126,10 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	require.NoError(t, err)
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
+	teeKey, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
