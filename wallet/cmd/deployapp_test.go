@@ -553,10 +553,10 @@ func TestDeployAppCommand_WithAllowedTokens_MultipleDistinctTokens(t *testing.T)
 		AllowedTokens []string `json:"allowedTokens"`
 	}
 	require.NoError(t, json.Unmarshal(payload.ConstructorParams, &ctor))
-	require.ElementsMatch(t,
+	require.Equal(t,
 		[]string{strings.ToLower(mockAddr), strings.ToLower(usdcAddr)},
 		ctor.AllowedTokens,
-		"both distinct tokens must appear in ConstructorParams")
+		"both distinct tokens must appear in ConstructorParams in input order")
 }
 
 // TestDeployAppCommand_NoAllowedTokens_OmitsConstructorParams verifies that

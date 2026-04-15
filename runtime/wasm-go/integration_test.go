@@ -128,32 +128,6 @@ func TestIntegration_Deploy(t *testing.T) {
 		assert.True(t, stateData.AllowedTokens[usdcTokenHex], "USDC should be allowed")
 		assert.Len(t, stateData.AllowedTokens, 2)
 	})
-
-	// Cross-boundary sanity check: the wallet CLI (vela-nova/wallet/cmd/deployapp.go)
-	// builds ConstructorParams using an ANONYMOUS struct rather than app.DeployParams
-	// (the wallet has no dependency on the guest package). This test asserts the
-	// guest can parse the exact JSON the wallet produces, guarding against silent
-	// drift between wallet-side wire format and guest-side parsing. If the wallet
-	// ever changes its JSON shape (e.g. field rename), this test fails fast
-	// without needing a full system test.
-	t.Run("WalletShapedParams", func(t *testing.T) {
-		ctx := context.Background()
-		appId := common.NewApplicationId(3)
-
-		// This literal matches the wallet's marshaled output byte-for-byte when
-		// a single token is passed. Format: {"allowedTokens":["0x<lowercase-hex>"]}
-		walletProducedParams := []byte(`{"allowedTokens":["` + usdcTokenHex + `"]}`)
-
-		state, _, err := runtime.Deploy(ctx, appId, walletProducedParams, wasmBytes)
-		require.NoError(t, err)
-		require.NotNil(t, state)
-
-		var stateData app.ApplicationInternalState
-		require.NoError(t, json.Unmarshal(state, &stateData))
-		assert.True(t, stateData.AllowedTokens[ethAddressHex()], "ETH always allowed")
-		assert.True(t, stateData.AllowedTokens[usdcTokenHex], "USDC from wallet-shaped params should be allowed")
-		assert.Len(t, stateData.AllowedTokens, 2)
-	})
 }
 
 func TestIntegration_Deposit(t *testing.T) {

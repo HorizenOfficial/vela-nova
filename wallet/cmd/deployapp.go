@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
+	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -118,9 +119,7 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 			resolved = append(resolved, addrHex)
 		}
 		if len(resolved) > 0 {
-			params := struct {
-				AllowedTokens []string `json:"allowedTokens"`
-			}{AllowedTokens: resolved}
+			params := runtimeapp.DeployParams{AllowedTokens: resolved}
 			ctorParams, err = json.Marshal(params)
 			if err != nil {
 				return fmt.Errorf("failed to marshal constructor params: %w", err)
