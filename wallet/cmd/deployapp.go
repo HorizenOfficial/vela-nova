@@ -17,14 +17,16 @@ import (
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
 
 type DeployAppCommand struct {
 	*app.ChainCommand
-	maxFeeValue string
-	wasmPath    string
-	confFile    string // path to wallet.conf for persisting ApplicationID
+	maxFeeValue   string
+	wasmPath      string
+	confFile      string // path to wallet.conf for persisting ApplicationID
+	allowedTokens []string
 }
 
 func NewDeployAppCommand(config *app.Config, blockchainClient blockchain.Client, confFile string) *DeployAppCommand {
@@ -47,6 +49,9 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
 	cmd.Flags().StringVar(&c.wasmPath, "wasm", "", "Path to wasm module file to upload and deploy")
+	cmd.Flags().StringSliceVar(&c.allowedTokens, "allowed-tokens", nil,
+		"Comma-separated ERC-20 symbols or hex addresses to allowlist at deploy (ETH is always allowed). "+
+			"Symbols are resolved via the wallet.conf token registry.")
 	_ = cmd.MarkFlagRequired("wasm")
 	return cmd
 }
@@ -89,10 +94,45 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 		return fmt.Errorf("deploy upload artifactId mismatch: expected=%s remote=%s", expectedArtifactID, uploadResp.ArtifactID)
 	}
 
+	// Resolve --allowed-tokens to lowercase hex addresses and build ConstructorParams.
+	// The guest keys AllowedTokens by the exact hex string; the runtime looks up using
+	// types.Address.Hex() which produces lowercase hex, so we normalize to match.
+	var ctorParams velacommon.ConstructorParams
+	if len(c.allowedTokens) > 0 {
+		resolved := make([]string, 0, len(c.allowedTokens))
+		seen := make(map[string]bool)
+		for _, tok := range c.allowedTokens {
+			info, err := c.Config.Tokens.ResolveToken(tok)
+			if err != nil {
+				return fmt.Errorf("--allowed-tokens: %w", err)
+			}
+			if info.Address == (ethCommon.Address{}) {
+				// ETH is always allowed by the guest — don't include it explicitly
+				continue
+			}
+			addrHex := strings.ToLower(info.Address.Hex())
+			if seen[addrHex] {
+				continue
+			}
+			seen[addrHex] = true
+			resolved = append(resolved, addrHex)
+		}
+		if len(resolved) > 0 {
+			params := struct {
+				AllowedTokens []string `json:"allowedTokens"`
+			}{AllowedTokens: resolved}
+			ctorParams, err = json.Marshal(params)
+			if err != nil {
+				return fmt.Errorf("failed to marshal constructor params: %w", err)
+			}
+		}
+	}
+
 	deployPayload, err := json.Marshal(velacommon.DeployDescriptor{
-		Mode:       velacommon.DeployModeArtifactRef,
-		ArtifactID: uploadResp.ArtifactID,
-		WasmSHA256: uploadResp.WasmSHA256,
+		Mode:              velacommon.DeployModeArtifactRef,
+		ArtifactID:        uploadResp.ArtifactID,
+		WasmSHA256:        uploadResp.WasmSHA256,
+		ConstructorParams: ctorParams,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to encode deploy descriptor payload: %w", err)
