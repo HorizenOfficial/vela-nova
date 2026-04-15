@@ -18,8 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
@@ -47,6 +49,30 @@ type hostWithdrawalEvent struct {
 	Amount       *common.Big       `json:"amount"`
 	Balance      *common.Big       `json:"balance"`
 	Nonce        uint64            `json:"nonce"`
+}
+
+// hostSenderEvent mirrors the guest SenderEvent emitted to the sender of a
+// private transfer. Balance is the sender's balance AFTER the transfer.
+type hostSenderEvent struct {
+	Type         string            `json:"type"`
+	To           ethCommon.Address `json:"to"`
+	TokenAddress ethCommon.Address `json:"tokenAddress"`
+	Amount       *common.Big       `json:"amount"`
+	Balance      *common.Big       `json:"balance"`
+	Nonce        uint64            `json:"nonce"`
+	InvoiceID    string            `json:"invoice_id,omitempty"`
+}
+
+// hostRecipientEvent mirrors the guest RecipientEvent emitted to the recipient
+// of a private transfer. Balance is the recipient's balance AFTER the transfer.
+type hostRecipientEvent struct {
+	Type         string            `json:"type"`
+	From         ethCommon.Address `json:"from"`
+	TokenAddress ethCommon.Address `json:"tokenAddress"`
+	Amount       *common.Big       `json:"amount"`
+	Balance      *common.Big       `json:"balance"`
+	Nonce        uint64            `json:"nonce"`
+	InvoiceID    string            `json:"invoice_id,omitempty"`
 }
 
 // depositToPaymentApp is a helper function to deposit funds and validate the deposit event.
@@ -253,16 +279,111 @@ func buildDeployDescriptorWithTokens(t *testing.T, suite *systemTests.SystemTest
 	for _, addr := range allowedTokens {
 		resolved = append(resolved, strings.ToLower(addr.Hex()))
 	}
-	params := struct {
-		AllowedTokens []string `json:"allowedTokens"`
-	}{AllowedTokens: resolved}
-	ctorBytes, err := json.Marshal(params)
+	ctorBytes, err := json.Marshal(app.DeployParams{AllowedTokens: resolved})
 	require.NoError(t, err)
 	descriptor.ConstructorParams = ctorBytes
 
 	payload, err := json.Marshal(descriptor)
 	require.NoError(t, err)
 	return payload
+}
+
+// deployAppWithTokens submits a Deploy request for appID with the given allowed-tokens
+// list (empty = ETH only, no ConstructorParams) and waits for the app to appear in
+// both the manager DB and the mock blockchain.
+func deployAppWithTokens(t *testing.T, suite *systemTests.SystemTestSuite, appID common.ApplicationIdType, sender ethCommon.Address, wasmBytecode []byte, allowedTokens []ethCommon.Address, timeout time.Duration) {
+	t.Helper()
+	deployReq := &common.Request{
+		RequestType:   common.Deploy,
+		ApplicationID: appID,
+		RequestID:     commontestutil.GenerateRandomRequestID(),
+		Payload:       buildDeployDescriptorWithTokens(t, suite, wasmBytecode, allowedTokens),
+		Sender:        sender,
+		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
+		AssetAmount:   common.NewBig(0),
+		MaxFeeValue:   common.NewBig(100),
+	}
+	require.NoError(t, suite.SubmitRequest(deployReq))
+	_, err := suite.WaitForAppStateInDB(appID, timeout)
+	require.NoError(t, err)
+	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
+	require.NoError(t, err)
+}
+
+// registerSeedUser generates a user key and submits an AssociateKey request that
+// embeds the encrypted secp256k1 seed — events to this user are routed via the
+// hashed-subtype scheme (WaitForEventBySubtypes with AllSubtypes(seed, N)).
+func registerSeedUser(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, executorPubKey *cryptotypes.PublicKeyP521, appID common.ApplicationIdType, user ethCommon.Address, timeout time.Duration) {
+	t.Helper()
+	userKey, err := cryptoHelper.GenerateUserKey(user)
+	require.NoError(t, err)
+	reqID := commontestutil.GenerateRandomRequestID()
+	req, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, user, userKey.PublicKey(), executorPubKey)
+	require.NoError(t, err)
+	require.NoError(t, suite.SubmitRequest(req))
+	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+}
+
+// registerNoSeedUser submits an AssociateKey request carrying only the 133-byte
+// P521 public key (no encrypted seed). The framework preserves the WASM-provided
+// plaintext subtype when routing events to this user.
+func registerNoSeedUser(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, appID common.ApplicationIdType, user ethCommon.Address, timeout time.Duration) {
+	t.Helper()
+	userKey, err := cryptoHelper.GenerateUserKey(user)
+	require.NoError(t, err)
+	reqID := commontestutil.GenerateRandomRequestID()
+	req := &common.Request{
+		ApplicationID: appID,
+		RequestID:     reqID,
+		RequestType:   common.AssociateKey,
+		Payload:       userKey.PublicKey().Bytes(), // 133 bytes, no encrypted seed
+		Sender:        user,
+		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
+		AssetAmount:   common.NewBig(0),
+		TokenAddress:  ethCommon.Address{},
+		MaxFeeValue:   common.NewBig(100),
+	}
+	require.NoError(t, suite.SubmitRequest(req))
+	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+}
+
+// fetchDeanonAccounts submits a deanonymization request from `auditor`, waits
+// for the report, decrypts it, asserts the envelope's appID and requestID
+// round-trip correctly, and returns the parsed accounts map.
+func fetchDeanonAccounts(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, executorPubKey *cryptotypes.PublicKeyP521, appID common.ApplicationIdType, auditor ethCommon.Address, timeout time.Duration) map[string]interface{} {
+	t.Helper()
+	reqID := commontestutil.GenerateRandomRequestID()
+	req, err := cryptoHelper.CreateDeanonymizationRequest(appID, reqID, auditor, []byte("{}"), executorPubKey)
+	require.NoError(t, err)
+	require.NoError(t, suite.SubmitRequest(req))
+	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+
+	report, err := suite.WaitForDeanonymizationReport(reqID, timeout)
+	require.NoError(t, err)
+	require.NotNil(t, report)
+
+	decrypted, err := cryptoHelper.DecryptDeanonymizationReport(auditor, report, executorPubKey)
+	require.NoError(t, err)
+
+	var envelope struct {
+		ApplicationId   common.ApplicationIdType `json:"applicationId"`
+		RequestId       common.RequestIdType     `json:"requestId"`
+		ReportDataBytes interface{}              `json:"reportDataBytes"`
+	}
+	require.NoError(t, json.Unmarshal(decrypted, &envelope))
+	require.Equal(t, appID, envelope.ApplicationId, "deanon report envelope appID must round-trip")
+	require.Equal(t, reqID, envelope.RequestId, "deanon report envelope requestID must round-trip")
+
+	jsonStr, ok := envelope.ReportDataBytes.(string)
+	require.True(t, ok, "reportDataBytes is not a string")
+	reportBytes, err := base64.StdEncoding.DecodeString(jsonStr)
+	require.NoError(t, err, "reportDataBytes is not base64 encoded")
+
+	var data map[string]interface{}
+	require.NoError(t, json.Unmarshal(reportBytes, &data))
+	accounts, ok := data["accounts"].(map[string]interface{})
+	require.True(t, ok, "accounts is not a map")
+	return accounts
 }
 
 func TestPaymentAppFullFlow(t *testing.T) {
@@ -299,45 +420,15 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, err)
 	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
-	// Deploy the application using deploy descriptor (upload artifact first)
-	deployPayload := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
-	deployReq := &common.Request{
-		RequestType:   common.Deploy,
-		ApplicationID: appID,
-		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       deployPayload,
-		Sender:        userAddress,
-		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		AssetAmount:   common.NewBig(0),
-		MaxFeeValue:   common.NewBig(100),
-	}
-	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err = suite.WaitForAppStateInDB(appID, timeout)
-	require.NoError(t, err)
-	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
-	require.NoError(t, err)
+	// Deploy the application (ETH-only: no ConstructorParams)
+	deployAppWithTokens(t, suite, appID, userAddress, wasmBytecode, nil, timeout)
 
-	// Get executor communication key for associate key requests
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
-	// Register user key
-	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
-	require.NoError(t, err)
-	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(associateKeyReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
-
-	// Register auditor key
-	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
-	require.NoError(t, err)
-	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+	// Register user and auditor keys (both seed-registered)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
 
 	// Deposit 2 ETH and validate event fields (seed-registered user -> hashed subtypes)
 	depositAmount := big.NewInt(2000000000000000000)
@@ -352,67 +443,15 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	// is registered the framework preserves the WASM-provided subtype as-is.
 	noSeedUser, err := cryptoHelper.GenerateUserIdentity()
 	require.NoError(t, err)
-	noSeedKey, err := cryptoHelper.GenerateUserKey(noSeedUser)
-	require.NoError(t, err)
-
-	// Build an AssociateKey request with only the P521 public key (133 bytes, no seed)
-	reqID = commontestutil.GenerateRandomRequestID()
-	noSeedAssocReq := &common.Request{
-		ApplicationID: appID,
-		RequestID:     reqID,
-		RequestType:   common.AssociateKey,
-		Payload:       noSeedKey.PublicKey().Bytes(), // 133 bytes, no encrypted seed
-		Sender:        noSeedUser,
-		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		AssetAmount:   common.NewBig(0),
-		TokenAddress:  ethCommon.Address{},
-		MaxFeeValue:   common.NewBig(100),
-	}
-	require.NoError(t, suite.SubmitRequest(noSeedAssocReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+	registerNoSeedUser(t, suite, cryptoHelper, appID, noSeedUser, timeout)
 
 	// Deposit 1 ETH for the no-seed user; plaintext "deposit" subtype should match
 	noSeedDepositAmount := big.NewInt(1000000000000000000)
 	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), noSeedUser, ethCommon.Address{}, noSeedDepositAmount, false)
 
-	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
-	reqID = commontestutil.GenerateRandomRequestID()
-	deanonReq, err := cryptoHelper.CreateDeanonymizationRequest(appID, reqID, auditorAddress, []byte("{}"), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(deanonReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
-
-	deanonReport, err := suite.WaitForDeanonymizationReport(reqID, timeout)
-	require.NoError(t, err)
-	require.NotNil(t, deanonReport)
-
-	decryptedReport, err := cryptoHelper.DecryptDeanonymizationReport(auditorAddress, deanonReport, executorPubKey)
-	require.NoError(t, err)
-
-	var report struct {
-		ApplicationId   common.ApplicationIdType `json:"applicationId"`
-		RequestId       common.RequestIdType     `json:"requestId"`
-		ReportDataBytes interface{}              `json:"reportDataBytes"`
-	}
-	err = json.Unmarshal(decryptedReport, &report)
-	require.NoError(t, err)
-	require.Equal(t, appID, report.ApplicationId)
-	require.Equal(t, reqID, report.RequestId)
-
-	jsonStr, ok := report.ReportDataBytes.(string)
-	require.True(t, ok, "reportDataBytes is not a string")
-	reportBytes, err := base64.StdEncoding.DecodeString(jsonStr)
-	require.NoError(t, err, "reportDataBytes is not base64 encoded")
-
-	var reportData map[string]interface{}
-	err = json.Unmarshal(reportBytes, &reportData)
-	require.NoError(t, err)
-	require.Contains(t, reportData, "accounts")
-	require.Contains(t, reportData, "nonce")
-
+	// Deanonymization report as auditor — verifies final state after deposit and withdrawal.
 	// Verify balances: seed user (2 ETH - 0.5 ETH = 1.5 ETH) and no-seed user (1 ETH)
-	accounts, ok := reportData["accounts"].(map[string]interface{})
-	require.True(t, ok, "accounts is not a map")
+	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
 	require.Len(t, accounts, 2, "expected two accounts in report (seed user + no-seed user)")
 
 	ethTokenHex := ethCommon.Address{}.Hex()
@@ -427,7 +466,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		require.True(t, ok, "balances is not a map")
 		balanceStr, ok := balances[ethTokenHex].(string)
 		require.True(t, ok, "ETH balance is not a string for account %s", addrHex)
-		require.True(t, len(balanceStr) > 2 && balanceStr[:2] == "0x", "balance is not hex")
+		require.True(t, strings.HasPrefix(balanceStr, "0x"), "balance is not hex")
 		balance, ok := new(big.Int).SetString(balanceStr[2:], 16)
 		require.True(t, ok, "failed to parse balance hex")
 
@@ -498,22 +537,7 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Deploy with AllowedTokens = [tokenAddress] ---
-	deployPayload := buildDeployDescriptorWithTokens(t, suite, wasmBytecode, []ethCommon.Address{tokenAddress})
-	deployReq := &common.Request{
-		RequestType:   common.Deploy,
-		ApplicationID: appID,
-		RequestID:     commontestutil.GenerateRandomRequestID(),
-		Payload:       deployPayload,
-		Sender:        userAddress,
-		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
-		AssetAmount:   common.NewBig(0),
-		MaxFeeValue:   common.NewBig(100),
-	}
-	require.NoError(t, suite.SubmitRequest(deployReq))
-	_, err = suite.WaitForAppStateInDB(appID, timeout)
-	require.NoError(t, err)
-	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
-	require.NoError(t, err)
+	deployAppWithTokens(t, suite, appID, userAddress, wasmBytecode, []ethCommon.Address{tokenAddress}, timeout)
 
 	// The stored ApplicationState.EncryptedState is encrypted by the executor;
 	// we can't read AllowedTokens directly. Token allowlisting is validated
@@ -527,22 +551,8 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 	// --- Register user and auditor keys ---
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
-
-	userKey, err := cryptoHelper.GenerateUserKey(userAddress)
-	require.NoError(t, err)
-	reqID := commontestutil.GenerateRandomRequestID()
-	associateKeyReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, userAddress, userKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(associateKeyReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
-
-	auditorKey, err := cryptoHelper.GenerateUserKey(auditorAddress)
-	require.NoError(t, err)
-	reqID = commontestutil.GenerateRandomRequestID()
-	associateAuditorReq, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, auditorAddress, auditorKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
 
 	// --- Deposit the ERC-20 token ---
 	depositAmount := big.NewInt(1_000_000) // arbitrary; token decimals are irrelevant here
@@ -553,37 +563,7 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, tokenAddress, withdrawAmount)
 
 	// --- Deanonymization report: remaining balance keyed under the token ---
-	reqID = commontestutil.GenerateRandomRequestID()
-	deanonReq, err := cryptoHelper.CreateDeanonymizationRequest(appID, reqID, auditorAddress, []byte("{}"), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(deanonReq))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
-
-	deanonReport, err := suite.WaitForDeanonymizationReport(reqID, timeout)
-	require.NoError(t, err)
-	require.NotNil(t, deanonReport)
-
-	decryptedReport, err := cryptoHelper.DecryptDeanonymizationReport(auditorAddress, deanonReport, executorPubKey)
-	require.NoError(t, err)
-
-	var report struct {
-		ApplicationId   common.ApplicationIdType `json:"applicationId"`
-		RequestId       common.RequestIdType     `json:"requestId"`
-		ReportDataBytes interface{}              `json:"reportDataBytes"`
-	}
-	require.NoError(t, json.Unmarshal(decryptedReport, &report))
-	require.Equal(t, appID, report.ApplicationId)
-	require.Equal(t, reqID, report.RequestId)
-
-	jsonStr, ok := report.ReportDataBytes.(string)
-	require.True(t, ok, "reportDataBytes is not a string")
-	reportBytes, err := base64.StdEncoding.DecodeString(jsonStr)
-	require.NoError(t, err, "reportDataBytes is not base64 encoded")
-
-	var reportData map[string]interface{}
-	require.NoError(t, json.Unmarshal(reportBytes, &reportData))
-	accounts, ok := reportData["accounts"].(map[string]interface{})
-	require.True(t, ok, "accounts is not a map")
+	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
 	require.Len(t, accounts, 1, "expected exactly one account in report")
 
 	expectedRemaining := new(big.Int).Sub(depositAmount, withdrawAmount)
@@ -596,7 +576,7 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 		// Remaining balance must be keyed under the ERC-20 token, not ETH.
 		balanceStr, ok := balances[tokenHex].(string)
 		require.True(t, ok, "balance for token %s missing on account %s", tokenHex, addrHex)
-		require.True(t, len(balanceStr) > 2 && balanceStr[:2] == "0x", "balance is not hex-prefixed")
+		require.True(t, strings.HasPrefix(balanceStr, "0x"), "balance is not hex-prefixed")
 		parsed, ok := new(big.Int).SetString(balanceStr[2:], 16)
 		require.True(t, ok, "failed to parse balance hex")
 		require.Equal(t, 0, expectedRemaining.Cmp(parsed),
@@ -604,10 +584,437 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 
 		// No ETH deposit was made; any ETH entry must be zero.
 		if ethBalanceStr, hasETH := balances[ethHex].(string); hasETH {
-			ethParsed, _ := new(big.Int).SetString(ethBalanceStr[2:], 16)
+			ethParsed, ok := new(big.Int).SetString(ethBalanceStr[2:], 16)
+			require.True(t, ok, "failed to parse ETH balance hex")
 			require.Equal(t, 0, ethParsed.Sign(),
 				"account %s should have no ETH balance, got %s", addrHex, ethBalanceStr)
 		}
+	}
+}
+
+// TestPaymentAppERC20MultiToken deploys the app with two ERC-20 tokens
+// allowlisted, deposits both from the same user, withdraws only one, and
+// verifies via the deanonymization report that per-token balances are
+// isolated: the withdrawn token shows (deposit - withdrawal), the other
+// shows its original deposit untouched.
+func TestPaymentAppERC20MultiToken(t *testing.T) {
+	if os.Getenv("CI_FLAG") != "" {
+		t.Skip("Skipping long running test in CI environment")
+	}
+
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multi", newNetworkLogConfig(), newNetworkLogConfig())
+	defer suite.Cleanup()
+
+	wasmBytecode := buildAndLoadWasmModule(t)
+
+	require.NoError(t, suite.StartExecutor())
+	require.NoError(t, suite.StartManager())
+
+	appID := common.NewApplicationId(1)
+	timeout := 100 * time.Second
+
+	// Two synthetic ERC-20 token addresses. Not deployed contracts — see
+	// scope comment at top of this section.
+	tokenA := ethCommon.HexToAddress("0x000000000000000000000000000000000000A11A")
+	tokenB := ethCommon.HexToAddress("0x000000000000000000000000000000000000B22B")
+	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
+
+	cryptoHelper := systemTests.NewCryptoHelper()
+	userAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+
+	// --- Deploy with AllowedTokens = [tokenA, tokenB] ---
+	deployAppWithTokens(t, suite, appID, userAddress, wasmBytecode, []ethCommon.Address{tokenA, tokenB}, timeout)
+
+	tokenAHex := strings.ToLower(tokenA.Hex())
+	tokenBHex := strings.ToLower(tokenB.Hex())
+
+	// --- Register user and auditor keys ---
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+
+	// --- Deposit both tokens from the same user ---
+	depositA := big.NewInt(1_000_000)
+	depositB := big.NewInt(5_500_000)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, tokenA, depositA, true)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, tokenB, depositB, true)
+
+	// --- Withdraw tokenA only; the helper asserts the mock-chain Withdrawal
+	//     record carries tokenA as its TokenAddress (not tokenB).
+	withdrawA := big.NewInt(400_000)
+	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, tokenA, withdrawA)
+
+	// --- Deanonymization report: verify per-token isolation ---
+	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	require.Len(t, accounts, 1, "expected exactly one account in report")
+
+	expectedA := new(big.Int).Sub(depositA, withdrawA) // tokenA was withdrawn partially
+	expectedB := new(big.Int).Set(depositB)            // tokenB was NOT touched
+
+	for addrHex, acct := range accounts {
+		acctMap, ok := acct.(map[string]interface{})
+		require.True(t, ok, "account entry is not a map")
+		balances, ok := acctMap["balances"].(map[string]interface{})
+		require.True(t, ok, "balances is not a map")
+
+		// tokenA: deposit - withdrawal
+		balanceAStr, ok := balances[tokenAHex].(string)
+		require.True(t, ok, "balance for tokenA (%s) missing on account %s", tokenAHex, addrHex)
+		parsedA, ok := new(big.Int).SetString(balanceAStr[2:], 16)
+		require.True(t, ok, "failed to parse tokenA balance hex")
+		require.Equal(t, 0, expectedA.Cmp(parsedA),
+			"account %s tokenA balance: expected %s, got %s", addrHex, expectedA, parsedA)
+
+		// tokenB: unchanged (the withdrawal of tokenA must not have affected tokenB)
+		balanceBStr, ok := balances[tokenBHex].(string)
+		require.True(t, ok, "balance for tokenB (%s) missing on account %s", tokenBHex, addrHex)
+		parsedB, ok := new(big.Int).SetString(balanceBStr[2:], 16)
+		require.True(t, ok, "failed to parse tokenB balance hex")
+		require.Equal(t, 0, expectedB.Cmp(parsedB),
+			"account %s tokenB balance should be unchanged: expected %s, got %s", addrHex, expectedB, parsedB)
+	}
+}
+
+// TestPaymentAppERC20MultiUser exercises a private transfer between two users
+// in the ERC-20 token. The two users are deliberately in different event-
+// routing modes to cover both within a single test:
+//
+//   - userA is SEED-REGISTERED: AssociateKey request carries an encrypted
+//     seed, and events reach userA via the privacy-preserving hashed-subtype
+//     set (WaitForEventBySubtypes with AllSubtypes(seed, N)).
+//   - userB is NO-SEED: AssociateKey request carries only the P521 public
+//     key (133 bytes, no encrypted seed). Events reach userB via the plain
+//     subtype the guest emits (WaitForEvent with the literal subtype name).
+//
+// The transfer goes A -> B, so we verify:
+//   - userA receives a "transfer_sent" event via the seed path, with correct
+//     tokenAddress, amount, and post-transfer balance
+//   - userB receives a "transfer_received" event via the no-seed plain-
+//     subtype path, with correct tokenAddress, amount, and post-transfer
+//     balance
+//   - the deanonymization report shows both accounts with the expected
+//     balances
+//   - total conservation: (userA remaining + userB remaining) == sum of the
+//     two original deposits (no tokens minted or lost by the transfer)
+//
+// The no-seed user receiving a transfer_received event is new coverage vs
+// TestPaymentAppFullFlow, which only exercises the no-seed path for deposit
+// events.
+func TestPaymentAppERC20MultiUser(t *testing.T) {
+	if os.Getenv("CI_FLAG") != "" {
+		t.Skip("Skipping long running test in CI environment")
+	}
+
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multiuser", newNetworkLogConfig(), newNetworkLogConfig())
+	defer suite.Cleanup()
+
+	wasmBytecode := buildAndLoadWasmModule(t)
+
+	require.NoError(t, suite.StartExecutor())
+	require.NoError(t, suite.StartManager())
+
+	appID := common.NewApplicationId(1)
+	timeout := 100 * time.Second
+
+	tokenAddress := ethCommon.HexToAddress("0x000000000000000000000000000000000000C0DE")
+
+	cryptoHelper := systemTests.NewCryptoHelper()
+	userA, err := cryptoHelper.GenerateUserIdentity() // seed-registered
+	require.NoError(t, err)
+	userB, err := cryptoHelper.GenerateUserIdentity() // no-seed
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity() // seed-registered (needs to decrypt deanon report)
+	require.NoError(t, err)
+
+	// --- Deploy with AllowedTokens = [tokenAddress] ---
+	deployAppWithTokens(t, suite, appID, userA, wasmBytecode, []ethCommon.Address{tokenAddress}, timeout)
+
+	tokenHex := strings.ToLower(tokenAddress.Hex())
+
+	// --- Register keys ---
+	// userA and auditor: seed-registered (CreateAssociateKeyRequest embeds the
+	// encrypted seed in the request payload). userB: no-seed (P521 key only).
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userA, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	registerNoSeedUser(t, suite, cryptoHelper, appID, userB, timeout)
+
+	// --- Both users deposit the ERC-20 token (independent amounts) ---
+	// useSeed=true for userA -> event matched via hashed subtype set
+	// useSeed=false for userB -> event matched via plain "deposit" subtype
+	depositA := big.NewInt(3_000_000)
+	depositB := big.NewInt(2_000_000)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userA, tokenAddress, depositA, true)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userB, tokenAddress, depositB, false)
+
+	// --- Private transfer A -> B ---
+	transferAmount := big.NewInt(1_200_000)
+
+	// Payload shape matches the guest's PayloadInstructions / TransferInstruction.
+	transferPayload, err := json.Marshal(map[string]interface{}{
+		"type": "transfer",
+		"transfer": map[string]interface{}{
+			"to":           userB,
+			"tokenAddress": tokenAddress,
+			"amount":       common.ToBig(transferAmount),
+		},
+	})
+	require.NoError(t, err)
+
+	transferReqID := commontestutil.GenerateRandomRequestID()
+	transferReq, err := cryptoHelper.CreateProcessRequest(appID, transferReqID, userA, transferPayload, executorPubKey)
+	require.NoError(t, err)
+	require.NoError(t, suite.SubmitRequest(transferReq))
+	require.NoError(t, suite.AssertRequestCompleted(transferReqID, timeout))
+
+	// --- Verify sender event (userA, seed path) ---
+	userASeed, err := cryptoHelper.ComputeSeed(userA)
+	require.NoError(t, err)
+	senderEvent, err := suite.WaitForEventBySubtypes(userA, executor.AllSubtypes(userASeed, executor.DefaultSubtypeN), timeout)
+	require.NoError(t, err)
+	senderDecrypted, err := cryptoHelper.DecryptEvent(userA, senderEvent, executorPubKey)
+	require.NoError(t, err)
+	var senderData hostSenderEvent
+	require.NoError(t, json.Unmarshal(senderDecrypted, &senderData))
+	require.Equal(t, userB, senderData.To, "sender event must record recipient=userB")
+	require.Equal(t, tokenAddress, senderData.TokenAddress,
+		"sender event must carry tokenAddress")
+	require.Equal(t, 0, transferAmount.Cmp(senderData.Amount.ToInt()),
+		"sender event amount mismatch")
+	expectedABalance := new(big.Int).Sub(depositA, transferAmount)
+	require.Equal(t, 0, expectedABalance.Cmp(senderData.Balance.ToInt()),
+		"userA post-transfer balance: expected %s, got %s", expectedABalance, senderData.Balance.ToInt())
+
+	// --- Verify recipient event (userB, no-seed plain-subtype path) ---
+	// The guest emits the recipient event with subtype "transfer_received";
+	// with no seed registered the framework preserves that literal subtype.
+	recipientEvent, err := suite.WaitForEvent(userB, "transfer_received", timeout)
+	require.NoError(t, err)
+	recipientDecrypted, err := cryptoHelper.DecryptEvent(userB, recipientEvent, executorPubKey)
+	require.NoError(t, err)
+	var recipientData hostRecipientEvent
+	require.NoError(t, json.Unmarshal(recipientDecrypted, &recipientData))
+	require.Equal(t, userA, recipientData.From, "recipient event must record sender=userA")
+	require.Equal(t, tokenAddress, recipientData.TokenAddress,
+		"recipient event must carry tokenAddress")
+	require.Equal(t, 0, transferAmount.Cmp(recipientData.Amount.ToInt()),
+		"recipient event amount mismatch")
+	expectedBBalance := new(big.Int).Add(depositB, transferAmount)
+	require.Equal(t, 0, expectedBBalance.Cmp(recipientData.Balance.ToInt()),
+		"userB post-transfer balance: expected %s, got %s", expectedBBalance, recipientData.Balance.ToInt())
+
+	// --- Deanonymization report: both accounts with correct balances ---
+	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	require.Len(t, accounts, 2, "expected exactly two accounts (userA + userB)")
+
+	// Walk both accounts and verify per-user balance. Also tally the total
+	// for conservation check.
+	total := new(big.Int)
+	seenA, seenB := false, false
+	for addrHex, acct := range accounts {
+		acctMap := acct.(map[string]interface{})
+		balances := acctMap["balances"].(map[string]interface{})
+		balStr, ok := balances[tokenHex].(string)
+		require.True(t, ok, "account %s missing balance for token %s", addrHex, tokenHex)
+		bal, ok := new(big.Int).SetString(balStr[2:], 16)
+		require.True(t, ok, "failed to parse balance hex for %s", addrHex)
+		total.Add(total, bal)
+
+		addr := ethCommon.HexToAddress(addrHex)
+		switch addr {
+		case userA:
+			seenA = true
+			require.Equal(t, 0, expectedABalance.Cmp(bal),
+				"userA report balance: expected %s, got %s", expectedABalance, bal)
+		case userB:
+			seenB = true
+			require.Equal(t, 0, expectedBBalance.Cmp(bal),
+				"userB report balance: expected %s, got %s", expectedBBalance, bal)
+		default:
+			t.Fatalf("unexpected account %s in report", addrHex)
+		}
+	}
+	require.True(t, seenA, "userA missing from report")
+	require.True(t, seenB, "userB missing from report")
+
+	// Conservation: total across accounts must equal the sum of the two
+	// original deposits (no tokens minted or lost by the transfer).
+	expectedTotal := new(big.Int).Add(depositA, depositB)
+	require.Equal(t, 0, expectedTotal.Cmp(total),
+		"total conservation broken: expected %s, got %s", expectedTotal, total)
+}
+
+// TestPaymentAppERC20NegativePath is a table-driven test covering the WASM-
+// layer rejections for ERC-20 operations. It runs a single suite with one
+// successful baseline deposit, then a series of subtests each submitting a
+// request that the guest should reject.
+//
+// The guest's validation happens BEFORE any state mutation, so all four
+// failing subtests must leave state untouched. A final successful deposit
+// after the failures proves the app remains functional, and the closing
+// deanonymization report asserts the balance equals the baseline plus the
+// final deposit (nothing leaked through the failed operations).
+//
+// Scope note: all subtests exercise guest-side rejections visible to the
+// test via AssertRequestCompleted returning "has failed". The mock blockchain
+// stores failed requests but not their UpdatePayload, so this test does not
+// assert on specific guest error strings — only that the request failed and
+// that state is intact after each failure. Contract-layer rejections (bad
+// permit, wrong allowance, reverts inside submitRequest) are a separate path
+// and belong to tests against a simulated chain.
+func TestPaymentAppERC20NegativePath(t *testing.T) {
+	if os.Getenv("CI_FLAG") != "" {
+		t.Skip("Skipping long running test in CI environment")
+	}
+
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-neg", newNetworkLogConfig(), newNetworkLogConfig())
+	defer suite.Cleanup()
+
+	wasmBytecode := buildAndLoadWasmModule(t)
+
+	require.NoError(t, suite.StartExecutor())
+	require.NoError(t, suite.StartManager())
+
+	appID := common.NewApplicationId(1)
+	timeout := 100 * time.Second
+
+	allowedToken := ethCommon.HexToAddress("0x000000000000000000000000000000000000A11A")
+	disallowedToken := ethCommon.HexToAddress("0x000000000000000000000000000000000000BAD1")
+	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
+
+	cryptoHelper := systemTests.NewCryptoHelper()
+	userA, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	userB, err := cryptoHelper.GenerateUserIdentity() // registered but never deposits
+	require.NoError(t, err)
+	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+
+	// --- Deploy: only allowedToken is in the allowlist ---
+	deployAppWithTokens(t, suite, appID, userA, wasmBytecode, []ethCommon.Address{allowedToken}, timeout)
+
+	tokenHex := strings.ToLower(allowedToken.Hex())
+
+	// --- Register all three keys (all seed-registered for simplicity) ---
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userA, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userB, timeout)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+
+	// --- Baseline: userA deposits 1000 of allowedToken (succeeds) ---
+	baselineAmount := big.NewInt(1000)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userA, allowedToken, baselineAmount, true)
+
+	// --- Negative subtests. Each must fail and leave state unchanged. ---
+
+	t.Run("deposit with disallowed token", func(t *testing.T) {
+		reqID := commontestutil.GenerateRandomRequestID()
+		req, err := cryptoHelper.CreateTokenDepositRequest(appID, reqID, userA, disallowedToken, big.NewInt(500), executorPubKey)
+		require.NoError(t, err)
+		require.NoError(t, suite.SubmitRequest(req))
+		err = suite.AssertRequestCompleted(reqID, timeout)
+		require.Error(t, err, "deposit of disallowed token must fail")
+		require.Contains(t, err.Error(), "has failed")
+	})
+
+	t.Run("withdrawal exceeding balance", func(t *testing.T) {
+		reqID := commontestutil.GenerateRandomRequestID()
+		// userA has baselineAmount (1000); withdraw more than that.
+		tooMuch := new(big.Int).Mul(baselineAmount, big.NewInt(2))
+		req, err := cryptoHelper.CreateTokenWithdrawalRequest(appID, reqID, userA, recipientAddress, allowedToken, common.ToBig(tooMuch), executorPubKey)
+		require.NoError(t, err)
+		require.NoError(t, suite.SubmitRequest(req))
+		err = suite.AssertRequestCompleted(reqID, timeout)
+		require.Error(t, err, "withdrawal exceeding balance must fail")
+		require.Contains(t, err.Error(), "has failed")
+	})
+
+	t.Run("transfer exceeding balance", func(t *testing.T) {
+		tooMuch := new(big.Int).Mul(baselineAmount, big.NewInt(2))
+		transferPayload, err := json.Marshal(map[string]interface{}{
+			"type": "transfer",
+			"transfer": map[string]interface{}{
+				"to":           userB,
+				"tokenAddress": allowedToken,
+				"amount":       common.ToBig(tooMuch),
+			},
+		})
+		require.NoError(t, err)
+		reqID := commontestutil.GenerateRandomRequestID()
+		req, err := cryptoHelper.CreateProcessRequest(appID, reqID, userA, transferPayload, executorPubKey)
+		require.NoError(t, err)
+		require.NoError(t, suite.SubmitRequest(req))
+		err = suite.AssertRequestCompleted(reqID, timeout)
+		require.Error(t, err, "transfer exceeding balance must fail")
+		require.Contains(t, err.Error(), "has failed")
+	})
+
+	t.Run("transfer from account with no deposits", func(t *testing.T) {
+		// userB is registered but has never deposited — their account entry
+		// in state does not exist. Transfer from userB must fail with
+		// "Account does not exist!".
+		transferPayload, err := json.Marshal(map[string]interface{}{
+			"type": "transfer",
+			"transfer": map[string]interface{}{
+				"to":           userA,
+				"tokenAddress": allowedToken,
+				"amount":       common.ToBig(big.NewInt(100)),
+			},
+		})
+		require.NoError(t, err)
+		reqID := commontestutil.GenerateRandomRequestID()
+		req, err := cryptoHelper.CreateProcessRequest(appID, reqID, userB, transferPayload, executorPubKey)
+		require.NoError(t, err)
+		require.NoError(t, suite.SubmitRequest(req))
+		err = suite.AssertRequestCompleted(reqID, timeout)
+		require.Error(t, err, "transfer from non-existent account must fail")
+		require.Contains(t, err.Error(), "has failed")
+	})
+
+	// --- Post-condition: state survived every failure. ---
+	// A successful deposit confirms the app is still operational.
+	finalDeposit := big.NewInt(50)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userA, allowedToken, finalDeposit, true)
+
+	// Deanonymization report: userA's balance must equal baseline + final
+	// deposit, nothing more and nothing less. If any of the failed subtests
+	// had partially mutated state, this assertion would catch it.
+	expected := new(big.Int).Add(baselineAmount, finalDeposit)
+
+	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	require.Len(t, accounts, 1, "only userA should have an account (userB never deposited)")
+
+	for addrHex, acct := range accounts {
+		addr := ethCommon.HexToAddress(addrHex)
+		require.Equal(t, userA, addr, "unexpected account %s in report", addrHex)
+
+		balances := acct.(map[string]interface{})["balances"].(map[string]interface{})
+		balStr, ok := balances[tokenHex].(string)
+		require.True(t, ok, "balance for allowedToken missing on userA")
+		parsed, ok := new(big.Int).SetString(balStr[2:], 16)
+		require.True(t, ok, "failed to parse balance hex")
+		require.Equal(t, 0, expected.Cmp(parsed),
+			"userA balance after all failures + final deposit: expected %s, got %s (state was mutated by a failed operation)",
+			expected, parsed)
+
+		// disallowedToken must not appear anywhere — the failed deposit
+		// of it must not have leaked a zero-balance entry into state.
+		disallowedHex := strings.ToLower(disallowedToken.Hex())
+		_, leaked := balances[disallowedHex]
+		require.False(t, leaked,
+			"disallowed-token balance entry must not appear in state, but found key %s", disallowedHex)
 	}
 }
 
