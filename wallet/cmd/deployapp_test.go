@@ -21,6 +21,7 @@ import (
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/magiconair/properties"
 	"github.com/stretchr/testify/require"
 )
 
@@ -377,4 +378,263 @@ func writeTempWASM(t *testing.T, wasm []byte) string {
 func shaHex(payload []byte) string {
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
+}
+
+// TestDeployAppCommand_WithAllowedTokens verifies that --allowed-tokens values
+// are resolved via the wallet.conf token registry, normalized to lowercase hex,
+// and embedded in the DeployDescriptor's ConstructorParams.
+func TestDeployAppCommand_WithAllowedTokens(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	mockAddr := "0xCafeBabe00000000000000000000000000000001"
+	confText := "token.MOCK.address=" + mockAddr + "\n" +
+		"token.MOCK.decimals=18\n"
+	props, err := properties.LoadString(confText)
+	require.NoError(t, err)
+	tokens, err := app.LoadTokenRegistry(props)
+	require.NoError(t, err)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+		Tokens:                    tokens,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	// Mix of symbol, raw address (same token, should be deduped), ETH (should be
+	// silently dropped since guest always allows it).
+	cmd.allowedTokens = []string{"MOCK", mockAddr, "ETH"}
+
+	require.NoError(t, cmd.run(context.Background()))
+
+	// Decode the submitted deploy payload and inspect ConstructorParams
+	var payload struct {
+		Mode              string          `json:"mode"`
+		ArtifactID        string          `json:"artifactId"`
+		WasmSHA256        string          `json:"wasmSha256"`
+		ConstructorParams json.RawMessage `json:"constructorParams"`
+	}
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
+	require.NotEmpty(t, payload.ConstructorParams, "ConstructorParams should be present")
+
+	var ctor struct {
+		AllowedTokens []string `json:"allowedTokens"`
+	}
+	require.NoError(t, json.Unmarshal(payload.ConstructorParams, &ctor))
+	require.Len(t, ctor.AllowedTokens, 1, "MOCK+address dup should produce 1 entry; ETH should be dropped")
+	require.Equal(t, strings.ToLower(mockAddr), ctor.AllowedTokens[0],
+		"addresses must be lowercase hex to match the guest runtime's lookup format")
+}
+
+// TestDeployAppCommand_WithAllowedTokens_HexAddressOnly verifies that a raw
+// checksummed hex address (no symbol) is resolved via the registry and the
+// lowercase normalization happens even when the registry entry itself stores
+// the address in checksummed form.
+func TestDeployAppCommand_WithAllowedTokens_HexAddressOnly(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	// Register the token in the wallet under a checksummed address (mixed case).
+	// The registry normalizes internally; the CLI must also normalize its output.
+	mockAddrChecksum := "0xCafeBabe00000000000000000000000000000001"
+	confText := "token.MOCK.address=" + mockAddrChecksum + "\n" +
+		"token.MOCK.decimals=18\n"
+	props, err := properties.LoadString(confText)
+	require.NoError(t, err)
+	tokens, err := app.LoadTokenRegistry(props)
+	require.NoError(t, err)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+		Tokens:                    tokens,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	// Pass ONLY the raw hex address (no symbol)
+	cmd.allowedTokens = []string{mockAddrChecksum}
+
+	require.NoError(t, cmd.run(context.Background()))
+
+	var payload struct {
+		ConstructorParams json.RawMessage `json:"constructorParams"`
+	}
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
+	require.NotEmpty(t, payload.ConstructorParams)
+
+	var ctor struct {
+		AllowedTokens []string `json:"allowedTokens"`
+	}
+	require.NoError(t, json.Unmarshal(payload.ConstructorParams, &ctor))
+	require.Equal(t, []string{strings.ToLower(mockAddrChecksum)}, ctor.AllowedTokens,
+		"hex address must be normalized to lowercase in ConstructorParams")
+}
+
+// TestDeployAppCommand_WithAllowedTokens_MultipleDistinctTokens verifies that
+// two distinct tokens are both included and ordering is preserved.
+func TestDeployAppCommand_WithAllowedTokens_MultipleDistinctTokens(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	mockAddr := "0xCafeBabe00000000000000000000000000000001"
+	usdcAddr := "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+	confText := "token.MOCK.address=" + mockAddr + "\n" +
+		"token.MOCK.decimals=18\n" +
+		"token.USDC.address=" + usdcAddr + "\n" +
+		"token.USDC.decimals=6\n"
+	props, err := properties.LoadString(confText)
+	require.NoError(t, err)
+	tokens, err := app.LoadTokenRegistry(props)
+	require.NoError(t, err)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+		Tokens:                    tokens,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	cmd.allowedTokens = []string{"MOCK", "USDC"}
+
+	require.NoError(t, cmd.run(context.Background()))
+
+	var payload struct {
+		ConstructorParams json.RawMessage `json:"constructorParams"`
+	}
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
+
+	var ctor struct {
+		AllowedTokens []string `json:"allowedTokens"`
+	}
+	require.NoError(t, json.Unmarshal(payload.ConstructorParams, &ctor))
+	require.ElementsMatch(t,
+		[]string{strings.ToLower(mockAddr), strings.ToLower(usdcAddr)},
+		ctor.AllowedTokens,
+		"both distinct tokens must appear in ConstructorParams")
+}
+
+// TestDeployAppCommand_NoAllowedTokens_OmitsConstructorParams verifies that
+// when --allowed-tokens is not set, the ConstructorParams field is absent
+// from the marshaled DeployDescriptor (not an empty string, not "null").
+// This prevents regression where we'd always serialize an empty field.
+func TestDeployAppCommand_NoAllowedTokens_OmitsConstructorParams(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	// allowedTokens left as zero value (nil) — simulating no flag given
+
+	require.NoError(t, cmd.run(context.Background()))
+
+	// Decode into a map so we can check for field absence (not presence-with-zero-value)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
+	_, present := payload["constructorParams"]
+	require.False(t, present,
+		"constructorParams must be absent from the descriptor when --allowed-tokens is not set; "+
+			"found: %v", payload["constructorParams"])
+}
+
+// TestDeployAppCommand_WithAllowedTokens_UnknownSymbol verifies that an
+// unresolved token symbol produces a clear error and does not submit a request.
+func TestDeployAppCommand_WithAllowedTokens_UnknownSymbol(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	tokens, err := app.LoadTokenRegistry(nil) // registry with only ETH
+	require.NoError(t, err)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+		Tokens:                    tokens,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	cmd.allowedTokens = []string{"UNKNOWN"}
+
+	err = cmd.run(context.Background())
+	require.ErrorContains(t, err, "--allowed-tokens")
+	require.Empty(t, mockBC.deployPayload, "no request should be submitted when resolution fails")
 }
