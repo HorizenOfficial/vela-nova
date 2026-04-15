@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -386,6 +387,19 @@ func fetchDeanonAccounts(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	return accounts
 }
 
+// parseReportBalance extracts a 0x-prefixed hex balance string for tokenHex from
+// a deanon report's per-account balances map and parses it into a *big.Int.
+// The balance MUST be present — use this when the test expects a positive entry.
+func parseReportBalance(t *testing.T, balances map[string]interface{}, tokenHex string) *big.Int {
+	t.Helper()
+	s, ok := balances[tokenHex].(string)
+	require.True(t, ok, "balance for token %s is missing or not a string", tokenHex)
+	require.True(t, strings.HasPrefix(s, "0x"), "balance not hex-prefixed: %s", s)
+	v, ok := new(big.Int).SetString(s[2:], 16)
+	require.True(t, ok, "failed to parse balance hex: %s", s)
+	return v
+}
+
 func TestPaymentAppFullFlow(t *testing.T) {
 	if os.Getenv("CI_FLAG") != "" {
 		t.Skip("Skipping long running test in CI environment")
@@ -464,11 +478,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 		require.True(t, ok, "account entry is not a map")
 		balances, ok := acctMap["balances"].(map[string]interface{})
 		require.True(t, ok, "balances is not a map")
-		balanceStr, ok := balances[ethTokenHex].(string)
-		require.True(t, ok, "ETH balance is not a string for account %s", addrHex)
-		require.True(t, strings.HasPrefix(balanceStr, "0x"), "balance is not hex")
-		balance, ok := new(big.Int).SetString(balanceStr[2:], 16)
-		require.True(t, ok, "failed to parse balance hex")
+		balance := parseReportBalance(t, balances, ethTokenHex)
 
 		addr := ethCommon.HexToAddress(addrHex)
 		expected, known := expectedBalances[addr]
@@ -574,11 +584,7 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 		require.True(t, ok, "balances is not a map")
 
 		// Remaining balance must be keyed under the ERC-20 token, not ETH.
-		balanceStr, ok := balances[tokenHex].(string)
-		require.True(t, ok, "balance for token %s missing on account %s", tokenHex, addrHex)
-		require.True(t, strings.HasPrefix(balanceStr, "0x"), "balance is not hex-prefixed")
-		parsed, ok := new(big.Int).SetString(balanceStr[2:], 16)
-		require.True(t, ok, "failed to parse balance hex")
+		parsed := parseReportBalance(t, balances, tokenHex)
 		require.Equal(t, 0, expectedRemaining.Cmp(parsed),
 			"account %s: expected token balance %s, got %s", addrHex, expectedRemaining, parsed)
 
@@ -664,18 +670,12 @@ func TestPaymentAppERC20MultiToken(t *testing.T) {
 		require.True(t, ok, "balances is not a map")
 
 		// tokenA: deposit - withdrawal
-		balanceAStr, ok := balances[tokenAHex].(string)
-		require.True(t, ok, "balance for tokenA (%s) missing on account %s", tokenAHex, addrHex)
-		parsedA, ok := new(big.Int).SetString(balanceAStr[2:], 16)
-		require.True(t, ok, "failed to parse tokenA balance hex")
+		parsedA := parseReportBalance(t, balances, tokenAHex)
 		require.Equal(t, 0, expectedA.Cmp(parsedA),
 			"account %s tokenA balance: expected %s, got %s", addrHex, expectedA, parsedA)
 
 		// tokenB: unchanged (the withdrawal of tokenA must not have affected tokenB)
-		balanceBStr, ok := balances[tokenBHex].(string)
-		require.True(t, ok, "balance for tokenB (%s) missing on account %s", tokenBHex, addrHex)
-		parsedB, ok := new(big.Int).SetString(balanceBStr[2:], 16)
-		require.True(t, ok, "failed to parse tokenB balance hex")
+		parsedB := parseReportBalance(t, balances, tokenBHex)
 		require.Equal(t, 0, expectedB.Cmp(parsedB),
 			"account %s tokenB balance should be unchanged: expected %s, got %s", addrHex, expectedB, parsedB)
 	}
@@ -759,13 +759,14 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 	// --- Private transfer A -> B ---
 	transferAmount := big.NewInt(1_200_000)
 
-	// Payload shape matches the guest's PayloadInstructions / TransferInstruction.
-	transferPayload, err := json.Marshal(map[string]interface{}{
-		"type": "transfer",
-		"transfer": map[string]interface{}{
-			"to":           userB,
-			"tokenAddress": tokenAddress,
-			"amount":       common.ToBig(transferAmount),
+	// Use the guest's real PayloadInstructions / TransferInstruction types so
+	// a field rename in app/types.go breaks compilation instead of the wire format.
+	transferPayload, err := json.Marshal(app.PayloadInstructions{
+		Type: "transfer",
+		Transfer: &app.TransferInstruction{
+			To:           types.Address(userB),
+			TokenAddress: types.Address(tokenAddress),
+			Amount:       new(types.Uint256).SetBytes(transferAmount.Bytes()),
 		},
 	})
 	require.NoError(t, err)
@@ -823,10 +824,7 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 	for addrHex, acct := range accounts {
 		acctMap := acct.(map[string]interface{})
 		balances := acctMap["balances"].(map[string]interface{})
-		balStr, ok := balances[tokenHex].(string)
-		require.True(t, ok, "account %s missing balance for token %s", addrHex, tokenHex)
-		bal, ok := new(big.Int).SetString(balStr[2:], 16)
-		require.True(t, ok, "failed to parse balance hex for %s", addrHex)
+		bal := parseReportBalance(t, balances, tokenHex)
 		total.Add(total, bal)
 
 		addr := ethCommon.HexToAddress(addrHex)
@@ -943,12 +941,12 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 
 	t.Run("transfer exceeding balance", func(t *testing.T) {
 		tooMuch := new(big.Int).Mul(baselineAmount, big.NewInt(2))
-		transferPayload, err := json.Marshal(map[string]interface{}{
-			"type": "transfer",
-			"transfer": map[string]interface{}{
-				"to":           userB,
-				"tokenAddress": allowedToken,
-				"amount":       common.ToBig(tooMuch),
+		transferPayload, err := json.Marshal(app.PayloadInstructions{
+			Type: "transfer",
+			Transfer: &app.TransferInstruction{
+				To:           types.Address(userB),
+				TokenAddress: types.Address(allowedToken),
+				Amount:       new(types.Uint256).SetBytes(tooMuch.Bytes()),
 			},
 		})
 		require.NoError(t, err)
@@ -965,12 +963,12 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 		// userB is registered but has never deposited — their account entry
 		// in state does not exist. Transfer from userB must fail with
 		// "Account does not exist!".
-		transferPayload, err := json.Marshal(map[string]interface{}{
-			"type": "transfer",
-			"transfer": map[string]interface{}{
-				"to":           userA,
-				"tokenAddress": allowedToken,
-				"amount":       common.ToBig(big.NewInt(100)),
+		transferPayload, err := json.Marshal(app.PayloadInstructions{
+			Type: "transfer",
+			Transfer: &app.TransferInstruction{
+				To:           types.Address(userA),
+				TokenAddress: types.Address(allowedToken),
+				Amount:       new(types.Uint256).SetBytes(big.NewInt(100).Bytes()),
 			},
 		})
 		require.NoError(t, err)
@@ -1001,10 +999,7 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 		require.Equal(t, userA, addr, "unexpected account %s in report", addrHex)
 
 		balances := acct.(map[string]interface{})["balances"].(map[string]interface{})
-		balStr, ok := balances[tokenHex].(string)
-		require.True(t, ok, "balance for allowedToken missing on userA")
-		parsed, ok := new(big.Int).SetString(balStr[2:], 16)
-		require.True(t, ok, "failed to parse balance hex")
+		parsed := parseReportBalance(t, balances, tokenHex)
 		require.Equal(t, 0, expected.Cmp(parsed),
 			"userA balance after all failures + final deposit: expected %s, got %s (state was mutated by a failed operation)",
 			expected, parsed)
