@@ -1,0 +1,151 @@
+package main_test
+
+import (
+	"encoding/json"
+	"math/big"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/HorizenOfficial/vela/pkg/common"
+	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
+	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
+	"github.com/HorizenOfficial/vela/pkg/executor"
+	"github.com/HorizenOfficial/vela/pkg/logger"
+	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
+	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
+	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+)
+
+// createFullstackUser creates a funded on-chain account and registers its
+// signing key with the CryptoHelper so that seed computation and payload
+// encryption work correctly.
+func createFullstackUser(t *testing.T, suite *fullstack.FullStackSystemTestSuite, cryptoHelper *systemTests.CryptoHelper) (ethCommon.Address, error) {
+	t.Helper()
+	addr, signingKey, err := suite.CreateFundedAccount()
+	if err != nil {
+		return ethCommon.Address{}, err
+	}
+	cryptoHelper.RegisterUserSigningKey(addr, signingKey)
+	return addr, nil
+}
+
+// registerSeedUser generates a P521 key, submits an AssociateKey request with
+// an encrypted seed, and waits for completion.
+func registerSeedUser(t *testing.T, suite *fullstack.FullStackSystemTestSuite, cryptoHelper *systemTests.CryptoHelper, executorPubKey *cryptotypes.PublicKeyP521, appID common.ApplicationIdType, user ethCommon.Address, timeout time.Duration) {
+	t.Helper()
+	userKey, err := cryptoHelper.GenerateUserKey(user)
+	require.NoError(t, err)
+	reqID := commontestutil.GenerateRandomRequestID()
+	req, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, user, userKey.PublicKey(), executorPubKey)
+	require.NoError(t, err)
+	require.NoError(t, suite.SubmitRequest(req))
+	require.NoError(t, suite.AssertRequestCompleted(req.RequestID, timeout))
+}
+
+// TestFullStackDeployAndDeposit is the simplest fullstack smoke test:
+// deploy an app on the real simulated chain, register a user, deposit ETH,
+// and verify the event is received. This proves the entire stack works
+// end-to-end: on-chain submission → manager polls chain → executor processes
+// WASM → manager submits state update on-chain → events observed in test.
+func TestFullStackDeployAndDeposit(t *testing.T) {
+	if os.Getenv("CI_FLAG") != "" {
+		t.Skip("Skipping fullstack test in CI environment")
+	}
+
+	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
+
+	suite := fullstack.NewFullStackSystemTestSuite(t, "wasmtime-payment", newNetworkLogConfig(), newNetworkLogConfig())
+	defer suite.Cleanup()
+
+	wasmBytecode := buildAndLoadWasmModule(t)
+
+	require.NoError(t, suite.StartExecutor())
+	require.NoError(t, suite.StartManager())
+
+	timeout := 100 * time.Second
+
+	cryptoHelper := systemTests.NewCryptoHelper()
+
+	// Create funded on-chain accounts for user and auditor
+	userAddress, err := createFullstackUser(t, suite, cryptoHelper)
+	require.NoError(t, err)
+
+	// Deploy the app — appID is assigned by the contract.
+	// The ProcessorEndpoint contract requires the sender to have the deployer role,
+	// so we use the pre-authorized deployer account from the simulated chain.
+	deployDescriptor := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
+	deployReq := &common.Request{
+		RequestType: common.Deploy,
+		Payload:     deployDescriptor,
+		Sender:      suite.GetDeployerAddress(),
+		Timestamp:   common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
+		AssetAmount: common.NewBig(0),
+		MaxFeeValue: common.NewBig(100),
+	}
+	require.NoError(t, suite.SubmitRequest(deployReq))
+	appID := deployReq.ApplicationID
+	t.Logf("Contract assigned appID: %d", appID)
+
+	_, err = suite.WaitForAppStateInDB(appID, timeout)
+	require.NoError(t, err)
+	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
+	require.NoError(t, err)
+
+	// Get executor public key for encryption
+	executorPubKey, err := suite.GetExecutorCommunicationKey()
+	require.NoError(t, err)
+
+	// Register user key (seed-registered)
+	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
+
+	// Deposit 2 ETH
+	depositAmount := big.NewInt(2_000_000_000_000_000_000)
+	depositReq, err := cryptoHelper.CreateTokenDepositRequest(appID, commontestutil.GenerateRandomRequestID(), userAddress, ethCommon.Address{}, depositAmount, executorPubKey)
+	require.NoError(t, err)
+	require.NoError(t, suite.SubmitRequest(depositReq))
+	require.NoError(t, suite.AssertRequestCompleted(depositReq.RequestID, timeout))
+
+	// Verify deposit event received
+	userSeed, err := cryptoHelper.ComputeSeed(userAddress)
+	require.NoError(t, err)
+	depositEvent, err := suite.WaitForEventBySubtypes(userAddress, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+	require.NoError(t, err)
+
+	// Decrypt and validate event
+	decryptedData, err := cryptoHelper.DecryptEvent(userAddress, depositEvent, executorPubKey)
+	require.NoError(t, err)
+	var eventData struct {
+		Type    string      `json:"type"`
+		Amount  *common.Big `json:"amount"`
+		Balance *common.Big `json:"balance"`
+	}
+	require.NoError(t, json.Unmarshal(decryptedData, &eventData))
+	require.Equal(t, "deposit", eventData.Type)
+	require.Equal(t, 0, depositAmount.Cmp(eventData.Amount.ToInt()),
+		"deposit event amount: expected %s, got %s", depositAmount, eventData.Amount.ToInt())
+
+	// Verify signature on the update payload
+	executorSigningKey, err := suite.GetExecutorSigningKey()
+	require.NoError(t, err)
+	payload, err := suite.GetRequestUpdatePayload(depositReq.RequestID)
+	require.NoError(t, err)
+	require.NoError(t, cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey))
+
+	t.Log("Fullstack deploy + deposit test passed")
+}
+
+// --- Shared helpers (same as system_tests, adapted for fullstack suite) ---
+
+func newNetworkLogConfig() *logger.Config {
+	return &logger.Config{
+		Kind:             "zeronetwork",
+		ConsoleColor:     false,
+		Console:          true,
+		ConsoleLevel:     "trace",
+		FileLevel:        "trace",
+		RemoteLogNetwork: "tcp",
+		NetworkLevel:     "trace",
+	}
+}
