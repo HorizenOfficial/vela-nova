@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
@@ -44,11 +45,13 @@ func registerSeedUser(t *testing.T, suite *fullstack.FullStackSystemTestSuite, c
 	require.NoError(t, suite.AssertRequestCompleted(req.RequestID, timeout))
 }
 
-// TestFullStackDeployAndDeposit is the simplest fullstack smoke test:
+// TestFullStackDeployAndDeposit is the fullstack smoke test:
 // deploy an app on the real simulated chain, register a user, deposit ETH,
-// and verify the event is received. This proves the entire stack works
+// verify the event is received, and query the in-process subgraph for
+// request completions and user events. This proves the entire stack works
 // end-to-end: on-chain submission → manager polls chain → executor processes
-// WASM → manager submits state update on-chain → events observed in test.
+// WASM → manager submits state update on-chain → events and subgraph data
+// observed in test.
 func TestFullStackDeployAndDeposit(t *testing.T) {
 	if os.Getenv("CI_FLAG") != "" {
 		t.Skip("Skipping fullstack test in CI environment")
@@ -68,7 +71,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 
 	cryptoHelper := systemTests.NewCryptoHelper()
 
-	// Create funded on-chain accounts for user and auditor
+	// Create funded on-chain account for the user
 	userAddress, err := createFullstackUser(t, suite, cryptoHelper)
 	require.NoError(t, err)
 
@@ -133,7 +136,49 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey))
 
-	t.Log("Fullstack deploy + deposit test passed")
+	// --- In-process subgraph verification ---
+	// Query the subgraph for the completed deposit request
+	sgClient := suite.GetSubgraphClient()
+
+	depositCompleted, err := sgClient.GetRequestCompletedByID(t.Context(), depositReq.RequestID)
+	require.NoError(t, err)
+	require.NotNil(t, depositCompleted, "subgraph should have the deposit request completion")
+	require.Equal(t, velacommon.RequestResultOK, depositCompleted.Status)
+	require.Equal(t, appID, depositCompleted.ApplicationID)
+	t.Logf("Subgraph: deposit request completed at block %d", depositCompleted.BlockNumber)
+
+	// Query the subgraph for the deploy request completion
+	deployCompleted, err := sgClient.GetDeployRequestCompletedByID(t.Context(), deployReq.RequestID)
+	require.NoError(t, err)
+	require.NotNil(t, deployCompleted, "subgraph should have the deploy request completion")
+	require.Equal(t, velacommon.RequestResultOK, deployCompleted.Status)
+
+	// Query user events from the subgraph — the deposit should have produced an event
+	// with the hashed subtype. Query with all subtypes for this user's seed.
+	allSubtypes := executor.AllSubtypes(userSeed, executor.DefaultSubtypeN)
+	sgEvents, err := sgClient.GetUserEventsBySubTypes(t.Context(), appID, allSubtypes, 10, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, sgEvents, "subgraph should have at least one user event after deposit")
+	t.Logf("Subgraph: found %d user events for the deposit", len(sgEvents))
+
+	// The most recent event should be the deposit event — decrypt and verify
+	sgDecrypted, err := cryptoHelper.DecryptEvent(userAddress, &common.Event{
+		ApplicationID: sgEvents[0].ApplicationID,
+		UserID:        userAddress,
+		EventSubType:  sgEvents[0].EventSubType,
+		EncryptedData: sgEvents[0].EncryptedData,
+	}, executorPubKey)
+	require.NoError(t, err)
+	var sgEventData struct {
+		Type   string      `json:"type"`
+		Amount *common.Big `json:"amount"`
+	}
+	require.NoError(t, json.Unmarshal(sgDecrypted, &sgEventData))
+	require.Equal(t, "deposit", sgEventData.Type)
+	require.Equal(t, 0, depositAmount.Cmp(sgEventData.Amount.ToInt()),
+		"subgraph event amount: expected %s, got %s", depositAmount, sgEventData.Amount.ToInt())
+
+	t.Log("Fullstack deploy + deposit + subgraph verification passed")
 }
 
 // --- Shared helpers (same as system_tests, adapted for fullstack suite) ---
