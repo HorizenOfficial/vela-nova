@@ -7,15 +7,16 @@ go 1.24.0
 toolchain go1.24.3
 
 // Can be useful for local developments
-//replace github.com/HorizenOfficial/vela => ../../../vela
+replace github.com/HorizenOfficial/vela => ../../../vela
 
-//replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
+replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
 
 require (
 	github.com/HorizenOfficial/vela v0.0.28
 	github.com/HorizenOfficial/vela-common-go v0.0.28
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.44.0
 )
 
 require (
@@ -62,6 +63,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
+	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
@@ -74,7 +76,6 @@ require (
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect

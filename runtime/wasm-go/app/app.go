@@ -7,6 +7,7 @@ import (
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-common-go/wasm/utils"
 	"github.com/HorizenOfficial/vela/pkg/common"
+	"golang.org/x/crypto/sha3"
 )
 
 // --- High-Level Application Logic ---
@@ -233,6 +234,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 	}
 
 	var events []types.PlainEvent
+	var appEvents []types.AppEvent
 	var withdrawals []types.Withdrawal
 
 	// Determine instruction type: requestType has priority over payload
@@ -360,6 +362,22 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				EventSubType: "transfer_received",
 				Data:         recipientEventDataBytes,
 			})
+
+			// Emit transfer receipt as AppEvent when InvoiceID is present
+			// Note: the receipt hash is not encrypted, so that could be used as a proof of succesfull transfer
+			// verifiable by any third party
+			if instructions.Transfer.InvoiceID != "" {
+				h := sha3.NewLegacyKeccak256()
+				h.Write([]byte(instructions.Transfer.InvoiceID))
+				h.Write(instructions.Transfer.TokenAddress[:])
+				h.Write(instructions.Transfer.Amount.Bytes())
+				h.Write(instructions.Transfer.To[:])
+
+				appEvents = append(appEvents, types.AppEvent{
+					EventSubType: "transfer_receipt",
+					Data:         h.Sum(nil),
+				})
+			}
 
 		case "withdraw":
 			if instructions.Withdraw == nil {
@@ -511,6 +529,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 	return types.ProcessResult{
 		State:       newStateBytes,
 		Events:      events,
+		AppEvents:   appEvents,
 		Withdrawals: withdrawals,
 		Fuel:        fuel,
 	}
