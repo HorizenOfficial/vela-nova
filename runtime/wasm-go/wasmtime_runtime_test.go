@@ -2,6 +2,8 @@ package main_test
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,11 +14,12 @@ import (
 	"sync"
 	"testing"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	wasm "github.com/HorizenOfficial/vela/pkg/wasm"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/sha3"
 )
 
 // host-side helper types for test validation (app-specific, not framework types).
@@ -169,7 +172,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	// helper: build payload, execute transfer, verify state, return events
-	doTransfer := func(t *testing.T, invoiceID string) []common.PlainEvent {
+	doTransfer := func(t *testing.T, invoiceID string) ([]common.PlainEvent, []common.AppEvent) {
 		t.Helper()
 		ti := &transferInstruction{
 			To:        recipient,
@@ -179,7 +182,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		payloadBytes, err := json.Marshal(payloadInstructions{Type: "transfer", Transfer: ti})
 		require.NoError(t, err)
 
-		newState, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
+		newState, events, appEvents, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
 			ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
 		require.Nil(t, failure)
 		require.NotNil(t, newState, "New state should not be nil")
@@ -195,11 +198,11 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		assert.Equal(t, updatedBalanceSender, getTestBalance(stateData, sender, ethAddressHex()))
 		assert.Equal(t, transferValue, getTestBalance(stateData, recipient, ethAddressHex()))
 
-		return events
+		return events, appEvents
 	}
 
 	t.Run("WithoutInvoiceID", func(t *testing.T) {
-		events := doTransfer(t, "")
+		events, appEvents := doTransfer(t, "")
 
 		// Verify sender event
 		var senderEventData TestTransferEventData
@@ -223,11 +226,14 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		var recipientRaw map[string]interface{}
 		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
 		assert.NotContains(t, recipientRaw, "invoice_id", "invoice_id should be absent from recipient event when not provided")
+
+		// No AppEvent when InvoiceID is empty
+		assert.Empty(t, appEvents, "no AppEvent should be emitted without InvoiceID")
 	})
 
 	t.Run("WithInvoiceID", func(t *testing.T) {
 		invoiceID := "INV-2025-001"
-		events := doTransfer(t, invoiceID)
+		events, appEvents := doTransfer(t, invoiceID)
 
 		// Verify sender event contains invoice_id
 		var senderEventData TestTransferEventData
@@ -249,6 +255,32 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		var recipientRaw map[string]interface{}
 		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
 		assert.Equal(t, invoiceID, recipientRaw["invoice_id"])
+
+		// AppEvent should be emitted with the receipt hash carried in EventSubType and Data left nil.
+		require.Len(t, appEvents, 1, "one AppEvent should be emitted when InvoiceID is present")
+
+		// Verify the hash matches keccak256(len32(invoiceID) || invoiceID || sender || tokenAddress || amount || to).
+		// The uint32 big-endian length prefix and the fixed 32-byte amount encoding
+		// ensure field boundaries are unambiguous (prevents cross-transfer collisions).
+		invoiceIDBytes := []byte(invoiceID)
+		var lenPrefix [4]byte
+		binary.BigEndian.PutUint32(lenPrefix[:], uint32(len(invoiceIDBytes)))
+
+		var amountFixed [32]byte
+		transferValue.FillBytes(amountFixed[:])
+
+		h := sha3.NewLegacyKeccak256()
+		h.Write(lenPrefix[:])
+		h.Write(invoiceIDBytes)
+		h.Write(sender.Bytes())    // sender
+		h.Write(ethToken.Bytes())  // tokenAddress (ETH = zero address)
+		h.Write(amountFixed[:])    // amount (fixed 32 bytes)
+		h.Write(recipient.Bytes()) // to
+		expectedHash := h.Sum(nil)
+		expectedSubType := "0x" + hex.EncodeToString(expectedHash)
+		assert.Equal(t, expectedSubType, appEvents[0].EventSubType, "EventSubType should carry the 0x-prefixed hex of the receipt hash")
+		assert.Nil(t, appEvents[0].Data, "Data should be nil when receipt hash is carried in EventSubType")
+
 	})
 }
 

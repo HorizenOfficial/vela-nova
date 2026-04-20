@@ -1,6 +1,8 @@
 package app
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -364,18 +366,29 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			})
 
 			// Emit transfer receipt as AppEvent when InvoiceID is present
-			// Note: the receipt hash is not encrypted, so that could be used as a proof of succesfull transfer
+			// Note: the receipt hash is not encrypted, so that could be used as a proof of succesful transfer
 			// verifiable by any third party
+			//
+			// Field boundaries must be unambiguous to prevent collisions across
+			// different transfers: InvoiceID is length-prefixed (uint32 big-endian),
+			// and Amount.Bytes() returns a fixed 32-byte big-endian encoding.
+			// sender, TokenAddress and To are fixed 20-byte addresses.
 			if instructions.Transfer.InvoiceID != "" {
+				invoiceIDBytes := []byte(instructions.Transfer.InvoiceID)
+				var lenPrefix [4]byte
+				binary.BigEndian.PutUint32(lenPrefix[:], uint32(len(invoiceIDBytes)))
+
 				h := sha3.NewLegacyKeccak256()
-				h.Write([]byte(instructions.Transfer.InvoiceID))
+				h.Write(lenPrefix[:])
+				h.Write(invoiceIDBytes)
+				h.Write(sender[:])
 				h.Write(instructions.Transfer.TokenAddress[:])
 				h.Write(instructions.Transfer.Amount.Bytes())
 				h.Write(instructions.Transfer.To[:])
 
 				appEvents = append(appEvents, types.AppEvent{
-					EventSubType: "transfer_receipt",
-					Data:         h.Sum(nil),
+					EventSubType: "0x" + hex.EncodeToString(h.Sum(nil)),
+					Data:         nil,
 				})
 			}
 

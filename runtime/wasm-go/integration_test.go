@@ -2,6 +2,8 @@ package main_test
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -287,18 +289,27 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 		require.NoError(t, json.Unmarshal(result.events[1].Data, &recipientRaw))
 		assert.Equal(t, invoiceID, recipientRaw["invoice_id"], "recipient event should contain invoice_id")
 
-		// AppEvent with transfer_receipt should be emitted
+		// AppEvent should be emitted with the receipt hash carried in EventSubType and Data left nil.
 		require.Len(t, result.appEvents, 1, "one AppEvent should be emitted when InvoiceID is present")
-		assert.Equal(t, "transfer_receipt", result.appEvents[0].EventSubType)
 
-		// Verify the hash matches keccak256(invoiceID, tokenAddress, amount, to)
+		// Verify the hash matches keccak256(len32(invoiceID) || invoiceID || sender || tokenAddress || amount || to).
+		// The uint32 big-endian length prefix and the fixed 32-byte amount encoding
+		// ensure field boundaries are unambiguous (prevents cross-transfer collisions).
+		invoiceIDBytes := []byte(invoiceID)
+		var lenPrefix [4]byte
+		binary.BigEndian.PutUint32(lenPrefix[:], uint32(len(invoiceIDBytes)))
+
 		h := sha3.NewLegacyKeccak256()
-		h.Write([]byte(invoiceID))
-		h.Write(ethToken.Bytes())                // tokenAddress (ETH = zero address)
-		h.Write(transferValue.Bytes())            // amount
-		h.Write(recAddress[:])                    // to
+		h.Write(lenPrefix[:])
+		h.Write(invoiceIDBytes)
+		h.Write(ethSender.Bytes())     // sender
+		h.Write(ethToken.Bytes())      // tokenAddress (ETH = zero address)
+		h.Write(transferValue.Bytes()) // amount (fixed 32 bytes)
+		h.Write(recAddress[:])         // to
 		expectedHash := h.Sum(nil)
-		assert.Equal(t, expectedHash, result.appEvents[0].Data, "receiptHash should match keccak256(invoiceID, tokenAddress, amount, to)")
+		expectedSubType := "0x" + hex.EncodeToString(expectedHash)
+		assert.Equal(t, expectedSubType, result.appEvents[0].EventSubType, "EventSubType should carry the 0x-prefixed hex of the receipt hash")
+		assert.Nil(t, result.appEvents[0].Data, "Data should be nil when receipt hash is carried in EventSubType")
 	})
 }
 
