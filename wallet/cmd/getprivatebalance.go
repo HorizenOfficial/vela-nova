@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"strings"
 
+	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
-	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/spf13/cobra"
 )
 
@@ -115,78 +116,84 @@ func findTokenBalance(
 	return "", nil // not found
 }
 
+// Exec runs the getprivatebalance flow outside of the Cobra wrapper. Returns
+// (balance, tokenInfo, scanDepth, err). A nil balance with nil err means
+// "no balance found within scanDepth events" — callers should communicate this
+// distinctly from a zero balance. Exported so test drivers can invoke it
+// directly after setting flag-bound struct fields.
+func (c *GetPrivateBalanceCommand) Exec(ctx context.Context) (*big.Int, *app.TokenInfo, int, error) {
+	if err := c.RequireApplicationID(); err != nil {
+		return nil, nil, 0, err
+	}
+
+	tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	if err := c.InitChainClient(ctx); err != nil {
+		return nil, tokenInfo, 0, fmt.Errorf("connecting to rpc node: %w", err)
+	}
+	defer c.CloseClient()
+
+	if c.SubgraphClient == nil {
+		return nil, tokenInfo, 0, fmt.Errorf("subgraph client not initialized (missing SubgraphURL)")
+	}
+
+	teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+	if err != nil {
+		return nil, tokenInfo, 0, fmt.Errorf("failed to get TEE public key: %w", err)
+	}
+
+	if c.Config.KeySecp == nil {
+		return nil, tokenInfo, 0, fmt.Errorf("secp256k1 key not found in the wallet (required to derive event subtypes)")
+	}
+	seed, err := GenerateSeed(c.Config.KeySecp)
+	if err != nil {
+		return nil, tokenInfo, 0, fmt.Errorf("failed to generate seed: %w", err)
+	}
+	seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+
+	tokenHex := strings.ToLower(tokenInfo.Address.Hex())
+
+	scanDepth := c.Config.PrivateBalanceScanDepth
+	if scanDepth <= 0 {
+		scanDepth = defaultScanDepth
+	}
+
+	balanceHex, err := findTokenBalance(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID, seedSubTypes, tokenHex, scanDepth)
+	if err != nil {
+		return nil, tokenInfo, scanDepth, fmt.Errorf("failed to find balance: %w", err)
+	}
+
+	if balanceHex == "" {
+		return nil, tokenInfo, scanDepth, nil
+	}
+
+	var balance common.Big
+	if err := json.Unmarshal([]byte(`"`+balanceHex+`"`), &balance); err != nil {
+		return nil, tokenInfo, scanDepth, fmt.Errorf("failed to parse balance: %w", err)
+	}
+
+	return balance.ToInt(), tokenInfo, scanDepth, nil
+}
+
 func (c *GetPrivateBalanceCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "getprivatebalance",
 		Short: `get private balance associated to the wallet address`,
 		Long:  `get private balance associated to the wallet address`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.RequireApplicationID(); err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			// Resolve token
-			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			balance, tokenInfo, scanDepth, err := c.Exec(resolveContext(cmd))
 			if err != nil {
 				log.Fatalf("Error: %v", err)
 			}
-
-			ctx := context.Background()
-			if cmd != nil && cmd.Context() != nil {
-				ctx = cmd.Context()
-			}
-			blockchainClient := c.BlockchainClient
-			if blockchainClient == nil {
-				if err := c.InitChainClient(ctx); err != nil {
-					log.Fatalf("Error connecting to rpc node: %v", err)
-					return
-				}
-				blockchainClient = c.BlockchainClient
-			}
-			defer blockchainClient.Close()
-
-			if c.SubgraphClient == nil {
-				log.Fatal("subgraph client not initialized (missing SubgraphURL)")
-			}
-
-			teePubKey, err := blockchainClient.GetTeePublicKey(ctx)
-			if err != nil {
-				log.Fatalf("failed to get TEE public key: %v", err)
-			}
-
-			if c.Config.KeySecp == nil {
-				log.Fatal("secp256k1 key not found in the wallet (required to derive event subtypes)")
-			}
-			seed, seedErr := GenerateSeed(c.Config.KeySecp)
-			if seedErr != nil {
-				log.Fatalf("failed to generate seed: %v", seedErr)
-			}
-			seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
-
-			tokenHex := strings.ToLower(tokenInfo.Address.Hex())
-
-			scanDepth := c.Config.PrivateBalanceScanDepth
-			if scanDepth <= 0 {
-				scanDepth = defaultScanDepth
-			}
-
-			balanceHex, err := findTokenBalance(ctx, c.SubgraphClient, teePubKey, c.Config.KeyP521, c.Config.ApplicationID, seedSubTypes, tokenHex, scanDepth)
-			if err != nil {
-				log.Fatalf("failed to find balance: %v", err)
-			}
-
-			if balanceHex == "" {
+			if balance == nil {
 				fmt.Printf("No %s balance found in the last %d events.\n", tokenInfo.Symbol, scanDepth)
 				fmt.Println("For an authoritative balance, use: requestreport --report-type balances")
 				return
 			}
-
-			var balance common.Big
-			if err := json.Unmarshal([]byte(`"`+balanceHex+`"`), &balance); err != nil {
-				log.Fatalf("failed to parse balance: %v", err)
-			}
-
-			fmt.Println(c.Config.Tokens.FormatAmount(balance.ToInt(), tokenInfo))
+			fmt.Println(c.Config.Tokens.FormatAmount(balance, tokenInfo))
 		},
 	}
 	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")

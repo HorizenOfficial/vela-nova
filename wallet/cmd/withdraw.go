@@ -22,11 +22,80 @@ type WithdrawCommand struct {
 }
 
 func NewWithdrawCommand(config *app.Config, blockchainClient blockchain.Client) *WithdrawCommand {
-	cmd := &WithdrawCommand{
+	return &WithdrawCommand{
 		ChainCommand: app.NewChainCommand(config, blockchainClient),
 	}
+}
 
-	return cmd
+// Exec runs the withdraw flow outside of the Cobra wrapper. Exported so test
+// drivers can invoke it directly after setting flag-bound struct fields.
+func (c *WithdrawCommand) Exec(ctx context.Context) error {
+	if err := c.RequireApplicationID(); err != nil {
+		return err
+	}
+
+	tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+	if err != nil {
+		return err
+	}
+
+	amount, err := parseAssetAmount(c.Config.Tokens, tokenInfo, c.value)
+	if err != nil {
+		return fmt.Errorf("invalid amount: %w", err)
+	}
+
+	maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("invalid max fee amount: %w", err)
+	}
+
+	receiver, err := app.ValidateAndChecksumAddress(c.receiver)
+	if err != nil {
+		return fmt.Errorf("invalid receiver address: %w", err)
+	}
+
+	if err := c.InitChainClient(ctx); err != nil {
+		return fmt.Errorf("connecting to rpc node: %w", err)
+	}
+	defer c.CloseClient()
+
+	receiverAddr, err := types.HexToAddress(receiver.Hex())
+	if err != nil {
+		return fmt.Errorf("invalid receiver address, could not convert to byte array: %w", err)
+	}
+	tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
+	if err != nil {
+		return fmt.Errorf("invalid token address: %w", err)
+	}
+
+	payload := runtimeapp.PayloadInstructions{
+		Type: "withdraw",
+		Withdraw: &runtimeapp.WithdrawInstruction{
+			To:           receiverAddr,
+			TokenAddress: tokenAddr,
+			Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
+		},
+	}
+	encryptedPayload, err := c.EncryptPayload(&payload, ctx)
+	if err != nil {
+		return fmt.Errorf("encrypting withdraw payload: %w", err)
+	}
+
+	// On-chain: no business asset deposited (withdrawal is from private state),
+	// so tokenAddress=ETH_TOKEN and assetAmount=0.
+	requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, common.Process, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("sending request to withdraw %s %s: %w", c.value, tokenInfo.Symbol, err)
+	}
+
+	fmt.Println("Waiting for confirmation from Vela")
+	if err := c.WaitForRequestCompleted(requestID, ctx); err != nil {
+		return fmt.Errorf("Withdrawal failed: %w", err)
+	}
+
+	fmt.Println("Withdrawal completed successfully, funds moved from the private state to the bridge contract and ready to be claimed")
+	fmt.Printf("IMPORTANT: execute 'claimpendingpayments --token %s' to receive funds in your public address\n", tokenInfo.Symbol)
+	return nil
 }
 
 func (c *WithdrawCommand) Command() *cobra.Command {
@@ -35,101 +104,9 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 		Short: `withdraw funds from the Vela system`,
 		Long:  `withdraw funds from the Vela system and send them to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.RequireApplicationID(); err != nil {
+			if err := c.Exec(resolveContext(cmd)); err != nil {
 				fmt.Printf("Error: %v\n", err)
-				return
 			}
-
-			// Resolve token
-			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				return
-			}
-
-			// Parse amount with correct decimals
-			var amount *big.Int
-			if tokenInfo.Address == ETH_TOKEN {
-				amount, err = app.ParseEtherValue(c.value)
-			} else {
-				amount, err = c.Config.Tokens.ParseAmount(c.value, tokenInfo)
-			}
-			if err != nil {
-				fmt.Printf("Error: invalid amount: %v\n", err)
-				return
-			}
-
-			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error: invalid max fee amount: %v\n", err)
-				return
-			}
-
-			receiver, err := app.ValidateAndChecksumAddress(c.receiver)
-			if err != nil {
-				fmt.Printf("Error: invalid receiver address: %v\n", err)
-				return
-			}
-
-			ctx := context.Background()
-			if cmd != nil && cmd.Context() != nil {
-				ctx = cmd.Context()
-			}
-			if c.BlockchainClient == nil {
-				if err := c.InitChainClient(ctx); err != nil {
-					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return
-				}
-			}
-			defer c.CloseClient()
-
-			receiverAddr, err := types.HexToAddress(receiver.Hex())
-			if err != nil {
-				fmt.Printf("Error: invalid receiver address, could not convert to byte array: %v\n", err)
-				return
-			}
-
-			// Resolve token address for the encrypted payload
-			tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
-			if err != nil {
-				fmt.Printf("Error: invalid token address: %v\n", err)
-				return
-			}
-
-			payload := runtimeapp.PayloadInstructions{
-				Type: "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{
-					To:           receiverAddr,
-					TokenAddress: tokenAddr,
-					Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
-				},
-			}
-			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
-			if err != nil {
-				fmt.Printf("Error encrypting withdraw payload: %v\n", err)
-				return
-			}
-
-			// On-chain: no business asset deposited (withdrawal is from private state),
-			// so tokenAddress=ETH_TOKEN and assetAmount=0.
-			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error sending request to withdraw %s %s: %v\n", c.value, tokenInfo.Symbol, err)
-				return
-			}
-
-			fmt.Println("Waiting for confirmation from Vela")
-
-			err = c.WaitForRequestCompleted(requestID, ctx)
-			if err != nil {
-				fmt.Printf("Withdrawal failed: %v\n", err)
-				return
-			}
-
-			fmt.Println("Withdrawal completed successfully, funds moved from the private state to the bridge contract and ready to be claimed")
-			fmt.Printf("IMPORTANT: execute 'claimpendingpayments --token %s' to receive funds in your public address\n", tokenInfo.Symbol)
-
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount to withdraw (e.g., '1.5 ETH', '100' for ERC-20)")
