@@ -65,7 +65,10 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 		depositEvent, err = suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 		require.NoError(t, err)
 	} else {
-		depositEvent, err = suite.WaitForEvent(user, "deposit", timeout)
+		// No seed registered for this user: the executor does not override the
+		// WASM subtype, and the WASM app emits the zero value on PlainEvents.
+		// Passing the zero-value subtype to WaitForEvent matches any subtype.
+		depositEvent, err = suite.WaitForEvent(user, [32]byte{}, timeout)
 		require.NoError(t, err)
 	}
 

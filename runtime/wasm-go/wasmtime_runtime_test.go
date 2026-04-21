@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,11 +13,12 @@ import (
 	"sync"
 	"testing"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	wasm "github.com/HorizenOfficial/vela/pkg/wasm"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/sha3"
 )
 
 // host-side helper types for test validation (app-specific, not framework types).
@@ -112,16 +114,18 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
+	newState, events, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure, "Deposit should succeed")
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	// Verify the event
+	// Verify the event. The WASM app intentionally leaves EventSubType unset
+	// because the executor overrides it from the user seed; at this runtime
+	// level (no executor) the field is the zero value.
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
-	assert.Equal(t, "deposit", event.EventSubType)
+	assert.Equal(t, [32]byte{}, event.EventSubType)
 
 	var eventData depositEvent
 	err = json.Unmarshal(event.Data, &eventData)
@@ -164,12 +168,12 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
+	stateAfterDeposit, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
 	// helper: build payload, execute transfer, verify state, return events
-	doTransfer := func(t *testing.T, invoiceID string) []common.PlainEvent {
+	doTransfer := func(t *testing.T, invoiceID string) ([]common.PlainEvent, []common.AppEvent) {
 		t.Helper()
 		ti := &transferInstruction{
 			To:        recipient,
@@ -179,7 +183,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		payloadBytes, err := json.Marshal(payloadInstructions{Type: "transfer", Transfer: ti})
 		require.NoError(t, err)
 
-		newState, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
+		newState, events, appEvents, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
 			ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
 		require.Nil(t, failure)
 		require.NotNil(t, newState, "New state should not be nil")
@@ -195,11 +199,11 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		assert.Equal(t, updatedBalanceSender, getTestBalance(stateData, sender, ethAddressHex()))
 		assert.Equal(t, transferValue, getTestBalance(stateData, recipient, ethAddressHex()))
 
-		return events
+		return events, appEvents
 	}
 
 	t.Run("WithoutInvoiceID", func(t *testing.T) {
-		events := doTransfer(t, "")
+		events, appEvents := doTransfer(t, "")
 
 		// Verify sender event
 		var senderEventData TestTransferEventData
@@ -223,11 +227,14 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		var recipientRaw map[string]interface{}
 		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
 		assert.NotContains(t, recipientRaw, "invoice_id", "invoice_id should be absent from recipient event when not provided")
+
+		// No AppEvent when InvoiceID is empty
+		assert.Empty(t, appEvents, "no AppEvent should be emitted without InvoiceID")
 	})
 
 	t.Run("WithInvoiceID", func(t *testing.T) {
 		invoiceID := "INV-2025-001"
-		events := doTransfer(t, invoiceID)
+		events, appEvents := doTransfer(t, invoiceID)
 
 		// Verify sender event contains invoice_id
 		var senderEventData TestTransferEventData
@@ -249,6 +256,32 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		var recipientRaw map[string]interface{}
 		require.NoError(t, json.Unmarshal(events[1].Data, &recipientRaw))
 		assert.Equal(t, invoiceID, recipientRaw["invoice_id"])
+
+		// AppEvent should be emitted with the receipt hash carried in EventSubType and Data left nil.
+		require.Len(t, appEvents, 1, "one AppEvent should be emitted when InvoiceID is present")
+
+		// Verify the hash matches keccak256(len32(invoiceID) || invoiceID || sender || tokenAddress || amount || to).
+		// The uint32 big-endian length prefix and the fixed 32-byte amount encoding
+		// ensure field boundaries are unambiguous (prevents cross-transfer collisions).
+		invoiceIDBytes := []byte(invoiceID)
+		var lenPrefix [4]byte
+		binary.BigEndian.PutUint32(lenPrefix[:], uint32(len(invoiceIDBytes)))
+
+		var amountFixed [32]byte
+		transferValue.FillBytes(amountFixed[:])
+
+		h := sha3.NewLegacyKeccak256()
+		h.Write(lenPrefix[:])
+		h.Write(invoiceIDBytes)
+		h.Write(sender.Bytes())    // sender
+		h.Write(ethToken.Bytes())  // tokenAddress (ETH = zero address)
+		h.Write(amountFixed[:])    // amount (fixed 32 bytes)
+		h.Write(recipient.Bytes()) // to
+		var expectedSubType [32]byte
+		copy(expectedSubType[:], h.Sum(nil))
+		assert.Equal(t, expectedSubType, appEvents[0].EventSubType, "EventSubType should carry the raw 32-byte receipt hash")
+		assert.Nil(t, appEvents[0].Data, "Data should be nil when receipt hash is carried in EventSubType")
+
 	})
 }
 
@@ -276,7 +309,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateAfterDeposit, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
+	stateAfterDeposit, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -291,7 +324,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err, "Should marshal withdrawal payload")
 
-	newState, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
+	newState, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
@@ -299,10 +332,11 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.Nil(t, reportBytes, "Report should be nil for withdrawal requests")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
-	// Verify withdrawal event
+	// Verify withdrawal event. EventSubType is the zero value at the runtime
+	// level — see the note in TestWasmtimeRuntime_Deposit.
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
-	assert.Equal(t, "withdrawal", event.EventSubType)
+	assert.Equal(t, [32]byte{}, event.EventSubType)
 
 	var eventData TestWithdrawalEventData
 	err = json.Unmarshal(event.Data, &eventData)
@@ -346,11 +380,11 @@ func TestWasmtimeRuntime_ProcessRequest_Deanonymize(t *testing.T) {
 	require.NoError(t, err, "LoadModule should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
-	stateWithData, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
+	stateWithData, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, []byte("{}"), stateWithData, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, []byte("{}"), stateWithData, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes, "Report should not be nil")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
@@ -384,7 +418,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 
 	t.Log("Step 2: Make deposit for user1")
 	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
-	state, events, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, depositAmount, state, wasmBytes)
+	state, events, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, depositAmount, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
@@ -402,7 +436,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	var reportBytes []byte
-	state, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	state, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
@@ -422,7 +456,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	payloadBytes, err = json.Marshal(withdrawPayload)
 	require.NoError(t, err)
 
-	state, events, withdrawals, reportBytes, fuel, failure = runtime.ProcessRequest(ctx, appId, user2, common.Process, payloadBytes, state, wasmBytes)
+	state, events, _, withdrawals, reportBytes, fuel, failure = runtime.ProcessRequest(ctx, appId, user2, common.Process, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
@@ -430,7 +464,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 	t.Log("Step 5: Generate deanonymization report via ProcessRequest")
-	_, _, _, report, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Deanonymize, []byte("{}"), state, wasmBytes)
+	_, _, _, _, report, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Deanonymize, []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, report)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
@@ -496,7 +530,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 		user := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", i))
 
 		depositAmount := big.NewInt(1000000000000000000) // 1 ETH
-		newState, _, _, failure := runtime.Deposit(ctx, appId, user, ethToken, depositAmount, state, wasmBytes)
+		newState, _, _, _, failure := runtime.Deposit(ctx, appId, user, ethToken, depositAmount, state, wasmBytes)
 		require.Nil(t, failure)
 		state = newState
 	}
@@ -513,7 +547,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 0))
-	_, events, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, state, wasmBytes)
+	_, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	assert.Len(t, events, 2)
 	assert.Len(t, withdrawals, 0)
@@ -569,7 +603,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 		appId := common.ApplicationIdType(math.MaxInt64 + 1)
 		_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
 		if err == nil {
-			_, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), []byte("{}"), wasmBytes)
+			_, _, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), []byte("{}"), wasmBytes)
 			assert.NotNil(t, failure)
 			require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 		}
@@ -577,7 +611,7 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 
 	t.Run("NilState", func(t *testing.T) {
 		appId := common.NewApplicationId(1)
-		_, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), nil, wasmBytes)
+		_, _, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), nil, wasmBytes)
 		assert.NotNil(t, failure)
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 	})
@@ -600,7 +634,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 
 	t.Run("InvalidJSON", func(t *testing.T) {
 		invalidPayload := []byte("invalid json")
-		_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, invalidPayload, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, invalidPayload, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, failure.Error(), "Failed to parse payload instructions")
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -612,7 +646,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 			"type": "transfer",
 		}
 		payloadBytes, _ := json.Marshal(incompletePayload)
-		_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, failure.Error(), "Transfer instruction is missing")
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -628,7 +662,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 			},
 		}
 		payloadBytes, _ := json.Marshal(negativePayload)
-		_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, strings.ToLower(failure.Error()), fmt.Sprintf("account %s does not exist!", strings.ToLower(user1.String())))
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -653,7 +687,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	deposit := new(big.Int).Div(depositAmount, big.NewInt(2))
-	state, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, deposit, state, wasmBytes)
+	state, _, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, deposit, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
@@ -667,7 +701,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	}
 	payloadBytes, _ := json.Marshal(transferPayload)
 
-	_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
 	assert.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Insufficient balance for transfer")
 	require.Nil(t, reportBytes, "Report should be nil on error")
@@ -696,7 +730,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, largePayload, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, largePayload, state, wasmBytes)
 	// should not panic but return an error that the payload does not conform to the expected format
 	require.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Failed to parse payload instructions")
@@ -716,7 +750,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 
 	corruptedState := []byte("corrupted state data")
 
-	state, events, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), corruptedState, wasmBytes)
+	state, events, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), corruptedState, wasmBytes)
 	require.NotNil(t, failure)
 	require.Contains(t, failure.Error(), "Failed to parse application state")
 	require.Equal(t, []byte(nil), state)
@@ -753,7 +787,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	// Test zero depositAmount deposit
-	newState, events, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(0), state, wasmBytes)
+	newState, events, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(0), state, wasmBytes)
 
 	require.Nil(t, failure)
 	require.Len(t, events, 0, "Zero depositAmount deposit should not generate any events")
@@ -782,7 +816,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	require.NoError(t, err)
 
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	_, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
 	assert.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Unsupported instruction type")
 	require.Nil(t, reportBytes, "Report should be nil on error")
