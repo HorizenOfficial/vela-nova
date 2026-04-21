@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/HorizenOfficial/vela/pkg/crypto"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -154,12 +153,9 @@ func TestEventSubTypesFromSeed(t *testing.T) {
 	subtypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
 	require.Len(t, subtypes, DefaultSubtypeN)
 
-	// Each subtype must be "0x" + 64 hex chars (SHA-256 output)
+	// Each subtype must be a non-zero [32]byte (SHA-256 output)
 	for _, st := range subtypes {
-		require.Len(t, st, 2+64, "subtype must be 0x + 64 hex chars")
-		require.Equal(t, "0x", st[:2])
-		_, err := ethCommon.ParseHexOrString(st)
-		require.NoError(t, err)
+		require.NotEqual(t, [32]byte{}, st, "subtype must not be all zeros")
 	}
 
 	// Deterministic: same seed produces same subtypes
@@ -167,7 +163,7 @@ func TestEventSubTypesFromSeed(t *testing.T) {
 	require.Equal(t, subtypes, subtypes2)
 
 	// All subtypes must be unique
-	seen := make(map[string]bool, DefaultSubtypeN)
+	seen := make(map[[32]byte]bool, DefaultSubtypeN)
 	for _, st := range subtypes {
 		require.False(t, seen[st], "duplicate subtype found")
 		seen[st] = true

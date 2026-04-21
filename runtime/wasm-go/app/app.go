@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -200,10 +199,14 @@ func DepositFunds(senderPtr *types.Address, tokenPtr *types.Address, value *type
 			return types.DepositResult{Error: fmt.Sprintf("Failed to serialize event data: %+v, err: %v", eventData, err)}
 		}
 
+		// EventSubType is intentionally left unset ([32]byte{}). The payment app
+		// assumes the user has registered a seed (ASSOCIATEKEY with 226-byte
+		// payload), so the executor always overrides PlainEvent subtypes with a
+		// privacy-preserving HMAC value from the seed — any value set here would
+		// be discarded. See ENCRYPTED_SEED_SPEC.md and executor.encryptEvents.
 		events = append(events, types.PlainEvent{
-			UserID:       *senderPtr,
-			EventSubType: "deposit",
-			Data:         eventDataBytes,
+			UserID: *senderPtr,
+			Data:   eventDataBytes,
 		})
 	}
 
@@ -353,16 +356,15 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: "Failed to serialize recipient event data"}
 			}
 
+			// EventSubType is left unset — see the note in DepositFunds.
 			events = append(events, types.PlainEvent{
-				UserID:       sender,
-				EventSubType: "transfer_sent",
-				Data:         senderEventDataBytes,
+				UserID: sender,
+				Data:   senderEventDataBytes,
 			})
 
 			events = append(events, types.PlainEvent{
-				UserID:       instructions.Transfer.To,
-				EventSubType: "transfer_received",
-				Data:         recipientEventDataBytes,
+				UserID: instructions.Transfer.To,
+				Data:   recipientEventDataBytes,
 			})
 
 			// Emit transfer receipt as AppEvent when InvoiceID is present
@@ -386,8 +388,11 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				h.Write(instructions.Transfer.Amount.Bytes())
 				h.Write(instructions.Transfer.To[:])
 
+				var receiptSubType [32]byte
+				copy(receiptSubType[:], h.Sum(nil))
+
 				appEvents = append(appEvents, types.AppEvent{
-					EventSubType: "0x" + hex.EncodeToString(h.Sum(nil)),
+					EventSubType: receiptSubType,
 					Data:         nil,
 				})
 			}
@@ -450,10 +455,10 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: fmt.Sprintf("Failed to serialize withdraw event data: %+v, err: %v", withdrawEventData, err)}
 			}
 
+			// EventSubType is left unset — see the note in DepositFunds.
 			events = append(events, types.PlainEvent{
-				UserID:       sender,
-				EventSubType: "withdrawal",
-				Data:         withdrawEventDataBytes,
+				UserID: sender,
+				Data:   withdrawEventDataBytes,
 			})
 
 		case "deanonymize":

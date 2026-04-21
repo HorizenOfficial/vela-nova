@@ -3,7 +3,6 @@ package main_test
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -121,10 +120,12 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	require.Len(t, events, 1, "Should generate one event")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	// Verify the event
+	// Verify the event. The WASM app intentionally leaves EventSubType unset
+	// because the executor overrides it from the user seed; at this runtime
+	// level (no executor) the field is the zero value.
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
-	assert.Equal(t, "deposit", event.EventSubType)
+	assert.Equal(t, [32]byte{}, event.EventSubType)
 
 	var eventData depositEvent
 	err = json.Unmarshal(event.Data, &eventData)
@@ -276,9 +277,9 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		h.Write(ethToken.Bytes())  // tokenAddress (ETH = zero address)
 		h.Write(amountFixed[:])    // amount (fixed 32 bytes)
 		h.Write(recipient.Bytes()) // to
-		expectedHash := h.Sum(nil)
-		expectedSubType := "0x" + hex.EncodeToString(expectedHash)
-		assert.Equal(t, expectedSubType, appEvents[0].EventSubType, "EventSubType should carry the 0x-prefixed hex of the receipt hash")
+		var expectedSubType [32]byte
+		copy(expectedSubType[:], h.Sum(nil))
+		assert.Equal(t, expectedSubType, appEvents[0].EventSubType, "EventSubType should carry the raw 32-byte receipt hash")
 		assert.Nil(t, appEvents[0].Data, "Data should be nil when receipt hash is carried in EventSubType")
 
 	})
@@ -331,10 +332,11 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	require.Nil(t, reportBytes, "Report should be nil for withdrawal requests")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
-	// Verify withdrawal event
+	// Verify withdrawal event. EventSubType is the zero value at the runtime
+	// level — see the note in TestWasmtimeRuntime_Deposit.
 	event := events[0]
 	assert.Equal(t, sender, event.UserID)
-	assert.Equal(t, "withdrawal", event.EventSubType)
+	assert.Equal(t, [32]byte{}, event.EventSubType)
 
 	var eventData TestWithdrawalEventData
 	err = json.Unmarshal(event.Data, &eventData)

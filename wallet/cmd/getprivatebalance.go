@@ -48,7 +48,7 @@ func findTokenBalance(
 	teePubKey *cryptotypes.PublicKeyP521,
 	privKey *cryptotypes.PrivateKeyP521,
 	applicationID common.ApplicationIdType,
-	seedSubTypes []string,
+	seedSubTypes [][32]byte,
 	tokenHex string,
 	maxEvents int,
 ) (string, error) {

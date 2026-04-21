@@ -60,7 +60,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 		{
 			ApplicationID: testAppID,
 			EncryptedData: encrypted,
-			EventSubType:  subtypesList[0],
+			EventSubType:  hexSubType(subtypesList[0]),
 		},
 	})
 	// Execute the command
@@ -233,7 +233,7 @@ func (c privateBalanceCase) run(t *testing.T, tokens *app.TokenRegistry) string 
 		sgEvents = append(sgEvents, subgraph.UserEvent{
 			ApplicationID: testAppID,
 			EncryptedData: enc,
-			EventSubType:  subtypesList[0],
+			EventSubType:  hexSubType(subtypesList[0]),
 		})
 	}
 	sg := subgraph.NewMockClient().WithUserEvents(testAppID, sgEvents)

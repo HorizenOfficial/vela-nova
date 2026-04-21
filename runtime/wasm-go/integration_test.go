@@ -3,7 +3,6 @@ package main_test
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -306,9 +305,9 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 		h.Write(ethToken.Bytes())      // tokenAddress (ETH = zero address)
 		h.Write(transferValue.Bytes()) // amount (fixed 32 bytes)
 		h.Write(recAddress[:])         // to
-		expectedHash := h.Sum(nil)
-		expectedSubType := "0x" + hex.EncodeToString(expectedHash)
-		assert.Equal(t, expectedSubType, result.appEvents[0].EventSubType, "EventSubType should carry the 0x-prefixed hex of the receipt hash")
+		var expectedSubType [32]byte
+		copy(expectedSubType[:], h.Sum(nil))
+		assert.Equal(t, expectedSubType, result.appEvents[0].EventSubType, "EventSubType should carry the raw 32-byte receipt hash")
 		assert.Nil(t, result.appEvents[0].Data, "Data should be nil when receipt hash is carried in EventSubType")
 	})
 }

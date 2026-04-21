@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -12,6 +13,13 @@ import (
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
 )
+
+// hexSubType encodes a [32]byte subtype the same way FetchAndDecryptUserEvents
+// does when forwarding to the subgraph, so mock UserEvent.EventSubType entries
+// compare equal to the filter values.
+func hexSubType(st [32]byte) string {
+	return "0x" + hex.EncodeToString(st[:])
+}
 
 func withUserEventsPageSize(t *testing.T, size int) {
 	t.Helper()
@@ -250,7 +258,7 @@ func TestFetchAndDecryptUserEvents_SeedSubTypesFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: evMatch, EventSubType: subtypes[0], BlockNumber: 3},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: evMatch, EventSubType: hexSubType(subtypes[0]), BlockNumber: 3},
 		{ApplicationID: appID, RequestID: reqID2, EncryptedData: evNoMatch, EventSubType: "unknown-subtype", BlockNumber: 2},
 		{ApplicationID: appID, RequestID: reqID3, EncryptedData: evOther, EventSubType: "deposit", BlockNumber: 1},
 	})
@@ -282,14 +290,19 @@ func TestFetchAndDecryptUserEvents_SingleSubType(t *testing.T) {
 	ev2, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("transfer-event"))
 	require.NoError(t, err)
 
+	var depositSubType [32]byte
+	copy(depositSubType[:], "deposit")
+	var transferSubType [32]byte
+	copy(transferSubType[:], "transfer")
+
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1, EventSubType: "deposit", BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2, EventSubType: "transfer", BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1, EventSubType: hexSubType(depositSubType), BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2, EventSubType: hexSubType(transferSubType), BlockNumber: 1},
 	})
 
-	// Single subtype passed: uses subgraph-level filter (mock returns all, but the
-	// subgraph in production would filter server-side).
-	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, []string{"deposit"}, 0, nil)
+	// Single subtype passed: uses subgraph-level filter (mock matches on the
+	// hex-encoded [32]byte — same wire format the production subgraph stores).
+	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, [][32]byte{depositSubType}, 0, nil)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(result), 1)
 }
