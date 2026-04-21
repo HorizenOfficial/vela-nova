@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -14,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// hexSubType encodes a [32]byte subtype the same way FetchAndDecryptUserEvents
-// does when forwarding to the subgraph, so mock UserEvent.EventSubType entries
-// compare equal to the filter values.
-func hexSubType(st [32]byte) string {
-	return "0x" + hex.EncodeToString(st[:])
+// asciiSubType packs a short ASCII tag into a [32]byte for readable test literals.
+func asciiSubType(s string) [32]byte {
+	var b [32]byte
+	copy(b[:], s)
+	return b
 }
 
 func withUserEventsPageSize(t *testing.T, size int) {
@@ -46,8 +45,8 @@ func TestFetchAndDecryptUserEvents_LimitOne(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "a", BlockNumber: 3},
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "a", BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("a"), BlockNumber: 3},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("a"), BlockNumber: 2},
 	})
 
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
@@ -72,8 +71,8 @@ func TestFetchAndDecryptUserEvents_Filter(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "b", BlockNumber: 5},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "b", BlockNumber: 4},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("b"), BlockNumber: 5},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("b"), BlockNumber: 4},
 	})
 
 	filter := func(data []byte) bool {
@@ -104,8 +103,8 @@ func TestFetchAndDecryptUserEvents_UserSpecificDecryption(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "c", BlockNumber: 3},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "c", BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("c"), BlockNumber: 3},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("c"), BlockNumber: 2},
 	})
 
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKeyA, appID, nil, 10, nil)
@@ -137,8 +136,8 @@ func TestFetchAndDecryptUserEvents_PaginatesUntilMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "c", BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "c", BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("c"), BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("c"), BlockNumber: 1},
 	})
 
 	filter := func(data []byte) bool {
@@ -167,8 +166,8 @@ func TestFetchAndDecryptUserEvents_MaxResults(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "d", BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "d", BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("d"), BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("d"), BlockNumber: 1},
 	})
 
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
@@ -193,8 +192,8 @@ func TestFetchAndDecryptUserEvents_NoLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "e", BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "e", BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("e"), BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("e"), BlockNumber: 1},
 	})
 
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 0, nil)
@@ -220,8 +219,8 @@ func TestFetchAndDecryptUserEvents_OrderWithinBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: "f", BlockNumber: 10, LogIndex: 1},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: "f", BlockNumber: 10, LogIndex: 2},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1Cipher, EventSubType: asciiSubType("f"), BlockNumber: 10, LogIndex: 1},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2Cipher, EventSubType: asciiSubType("f"), BlockNumber: 10, LogIndex: 2},
 	})
 
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, nil, 1, nil)
@@ -258,9 +257,9 @@ func TestFetchAndDecryptUserEvents_SeedSubTypesFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: evMatch, EventSubType: hexSubType(subtypes[0]), BlockNumber: 3},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: evNoMatch, EventSubType: "unknown-subtype", BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID3, EncryptedData: evOther, EventSubType: "deposit", BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: evMatch, EventSubType: subtypes[0], BlockNumber: 3},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: evNoMatch, EventSubType: asciiSubType("unknown-subtype"), BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID3, EncryptedData: evOther, EventSubType: asciiSubType("deposit"), BlockNumber: 1},
 	})
 
 	// With seed subtypes: only the matching event is returned.
@@ -290,18 +289,15 @@ func TestFetchAndDecryptUserEvents_SingleSubType(t *testing.T) {
 	ev2, err := crypto.Encrypt(teeKey, userKey.PublicKey(), []byte("transfer-event"))
 	require.NoError(t, err)
 
-	var depositSubType [32]byte
-	copy(depositSubType[:], "deposit")
-	var transferSubType [32]byte
-	copy(transferSubType[:], "transfer")
+	depositSubType := asciiSubType("deposit")
+	transferSubType := asciiSubType("transfer")
 
 	mock := subgraph.NewMockClient().WithUserEvents(appID, []subgraph.UserEvent{
-		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1, EventSubType: hexSubType(depositSubType), BlockNumber: 2},
-		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2, EventSubType: hexSubType(transferSubType), BlockNumber: 1},
+		{ApplicationID: appID, RequestID: reqID1, EncryptedData: ev1, EventSubType: depositSubType, BlockNumber: 2},
+		{ApplicationID: appID, RequestID: reqID2, EncryptedData: ev2, EventSubType: transferSubType, BlockNumber: 1},
 	})
 
-	// Single subtype passed: uses subgraph-level filter (mock matches on the
-	// hex-encoded [32]byte — same wire format the production subgraph stores).
+	// Single subtype passed: matched server-side by the subgraph filter.
 	result, err := FetchAndDecryptUserEvents(context.Background(), mock, teeKey.PublicKey(), *userKey, appID, [][32]byte{depositSubType}, 0, nil)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(result), 1)

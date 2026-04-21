@@ -5,15 +5,14 @@ go 1.24.0
 toolchain go1.24.3
 
 // Can be useful for local developments
-replace github.com/HorizenOfficial/vela => ../../vela
-
-replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
+//replace github.com/HorizenOfficial/vela => ../../vela
+//replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
 
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
-	github.com/HorizenOfficial/vela v0.0.28
-	github.com/HorizenOfficial/vela-common-go v0.0.28
+	github.com/HorizenOfficial/vela v0.0.29
+	github.com/HorizenOfficial/vela-common-go v0.0.29
 	github.com/HorizenOfficial/vela-nova/payment-app v0.0.28
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/magiconair/properties v1.8.10

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -23,9 +22,9 @@ var userEventsPageSize = 1000
 //
 // eventSubTypes controls subtype filtering:
 //   - nil or empty: no subtype filter — all events are returned.
-//   - one or more entries: hex-encoded and passed to the subgraph query as a
-//     server-side filter (the subgraph stores eventSubType as Bytes, so raw
-//     [32]byte values are serialized as "0x"+hex at the query boundary).
+//   - one or more entries: passed directly to the subgraph query as a
+//     server-side filter. The subgraph client handles the [32]byte→hex wire
+//     format conversion internally.
 func FetchAndDecryptUserEvents(
 	ctx context.Context,
 	sg subgraph.Client,
@@ -55,15 +54,10 @@ func FetchAndDecryptUserEvents(
 		pageSize = 1000
 	}
 
-	hexSubTypes := make([]string, len(eventSubTypes))
-	for i, st := range eventSubTypes {
-		hexSubTypes[i] = "0x" + hex.EncodeToString(st[:])
-	}
-
 	var decryptedEvents [][]byte
 	var before *big.Int
 	for {
-		events, err := sg.GetUserEventsBySubTypes(ctx, applicationID, hexSubTypes, pageSize, before)
+		events, err := sg.GetUserEventsBySubTypes(ctx, applicationID, eventSubTypes, pageSize, before)
 		if err != nil {
 			return nil, err
 		}

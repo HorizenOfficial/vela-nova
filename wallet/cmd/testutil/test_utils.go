@@ -184,11 +184,19 @@ func (s StubSubgraphClient) GetDeployRequestCompletedByID(_ context.Context, _ c
 	return s.Result, s.Err
 }
 
-func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, []string, int, *big.Int) ([]subgraph.UserEvent, error) {
+func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, [][32]byte, int, *big.Int) ([]subgraph.UserEvent, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, [32]byte, int, *big.Int) ([]subgraph.UserEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetAppEvents(context.Context, common.ApplicationIdType, [32]byte, int, *big.Int) ([]subgraph.AppEvent, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetAppEventsBySubTypes(context.Context, common.ApplicationIdType, [][32]byte, int, *big.Int) ([]subgraph.AppEvent, error) {
 	return nil, nil
 }
 
