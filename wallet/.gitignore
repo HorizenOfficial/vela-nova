@@ -1,5 +1,7 @@
 wallet.conf
 novaw
+novaw-linux
+releases/
 .vscode
 *.swp
 *.bkp

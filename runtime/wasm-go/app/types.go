@@ -1,42 +1,73 @@
 package app
 
 import (
+	"time"
+
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 )
 
+// Now returns the current Unix timestamp. Defined as a variable so tests can override it.
+var Now = func() int64 { return time.Now().Unix() }
+
 const MaxInvoiceIDLength = 100
+const MaxTransactions = 50
 
 // ----- module internal types
 
-// AccountState represents the state of a user account
+// AccountState represents the state of a user account with per-token balances
 type AccountState struct {
-	Address types.Address  `json:"address"`
-	Balance *types.Uint256 `json:"balance"`
+	Address  types.Address             `json:"address"`
+	Balances map[string]*types.Uint256 `json:"balances"` // token address hex -> balance
+}
+
+// TransactionRecord represents a single transaction stored in the private state
+type TransactionRecord struct {
+	Type         string         `json:"type"` // "deposit", "transfer", "withdrawal"
+	From         types.Address  `json:"from"`
+	To           types.Address  `json:"to"`
+	TokenAddress types.Address  `json:"tokenAddress"`
+	Amount       *types.Uint256 `json:"amount"`
+	Nonce        uint64         `json:"nonce"`
+	Timestamp    int64          `json:"timestamp"`
+	InvoiceID    string         `json:"invoice_id,omitempty"`
 }
 
 // ApplicationInternalState represents the internal state of the application
 type ApplicationInternalState struct {
-	AppID    uint64                   `json:"appId"`
-	Accounts map[string]*AccountState `json:"accounts"`
-	Nonce    uint64                   `json:"nonce"`
+	AppID         uint64                   `json:"appId"`
+	Accounts      map[string]*AccountState `json:"accounts"`
+	AllowedTokens map[string]bool          `json:"allowedTokens"` // token address hex -> allowed
+	Nonce         uint64                   `json:"nonce"`
+	Transactions  []TransactionRecord      `json:"transactions,omitempty"`
+}
+
+// DeployParams contains the constructor parameters for app initialization
+type DeployParams struct {
+	AllowedTokens []string `json:"allowedTokens"` // list of token address hex strings to allow
 }
 
 // WithdrawInstruction represents instructions for withdrawing funds
 type WithdrawInstruction struct {
-	To     types.Address  `json:"to"`
-	Amount *types.Uint256 `json:"amount"`
+	To           types.Address  `json:"to"`
+	TokenAddress types.Address  `json:"tokenAddress,omitempty"` // defaults to ETH (0x0) if omitted
+	Amount       *types.Uint256 `json:"amount"`
 }
 
 // TransferInstruction represents instructions for transferring funds
 // InvoiceID is an optional field the sender can include to track the payment
 type TransferInstruction struct {
-	To        types.Address  `json:"to"`
-	Amount    *types.Uint256 `json:"amount"`
-	InvoiceID string         `json:"invoice_id,omitempty"`
+	To           types.Address  `json:"to"`
+	TokenAddress types.Address  `json:"tokenAddress,omitempty"` // defaults to ETH (0x0) if omitted
+	Amount       *types.Uint256 `json:"amount"`
+	InvoiceID    string         `json:"invoice_id,omitempty"`
 }
 
 // DeanonymizeInstruction represents optional instructions for deanonymization
 type DeanonymizeInstruction struct {
+	ReportType    string        `json:"report_type,omitempty"`    // "balances" (default) or "tx_history"
+	Address       types.Address `json:"address,omitempty"`        // required for tx_history
+	FromTimestamp int64         `json:"from_timestamp,omitempty"` // filter tx_history: start unix timestamp (inclusive)
+	ToTimestamp   int64         `json:"to_timestamp,omitempty"`   // filter tx_history: end unix timestamp (inclusive)
 }
 
 // PayloadInstructions represents the deserialized payload instructions
@@ -53,41 +84,46 @@ type DeanonymizationReport struct {
 	Nonce    uint64                   `json:"nonce"`
 }
 
-// ReportPayloadInstructions represents a specific information on how to generate a report
-// TODO - We can add the list of the accounts to be included in the report and a boolean specifying whether
-// we can omit empty accounts
-type ReportPayloadInstructions struct {
+// TxHistoryReport is the report returned for a tx_history deanonymization request
+type TxHistoryReport struct {
+	Address      types.Address             `json:"address"`
+	Balances     map[string]*types.Uint256 `json:"balances"`
+	Transactions []TransactionRecord       `json:"transactions"`
 }
 
 type DepositEvent struct {
-	Type    string         `json:"type"`
-	Amount  *types.Uint256 `json:"amount"`
-	Balance *types.Uint256 `json:"balance"`
-	Nonce   uint64         `json:"nonce"`
+	Type         string         `json:"type"`
+	TokenAddress types.Address  `json:"tokenAddress"`
+	Amount       *types.Uint256 `json:"amount"`
+	Balance      *types.Uint256 `json:"balance"`
+	Nonce        uint64         `json:"nonce"`
 }
 
 type SenderEvent struct {
-	Type      string         `json:"type"`
-	To        types.Address  `json:"to"`
-	Amount    *types.Uint256 `json:"amount"`
-	Balance   *types.Uint256 `json:"balance"`
-	Nonce     uint64         `json:"nonce"`
-	InvoiceID string         `json:"invoice_id,omitempty"`
+	Type         string         `json:"type"`
+	To           types.Address  `json:"to"`
+	TokenAddress types.Address  `json:"tokenAddress"`
+	Amount       *types.Uint256 `json:"amount"`
+	Balance      *types.Uint256 `json:"balance"`
+	Nonce        uint64         `json:"nonce"`
+	InvoiceID    string         `json:"invoice_id,omitempty"`
 }
 
 type RecipientEvent struct {
-	Type      string         `json:"type"`
-	From      types.Address  `json:"from"`
-	Amount    *types.Uint256 `json:"amount"`
-	Balance   *types.Uint256 `json:"balance"`
-	Nonce     uint64         `json:"nonce"`
-	InvoiceID string         `json:"invoice_id,omitempty"`
+	Type         string         `json:"type"`
+	From         types.Address  `json:"from"`
+	TokenAddress types.Address  `json:"tokenAddress"`
+	Amount       *types.Uint256 `json:"amount"`
+	Balance      *types.Uint256 `json:"balance"`
+	Nonce        uint64         `json:"nonce"`
+	InvoiceID    string         `json:"invoice_id,omitempty"`
 }
 
 type WithdrawalEvent struct {
-	Type    string         `json:"type"`
-	To      types.Address  `json:"to"`
-	Amount  *types.Uint256 `json:"amount"`
-	Balance *types.Uint256 `json:"balance"`
-	Nonce   uint64         `json:"nonce"`
+	Type         string         `json:"type"`
+	To           types.Address  `json:"to"`
+	TokenAddress types.Address  `json:"tokenAddress"`
+	Amount       *types.Uint256 `json:"amount"`
+	Balance      *types.Uint256 `json:"balance"`
+	Nonce        uint64         `json:"nonce"`
 }

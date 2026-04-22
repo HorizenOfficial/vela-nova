@@ -12,6 +12,7 @@ import (
 
 type GetPendingPaymentsCommand struct {
 	*app.ChainCommand
+	token string
 }
 
 func NewGetPendingPaymentsCommand(config *app.Config, blockchainClient blockchain.Client) *GetPendingPaymentsCommand {
@@ -31,6 +32,13 @@ func (c *GetPendingPaymentsCommand) Command() *cobra.Command {
 				return
 			}
 
+			// Resolve token
+			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
+
 			ctx := context.Background()
 			if cmd != nil && cmd.Context() != nil {
 				ctx = cmd.Context()
@@ -44,14 +52,15 @@ func (c *GetPendingPaymentsCommand) Command() *cobra.Command {
 			defer c.CloseClient()
 
 			address := ethCommon.HexToAddress(c.Config.KeySecp.PublicKey().Address())
-			amount, err := c.BlockchainClient.GetPendingPayments(ctx, address)
+			amount, err := c.BlockchainClient.GetPendingClaims(ctx, tokenInfo.Address, address)
 			if err != nil {
-				fmt.Printf("Error retrieving pending payments: %v\n", err)
+				fmt.Printf("Error retrieving pending claims: %v\n", err)
 				return
 			}
 
-			fmt.Printf("Pending payments: %s ETH\n", app.WeiToEtherStr(amount))
+			fmt.Printf("Pending claims: %s\n", c.Config.Tokens.FormatAmount(amount, tokenInfo))
 		},
 	}
+	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")
 	return cmd
 }

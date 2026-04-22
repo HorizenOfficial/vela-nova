@@ -19,13 +19,19 @@ var userEventsPageSize = 1000
 // The limit caps the number of decrypted events returned; limit <= 0 means no cap.
 // The page size is internal and capped to avoid query errors.
 // It applies the optional filter on decrypted payloads.
+//
+// eventSubTypes controls subtype filtering:
+//   - nil or empty: no subtype filter — all events are returned.
+//   - one or more entries: passed directly to the subgraph query as a
+//     server-side filter. The subgraph client handles the [32]byte→hex wire
+//     format conversion internally.
 func FetchAndDecryptUserEvents(
 	ctx context.Context,
 	sg subgraph.Client,
 	teePubKey *cryptotypes.PublicKeyP521,
 	privKey cryptotypes.PrivateKeyP521,
 	applicationID common.ApplicationIdType,
-	eventSubType string,
+	eventSubTypes [][32]byte,
 	limit int,
 	filter func([]byte) bool,
 ) ([][]byte, error) {
@@ -51,7 +57,7 @@ func FetchAndDecryptUserEvents(
 	var decryptedEvents [][]byte
 	var before *big.Int
 	for {
-		events, err := sg.GetUserEvents(ctx, applicationID, eventSubType, pageSize, before)
+		events, err := sg.GetUserEventsBySubTypes(ctx, applicationID, eventSubTypes, pageSize, before)
 		if err != nil {
 			return nil, err
 		}

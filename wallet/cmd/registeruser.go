@@ -28,6 +28,10 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 		Short: `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
 		Long:  `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
 			if err != nil {
@@ -53,12 +57,24 @@ func (c *RegisterUserCommand) Command() *cobra.Command {
 				fmt.Println("Error: P521 key not found in the wallet")
 				return
 			}
-			payload := c.Config.KeyP521.PublicKey().Bytes()
 
-			depositAmount := big.NewInt(0)
+			if c.Config.KeySecp == nil {
+				fmt.Println("Error: secp256k1 key not found in the wallet")
+				return
+			}
+			teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+			if err != nil {
+				fmt.Printf("Error retrieving TEE public key: %v\n", err)
+				return
+			}
+			payload, err := BuildAssociateKeyPayloadWithSeed(c.Config.KeyP521, c.Config.KeySecp, teePubKey)
+			if err != nil {
+				fmt.Printf("Error building payload with seed: %v\n", err)
+				return
+			}
 
 			requestType := common.AssociateKey
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, payload, depositAmount, maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, payload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
 			if err != nil {
 				fmt.Printf("Error sending request to register public key: %v\n", err)
 				return
