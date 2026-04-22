@@ -21,7 +21,10 @@
 package testutil
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
@@ -177,4 +180,35 @@ func (d *WalletDriver) ConfPath() string {
 // client — the caller is responsible for Close() when done.
 func (d *WalletDriver) NewBlockchainClient() blockchain.Client {
 	return d.newUserClient()
+}
+
+// AddToken appends an ERC-20 entry to the wallet.conf file so subsequent
+// wrapper calls can resolve the symbol (e.g. Deposit(..., "MOCK", ...)). The
+// driver does not mutate an in-memory registry — each wrapper re-loads the
+// conf via LoadConfigFromFile, which rebuilds the registry from the current
+// file contents through LoadTokenRegistry (the same path a real CLI takes).
+//
+// Symbols are upper-cased on write, matching how the config parser stores
+// and looks them up. The zero address is rejected by LoadTokenRegistry (it
+// is reserved for ETH); surface that as an immediate error so tests don't
+// fail in a downstream wrapper with a confusing message.
+func (d *WalletDriver) AddToken(symbol string, address ethCommon.Address, decimals uint8) {
+	d.t.Helper()
+	require.NotEmpty(d.t, symbol, "AddToken: symbol must not be empty")
+	require.NotEqual(d.t, ethCommon.Address{}, address, "AddToken: zero address is reserved for ETH")
+
+	upperSym := strings.ToUpper(symbol)
+	entry := fmt.Sprintf("token.%s.address=%s\ntoken.%s.decimals=%d\n", upperSym, address.Hex(), upperSym, decimals)
+
+	f, err := os.OpenFile(d.confPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(d.t, err, "AddToken: open conf")
+	defer f.Close()
+	_, err = f.WriteString(entry)
+	require.NoError(d.t, err, "AddToken: append conf")
+
+	// Re-load now so any malformed entry fails here instead of during the
+	// next wrapper call. Also catches collisions (duplicate symbol or address)
+	// that LoadTokenRegistry would otherwise reject mid-flow.
+	_, err = app.LoadConfigFromFile(d.confPath)
+	require.NoError(d.t, err, "AddToken: re-load conf after append")
 }

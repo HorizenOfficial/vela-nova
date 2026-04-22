@@ -8,11 +8,10 @@ import (
 	"time"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
+	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	"github.com/HorizenOfficial/vela/pkg/common"
-	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela/pkg/executor"
-	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -32,19 +31,6 @@ func createFullstackUser(t *testing.T, suite *fullstack.FullStackSystemTestSuite
 	return addr, nil
 }
 
-// registerSeedUser generates a P521 key, submits an AssociateKey request with
-// an encrypted seed, and waits for completion.
-func registerSeedUser(t *testing.T, suite *fullstack.FullStackSystemTestSuite, cryptoHelper *systemTests.CryptoHelper, executorPubKey *cryptotypes.PublicKeyP521, appID common.ApplicationIdType, user ethCommon.Address, timeout time.Duration) {
-	t.Helper()
-	userKey, err := cryptoHelper.GenerateUserKey(user)
-	require.NoError(t, err)
-	reqID := commontestutil.GenerateRandomRequestID()
-	req, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, user, userKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(req))
-	require.NoError(t, suite.AssertRequestCompleted(req.RequestID, timeout))
-}
-
 // TestFullStackDeployAndDeposit is the fullstack smoke test:
 // deploy an app on the real simulated chain, register a user, deposit ETH,
 // verify the event is received, and query the in-process subgraph for
@@ -59,10 +45,10 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := fullstack.NewFullStackSystemTestSuite(t, "wasmtime-payment", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := fullstack.NewFullStackSystemTestSuite(t, "wasmtime-payment", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -78,7 +64,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	// Deploy the app — appID is assigned by the contract.
 	// The ProcessorEndpoint contract requires the sender to have the deployer role,
 	// so we use the pre-authorized deployer account from the simulated chain.
-	deployDescriptor := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
+	deployDescriptor := testhelpers.UploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
 	deployReq := &common.Request{
 		RequestType: common.Deploy,
 		Payload:     deployDescriptor,
@@ -101,7 +87,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Register user key (seed-registered)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
 
 	// Deposit 2 ETH
 	depositAmount := big.NewInt(2_000_000_000_000_000_000)
@@ -181,16 +167,3 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	t.Log("Fullstack deploy + deposit + subgraph verification passed")
 }
 
-// --- Shared helpers (same as system_tests, adapted for fullstack suite) ---
-
-func newNetworkLogConfig() *logger.Config {
-	return &logger.Config{
-		Kind:             "zeronetwork",
-		ConsoleColor:     false,
-		Console:          true,
-		ConsoleLevel:     "trace",
-		FileLevel:        "trace",
-		RemoteLogNetwork: "tcp",
-		NetworkLevel:     "trace",
-	}
-}

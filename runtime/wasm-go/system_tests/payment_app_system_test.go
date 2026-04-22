@@ -1,26 +1,20 @@
 package main_test
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"math/big"
-	"mime/multipart"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
-	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
+	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
@@ -190,73 +184,6 @@ func storeWasmArtifact(t *testing.T, artifactsPath string, wasmBytecode []byte) 
 	return payload
 }
 
-// buildAndLoadWasmModule is a helper function to build the wasm module and read its bytecode.
-func buildAndLoadWasmModule(t *testing.T) []byte {
-	// Get the project root directory to construct absolute paths
-	_, b, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	//appDir := filepath.Join(filepath.Dir(b), "../..")
-	projectRoot := filepath.Join(filepath.Dir(b), "../..")
-	appDir := filepath.Join(projectRoot, "wasm-go")
-
-	// Build the wasm module
-	cmd := exec.Command("make", "build")
-	cmd.Dir = appDir
-	output, err := cmd.CombinedOutput()
-	require.NoError(t, err, "failed to build wasm module: %s", string(output))
-
-	// Load wasm bytecode for the wasm app
-	wasmPath := filepath.Join(appDir, "build", "payment_app.wasm")
-	wasmBytecode, err := os.ReadFile(wasmPath)
-	require.NoError(t, err)
-	require.NotEmpty(t, wasmBytecode)
-
-	return wasmBytecode
-}
-
-// uploadArtifactAndBuildDescriptorPayload uploads a WASM artifact to the local
-// artifact store and returns a deploy descriptor payload (JSON) that references it.
-func uploadArtifactAndBuildDescriptorPayload(t *testing.T, suite *systemTests.SystemTestSuite, wasmBytecode []byte) []byte {
-	t.Helper()
-
-	store, err := deployartifact.NewStore(suite.GetArtifactsPath())
-	require.NoError(t, err)
-	uploadAPI := deployartifact.NewAPI(store, 50, logger.NewLogger(&logger.Config{Kind: "zerolog", Console: false}))
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	fileWriter, err := writer.CreateFormFile("wasm", "app.wasm")
-	require.NoError(t, err)
-	_, err = fileWriter.Write(wasmBytecode)
-	require.NoError(t, err)
-	require.NoError(t, writer.Close())
-
-	req := httptest.NewRequest(http.MethodPost, "/deploy/upload", &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rr := httptest.NewRecorder()
-	uploadAPI.HandleUpload(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-
-	var uploadResp deployartifact.UploadResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &uploadResp))
-
-	localSum := sha256.Sum256(wasmBytecode)
-	localSHA := hex.EncodeToString(localSum[:])
-	localArtifactID, err := common.BuildArtifactID(localSHA)
-	require.NoError(t, err)
-	require.Equal(t, localSHA, uploadResp.WasmSHA256)
-	require.Equal(t, localArtifactID, uploadResp.ArtifactID)
-
-	descriptor := common.DeployDescriptor{
-		Mode:       common.DeployModeArtifactRef,
-		ArtifactID: uploadResp.ArtifactID,
-		WasmSHA256: uploadResp.WasmSHA256,
-	}
-	payload, err := json.Marshal(descriptor)
-	require.NoError(t, err)
-	return payload
-}
-
 // buildDeployDescriptorWithTokens uploads a WASM artifact and returns a deploy
 // descriptor payload (JSON) whose ConstructorParams.allowedTokens lists the
 // given token addresses (lowercase hex). Matches the shape the wallet's
@@ -268,7 +195,7 @@ func buildDeployDescriptorWithTokens(t *testing.T, suite *systemTests.SystemTest
 	t.Helper()
 
 	// Reuse the existing uploader, then layer ConstructorParams on top.
-	basePayload := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
+	basePayload := testhelpers.UploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
 	if len(allowedTokens) == 0 {
 		return basePayload
 	}
@@ -309,20 +236,6 @@ func deployAppWithTokens(t *testing.T, suite *systemTests.SystemTestSuite, appID
 	require.NoError(t, err)
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
 	require.NoError(t, err)
-}
-
-// registerSeedUser generates a user key and submits an AssociateKey request that
-// embeds the encrypted secp256k1 seed — events to this user are routed via the
-// hashed-subtype scheme (WaitForEventBySubtypes with AllSubtypes(seed, N)).
-func registerSeedUser(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, executorPubKey *cryptotypes.PublicKeyP521, appID common.ApplicationIdType, user ethCommon.Address, timeout time.Duration) {
-	t.Helper()
-	userKey, err := cryptoHelper.GenerateUserKey(user)
-	require.NoError(t, err)
-	reqID := commontestutil.GenerateRandomRequestID()
-	req, err := cryptoHelper.CreateAssociateKeyRequest(appID, reqID, user, userKey.PublicKey(), executorPubKey)
-	require.NoError(t, err)
-	require.NoError(t, suite.SubmitRequest(req))
-	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 }
 
 // registerNoSeedUser submits an AssociateKey request carrying only the 133-byte
@@ -413,10 +326,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	// The suite accepts logger configs (not instances) so it can inject the
 	// ephemeral log-server port into RemoteLogParams before creating the loggers.
 	// This guarantees the zeronetwork logger connects to the correct address.
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -441,8 +354,8 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Register user and auditor keys (both seed-registered)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, auditorAddress, timeout)
 
 	// Deposit 2 ETH and validate event fields (seed-registered user -> hashed subtypes)
 	depositAmount := big.NewInt(2000000000000000000)
@@ -524,10 +437,10 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -561,8 +474,8 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 	// --- Register user and auditor keys ---
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, auditorAddress, timeout)
 
 	// --- Deposit the ERC-20 token ---
 	depositAmount := big.NewInt(1_000_000) // arbitrary; token decimals are irrelevant here
@@ -610,10 +523,10 @@ func TestPaymentAppERC20MultiToken(t *testing.T) {
 
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multi", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multi", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -642,8 +555,8 @@ func TestPaymentAppERC20MultiToken(t *testing.T) {
 	// --- Register user and auditor keys ---
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userAddress, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, auditorAddress, timeout)
 
 	// --- Deposit both tokens from the same user ---
 	depositA := big.NewInt(1_000_000)
@@ -713,10 +626,10 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multiuser", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-multiuser", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -744,8 +657,8 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 	// encrypted seed in the request payload). userB: no-seed (P521 key only).
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userA, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userA, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, auditorAddress, timeout)
 	registerNoSeedUser(t, suite, cryptoHelper, appID, userB, timeout)
 
 	// --- Both users deposit the ERC-20 token (independent amounts) ---
@@ -876,10 +789,10 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-neg", newNetworkLogConfig(), newNetworkLogConfig())
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment-erc20-neg", testhelpers.NewNetworkLogConfig(), testhelpers.NewNetworkLogConfig())
 	defer suite.Cleanup()
 
-	wasmBytecode := buildAndLoadWasmModule(t)
+	wasmBytecode := testhelpers.BuildAndLoadWasmModule(t)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
@@ -907,9 +820,9 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 	// --- Register all three keys (all seed-registered for simplicity) ---
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userA, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, userB, timeout)
-	registerSeedUser(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userA, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, userB, timeout)
+	testhelpers.RegisterSeedUser(t, suite, cryptoHelper, executorPubKey,appID, auditorAddress, timeout)
 
 	// --- Baseline: userA deposits 1000 of allowedToken (succeeds) ---
 	baselineAmount := big.NewInt(1000)
@@ -1010,21 +923,6 @@ func TestPaymentAppERC20NegativePath(t *testing.T) {
 		_, leaked := balances[disallowedHex]
 		require.False(t, leaked,
 			"disallowed-token balance entry must not appear in state, but found key %s", disallowedHex)
-	}
-}
-
-// newNetworkLogConfig returns a zeronetwork logger config.
-// The suite injects the correct log-server port into RemoteLogParams before
-// creating the logger, so no hardcoded port is needed here.
-func newNetworkLogConfig() *logger.Config {
-	return &logger.Config{
-		Kind:             "zeronetwork",
-		ConsoleColor:     false,
-		Console:          true,
-		ConsoleLevel:     "trace",
-		FileLevel:        "trace",
-		RemoteLogNetwork: "tcp",
-		NetworkLevel:     "trace",
 	}
 }
 
