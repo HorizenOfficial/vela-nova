@@ -13,6 +13,7 @@ import (
 
 type ClaimPendingPaymentsCommand struct {
 	*app.ChainCommand
+	token string
 }
 
 func NewClaimPendingPaymentsCommand(config *app.Config, blockchainClient blockchain.Client) *ClaimPendingPaymentsCommand {
@@ -32,6 +33,13 @@ func (c *ClaimPendingPaymentsCommand) Command() *cobra.Command {
 				return
 			}
 
+			// Resolve token
+			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
+
 			ctx := context.Background()
 			if cmd != nil && cmd.Context() != nil {
 				ctx = cmd.Context()
@@ -46,17 +54,19 @@ func (c *ClaimPendingPaymentsCommand) Command() *cobra.Command {
 
 			address := ethCommon.HexToAddress(c.Config.KeySecp.PublicKey().Address())
 
-			amount, err := c.BlockchainClient.GetPendingClaims(ctx, ethCommon.Address{}, address)
+			amount, err := c.BlockchainClient.GetPendingClaims(ctx, tokenInfo.Address, address)
 			if err != nil {
-				fmt.Printf("Error retrieving pending payments: %v\n", err)
+				fmt.Printf("Error retrieving pending claims: %v\n", err)
 				return
 			}
 			if amount.Cmp(big.NewInt(0)) == 0 {
-				fmt.Println("Nothing to claim")
+				fmt.Printf("Nothing to claim for %s\n", tokenInfo.Symbol)
 				return
 			}
 
-			err = c.BlockchainClient.Claim(ctx, ethCommon.Address{}, address)
+			fmt.Printf("Claiming %s...\n", c.Config.Tokens.FormatAmount(amount, tokenInfo))
+
+			err = c.BlockchainClient.Claim(ctx, tokenInfo.Address, address)
 			if err != nil {
 				fmt.Printf("Error claiming pending payments: %v\n", err)
 				return
@@ -65,5 +75,6 @@ func (c *ClaimPendingPaymentsCommand) Command() *cobra.Command {
 			fmt.Println("Pending payments claimed successfully")
 		},
 	}
+	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")
 	return cmd
 }

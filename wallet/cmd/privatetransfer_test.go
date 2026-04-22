@@ -31,19 +31,19 @@ func TestPrivateTransfer(t *testing.T) {
 		testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
 		defer testHelper.Close()
 
-		appID := testutil.DeployApplication(t, testHelper)
-		origAppID := NOVA_APPLICATION_ID
-		NOVA_APPLICATION_ID = appID
-		defer func() { NOVA_APPLICATION_ID = origAppID }()
+		appID := testutil.DeployTestApplication(t, testHelper)
 
 		client := testutil.SetupNewBlockChainClient(testHelper)
 
-		transferCmd := NewPrivateTransferCommand(&app.Config{
+		cfg := &app.Config{
 			KeySecp:                   key1,
 			KeyP521:                   key2,
+			ApplicationID:             appID,
 			BlockchainPollingInterval: 2,
 			BlockchainPollingTimeout:  10,
-		}, client)
+		}
+		testutil.WriteTempConf(t, cfg)
+		transferCmd := NewPrivateTransferCommand(cfg, client)
 		transferCmd.SubgraphClient = testutil.SubgraphClientOK()
 		cmd := transferCmd.Command()
 		cmd.Flags().Set("amount", "1 ETH")

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
@@ -19,6 +18,7 @@ type WithdrawCommand struct {
 	value       string
 	maxFeeValue string
 	receiver    string
+	token       string
 }
 
 func NewWithdrawCommand(config *app.Config, blockchainClient blockchain.Client) *WithdrawCommand {
@@ -35,8 +35,25 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 		Short: `withdraw funds from the Vela system`,
 		Long:  `withdraw funds from the Vela system and send them to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
-			amount, err := app.ParseEtherValue(c.value)
+			// Resolve token
+			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
+
+			// Parse amount with correct decimals
+			var amount *big.Int
+			if tokenInfo.Address == ETH_TOKEN {
+				amount, err = app.ParseEtherValue(c.value)
+			} else {
+				amount, err = c.Config.Tokens.ParseAmount(c.value, tokenInfo)
+			}
 			if err != nil {
 				fmt.Printf("Error: invalid amount: %v\n", err)
 				return
@@ -59,7 +76,6 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				ctx = cmd.Context()
 			}
 			if c.BlockchainClient == nil {
-				//create blockchain client
 				if err := c.InitChainClient(ctx); err != nil {
 					fmt.Printf("Error connecting to rpc node: %v\n", err)
 					return
@@ -73,9 +89,20 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return
 			}
 
+			// Resolve token address for the encrypted payload
+			tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
+			if err != nil {
+				fmt.Printf("Error: invalid token address: %v\n", err)
+				return
+			}
+
 			payload := runtimeapp.PayloadInstructions{
-				Type:     "withdraw",
-				Withdraw: &runtimeapp.WithdrawInstruction{To: receiverAddr, Amount: new(types.Uint256).SetBytes(amount.Bytes())},
+				Type: "withdraw",
+				Withdraw: &runtimeapp.WithdrawInstruction{
+					To:           receiverAddr,
+					TokenAddress: tokenAddr,
+					Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
+				},
 			}
 			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
 			if err != nil {
@@ -83,10 +110,12 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 				return
 			}
 
+			// On-chain: no business asset deposited (withdrawal is from private state),
+			// so tokenAddress=ETH_TOKEN and assetAmount=0.
 			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, NOVA_APPLICATION_ID, requestType, encryptedPayload, ethCommon.Address{}, big.NewInt(0), maxFeeValue)
+			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
 			if err != nil {
-				fmt.Printf("Error sending request to withdraw amount %s: %v\n", c.value, err)
+				fmt.Printf("Error sending request to withdraw %s %s: %v\n", c.value, tokenInfo.Symbol, err)
 				return
 			}
 
@@ -99,12 +128,13 @@ func (c *WithdrawCommand) Command() *cobra.Command {
 			}
 
 			fmt.Println("Withdrawal completed successfully, funds moved from the private state to the bridge contract and ready to be claimed")
-			fmt.Println("IMPORTANT: you have to execute a claimpendingpayments command to see funds in your public address")
+			fmt.Printf("IMPORTANT: execute 'claimpendingpayments --token %s' to receive funds in your public address\n", tokenInfo.Symbol)
 
 		},
 	}
-	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount of Ether to withdraw (e.g., 1.5 ETH). It can be specified in ETH, Wei or GWei. Eg --amount \"147777 Wei\"")
+	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount to withdraw (e.g., '1.5 ETH', '100' for ERC-20)")
 	cmd.Flags().StringVarP(&c.receiver, "to", "", "", "The address that will receive the withdrawal amount")
-	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")
+	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (always ETH)")
+	cmd.Flags().StringVarP(&c.token, "token", "k", "", "Token symbol or address (default: ETH)")
 	return cmd
 }

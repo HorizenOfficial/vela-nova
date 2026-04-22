@@ -1,11 +1,15 @@
 package main_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"math/big"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,12 +17,13 @@ import (
 	"testing"
 	"time"
 
-	ethCommon "github.com/ethereum/go-ethereum/common"
+	"github.com/HorizenOfficial/vela/pkg/authorityservice/deployartifact"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
+	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +44,9 @@ type hostWithdrawalEvent struct {
 }
 
 // depositToPaymentApp is a helper function to deposit funds and validate the deposit event.
-func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, appID common.ApplicationIdType, reqID common.RequestIdType, user ethCommon.Address, amount *big.Int) {
+// When useSeed is true the event is matched via the hashed subtype set (seed-registered user).
+// When useSeed is false the event is matched via the plaintext "deposit" subtype (no-seed user).
+func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cryptoHelper *systemTests.CryptoHelper, appID common.ApplicationIdType, reqID common.RequestIdType, user ethCommon.Address, amount *big.Int, useSeed bool) {
 	t.Helper()
 	timeout := 100 * time.Second
 
@@ -51,12 +58,20 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
-	// Compute all possible subtypes for this user and wait for any of them.
-	seed, err := cryptoHelper.ComputeSeed(user)
-	require.NoError(t, err)
-	depositEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
-	require.NoError(t, err)
+	var depositEvent *common.Event
+	if useSeed {
+		userSeed, err := cryptoHelper.ComputeSeed(user)
+		require.NoError(t, err)
+		depositEvent, err = suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+		require.NoError(t, err)
+	} else {
+		// No seed registered for this user: the executor does not override the
+		// WASM subtype, and the WASM app emits the zero value on PlainEvents.
+		// Passing the zero-value subtype to WaitForEvent matches any subtype.
+		depositEvent, err = suite.WaitForEvent(user, [32]byte{}, timeout)
+		require.NoError(t, err)
+	}
+
 	decryptedData, err := cryptoHelper.DecryptEvent(user, depositEvent, executorPubKey)
 	require.NoError(t, err)
 
@@ -87,10 +102,9 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 	require.NoError(t, suite.SubmitRequest(withdrawalReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	// vela v0.0.26: event subtypes are privacy-preserving (random HMAC derived from user seed).
-	seed, err := cryptoHelper.ComputeSeed(user)
+	userSeed, err := cryptoHelper.ComputeSeed(user)
 	require.NoError(t, err)
-	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(seed, executor.DefaultSubtypeN), timeout)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -162,31 +176,71 @@ func buildAndLoadWasmModule(t *testing.T) []byte {
 	return wasmBytecode
 }
 
+// uploadArtifactAndBuildDescriptorPayload uploads a WASM artifact to the local
+// artifact store and returns a deploy descriptor payload (JSON) that references it.
+func uploadArtifactAndBuildDescriptorPayload(t *testing.T, suite *systemTests.SystemTestSuite, wasmBytecode []byte) []byte {
+	t.Helper()
+
+	store, err := deployartifact.NewStore(suite.GetArtifactsPath())
+	require.NoError(t, err)
+	uploadAPI := deployartifact.NewAPI(store, 50, logger.NewLogger(&logger.Config{Kind: "zerolog", Console: false}))
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	fileWriter, err := writer.CreateFormFile("wasm", "app.wasm")
+	require.NoError(t, err)
+	_, err = fileWriter.Write(wasmBytecode)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/deploy/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rr := httptest.NewRecorder()
+	uploadAPI.HandleUpload(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var uploadResp deployartifact.UploadResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &uploadResp))
+
+	localSum := sha256.Sum256(wasmBytecode)
+	localSHA := hex.EncodeToString(localSum[:])
+	localArtifactID, err := common.BuildArtifactID(localSHA)
+	require.NoError(t, err)
+	require.Equal(t, localSHA, uploadResp.WasmSHA256)
+	require.Equal(t, localArtifactID, uploadResp.ArtifactID)
+
+	descriptor := common.DeployDescriptor{
+		Mode:       common.DeployModeArtifactRef,
+		ArtifactID: uploadResp.ArtifactID,
+		WasmSHA256: uploadResp.WasmSHA256,
+	}
+	payload, err := json.Marshal(descriptor)
+	require.NoError(t, err)
+	return payload
+}
 
 func TestPaymentAppFullFlow(t *testing.T) {
 	if os.Getenv("CI_FLAG") != "" {
 		t.Skip("Skipping long running test in CI environment")
 	}
 
-	// manager.LoadConfig() in vela v0.0.26 requires MANAGER_ARTIFACTS_PATH to be set.
+	// manager.LoadConfig() requires MANAGER_ARTIFACTS_PATH to be set.
 	// NewSystemTestSuiteWithConfigs will override this with its own temp dir, but LoadConfig
 	// must pass validation first.
 	t.Setenv("MANAGER_ARTIFACTS_PATH", t.TempDir())
 
-	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newTestLogger(), newTestLogger())
+	// The suite accepts logger configs (not instances) so it can inject the
+	// ephemeral log-server port into RemoteLogParams before creating the loggers.
+	// This guarantees the zeronetwork logger connects to the correct address.
+	suite := systemTests.NewSystemTestSuite(t, "wasmtime-payment", newNetworkLogConfig(), newNetworkLogConfig())
 	defer suite.Cleanup()
 
 	wasmBytecode := buildAndLoadWasmModule(t)
-
-	// vela v0.0.26: deploy uses artifact references. Store the wasm blob in the
-	// suite's artifacts path and build the JSON descriptor payload.
-	deployPayload := storeWasmArtifact(t, suite.GetArtifactsPath(), wasmBytecode)
 
 	require.NoError(t, suite.StartExecutor())
 	require.NoError(t, suite.StartManager())
 
 	appID := common.NewApplicationId(1)
-	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 	timeout := 100 * time.Second
 
 	// vela v0.0.26: CreateAssociateKeyRequest requires a secp256k1 signing key whose
@@ -197,8 +251,10 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, err)
 	auditorAddress, err := cryptoHelper.GenerateUserIdentity()
 	require.NoError(t, err)
+	recipientAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
-	// Deploy the application
+	// Deploy the application using deploy descriptor (upload artifact first)
+	deployPayload := uploadArtifactAndBuildDescriptorPayload(t, suite, wasmBytecode)
 	deployReq := &common.Request{
 		RequestType:   common.Deploy,
 		ApplicationID: appID,
@@ -215,6 +271,7 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	_, err = suite.WaitForAppStateInBlockchain(appID, timeout)
 	require.NoError(t, err)
 
+	// Get executor communication key for associate key requests
 	executorPubKey, err := suite.GetExecutorCommunicationKey()
 	require.NoError(t, err)
 
@@ -236,18 +293,43 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.NoError(t, suite.SubmitRequest(associateAuditorReq))
 	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
 
-	// Deposit 2 ETH and validate event fields
+	// Deposit 2 ETH and validate event fields (seed-registered user -> hashed subtypes)
 	depositAmount := big.NewInt(2000000000000000000)
-	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, depositAmount)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, depositAmount, true)
 
 	// Withdraw 0.5 ETH and validate event fields
 	withdrawAmount := big.NewInt(500000000000000000)
 	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, withdrawAmount)
 
-	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
-	executorPubKey, err = suite.GetExecutorCommunicationKey()
+	// --- No-seed user: register without a seed, deposit, and verify that
+	// WaitForEvent with the plaintext "deposit" subtype works. When no seed
+	// is registered the framework preserves the WASM-provided subtype as-is.
+	noSeedUser, err := cryptoHelper.GenerateUserIdentity()
+	require.NoError(t, err)
+	noSeedKey, err := cryptoHelper.GenerateUserKey(noSeedUser)
 	require.NoError(t, err)
 
+	// Build an AssociateKey request with only the P521 public key (133 bytes, no seed)
+	reqID = commontestutil.GenerateRandomRequestID()
+	noSeedAssocReq := &common.Request{
+		ApplicationID: appID,
+		RequestID:     reqID,
+		RequestType:   common.AssociateKey,
+		Payload:       noSeedKey.PublicKey().Bytes(), // 133 bytes, no encrypted seed
+		Sender:        noSeedUser,
+		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
+		AssetAmount:   common.NewBig(0),
+		TokenAddress:  ethCommon.Address{},
+		MaxFeeValue:   common.NewBig(100),
+	}
+	require.NoError(t, suite.SubmitRequest(noSeedAssocReq))
+	require.NoError(t, suite.AssertRequestCompleted(reqID, timeout))
+
+	// Deposit 1 ETH for the no-seed user; plaintext "deposit" subtype should match
+	noSeedDepositAmount := big.NewInt(1000000000000000000)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), noSeedUser, noSeedDepositAmount, false)
+
+	// Deanonymization report as auditor — verifies final state after deposit and withdrawal
 	reqID = commontestutil.GenerateRandomRequestID()
 	deanonReq, err := cryptoHelper.CreateDeanonymizationRequest(appID, reqID, auditorAddress, []byte("{}"), executorPubKey)
 	require.NoError(t, err)
@@ -282,35 +364,57 @@ func TestPaymentAppFullFlow(t *testing.T) {
 	require.Contains(t, reportData, "accounts")
 	require.Contains(t, reportData, "nonce")
 
-	// Verify user balance reflects deposit minus withdrawal (2 ETH - 0.5 ETH = 1.5 ETH)
+	// Verify balances: seed user (2 ETH - 0.5 ETH = 1.5 ETH) and no-seed user (1 ETH)
 	accounts, ok := reportData["accounts"].(map[string]interface{})
 	require.True(t, ok, "accounts is not a map")
-	require.Len(t, accounts, 1, "expected exactly one account in report")
+	require.Len(t, accounts, 2, "expected two accounts in report (seed user + no-seed user)")
 
-	expectedBalance := new(big.Int).Sub(depositAmount, withdrawAmount)
-	for _, acct := range accounts {
+	ethTokenHex := ethCommon.Address{}.Hex()
+	expectedBalances := map[ethCommon.Address]*big.Int{
+		userAddress: new(big.Int).Sub(depositAmount, withdrawAmount), // 1.5 ETH
+		noSeedUser:  noSeedDepositAmount,                             // 1 ETH
+	}
+	for addrHex, acct := range accounts {
 		acctMap, ok := acct.(map[string]interface{})
 		require.True(t, ok, "account entry is not a map")
-		balanceStr, ok := acctMap["balance"].(string)
-		require.True(t, ok, "balance is not a string")
+		balances, ok := acctMap["balances"].(map[string]interface{})
+		require.True(t, ok, "balances is not a map")
+		balanceStr, ok := balances[ethTokenHex].(string)
+		require.True(t, ok, "ETH balance is not a string for account %s", addrHex)
 		require.True(t, len(balanceStr) > 2 && balanceStr[:2] == "0x", "balance is not hex")
 		balance, ok := new(big.Int).SetString(balanceStr[2:], 16)
 		require.True(t, ok, "failed to parse balance hex")
-		require.Equal(t, 0, expectedBalance.Cmp(balance),
-			"expected balance %s, got %s", expectedBalance, balance)
+
+		addr := ethCommon.HexToAddress(addrHex)
+		expected, known := expectedBalances[addr]
+		require.True(t, known, "unexpected account %s in report", addrHex)
+		require.Equal(t, 0, expected.Cmp(balance),
+			"account %s: expected balance %s, got %s", addrHex, expected, balance)
 	}
 }
 
-func newTestLogger() *logger.Config {
+// newNetworkLogConfig returns a zeronetwork logger config.
+// The suite injects the correct log-server port into RemoteLogParams before
+// creating the logger, so no hardcoded port is needed here.
+func newNetworkLogConfig() *logger.Config {
 	return &logger.Config{
-		Kind:         "zeronetwork",
-		ConsoleColor: false, // colors can print escape chars on tty
-		Console:      false,
-		ConsoleLevel: "trace",
-		//FileName:     "qqq.log",
+		Kind:             "zeronetwork",
+		ConsoleColor:     false,
+		Console:          true,
+		ConsoleLevel:     "trace",
 		FileLevel:        "trace",
-		RemoteLogParams:  common.TcpChannelConnectionParams{Ip: "localhost", Port: 5000},
 		RemoteLogNetwork: "tcp",
 		NetworkLevel:     "trace",
+	}
+}
+
+func newConsoleLogConfig() *logger.Config {
+	return &logger.Config{
+		Kind:         "zerolog",
+		ConsoleColor: false,
+		Console:      true,
+		ConsoleLevel: "trace",
+		FileLevel:    "trace",
+		NetworkLevel: "trace",
 	}
 }

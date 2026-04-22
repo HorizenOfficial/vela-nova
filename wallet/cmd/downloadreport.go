@@ -36,6 +36,10 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 		Short: "download a deanonymization report from the authority service",
 		Long:  "download a deanonymization report from the authority service, optionally decrypting it after download",
 		Run: func(cmd *cobra.Command, args []string) {
+			if err := c.RequireApplicationID(); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 			ctx := context.Background()
 			if cmd != nil && cmd.Context() != nil {
 				ctx = cmd.Context()
@@ -92,7 +96,7 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 	}
 	chainID := id.Uint64()
 
-	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, NOVA_APPLICATION_ID, c.Config.KeySecp)
+	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, c.Config.ApplicationID, c.Config.KeySecp)
 
 	nonceResp, err := client.FetchNonce(ctx)
 	if err != nil {

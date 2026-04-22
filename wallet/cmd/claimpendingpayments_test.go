@@ -30,9 +30,9 @@ func TestClaimPendingPaymentsCmd(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 
-	claimPendingCmd := NewClaimPendingPaymentsCommand(&app.Config{
-		KeySecp: key1,
-	}, blockchainClient)
+	cfg := &app.Config{KeySecp: key1}
+	testutil.WriteTempConf(t, cfg)
+	claimPendingCmd := NewClaimPendingPaymentsCommand(cfg, blockchainClient)
 	cmd := claimPendingCmd.Command()
 
 	cmd.Run(cmd, nil)
@@ -60,7 +60,9 @@ func TestClaimPendingPaymentsCmdNoKey(t *testing.T) {
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
 
-	claimPendingCmd := NewClaimPendingPaymentsCommand(&app.Config{}, blockchainClient)
+	cfg := &app.Config{}
+	testutil.WriteTempConf(t, cfg)
+	claimPendingCmd := NewClaimPendingPaymentsCommand(cfg, blockchainClient)
 	cmd := claimPendingCmd.Command()
 
 	cmd.Run(cmd, nil)

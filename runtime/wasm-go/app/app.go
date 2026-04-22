@@ -1,38 +1,93 @@
 package app
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-common-go/wasm/utils"
 	"github.com/HorizenOfficial/vela/pkg/common"
+	"golang.org/x/crypto/sha3"
 )
 
 // --- High-Level Application Logic ---
 
+// ethTokenHex is the hex representation of the ETH token address (zero address).
+var ethTokenHex = (types.Address{}).Hex()
+
 // recordTransaction appends a transaction record to the state's transaction log.
 // Must be called after state.Nonce++ so the nonce matches the corresponding event.
-func recordTransaction(state *ApplicationInternalState, txType string, from, to types.Address, amount *types.Uint256, invoiceID string) {
+func recordTransaction(state *ApplicationInternalState, txType string, from, to, tokenAddress types.Address, amount *types.Uint256, invoiceID string) {
 	amountCopy := *amount
 	state.Transactions = append(state.Transactions, TransactionRecord{
-		Type:      txType,
-		From:      from,
-		To:        to,
-		Amount:    &amountCopy,
-		Nonce:     state.Nonce,
-		Timestamp: Now(),
-		InvoiceID: invoiceID,
+		Type:         txType,
+		From:         from,
+		To:           to,
+		TokenAddress: tokenAddress,
+		Amount:       &amountCopy,
+		Nonce:        state.Nonce,
+		Timestamp:    Now(),
+		InvoiceID:    invoiceID,
 	})
 	if len(state.Transactions) > MaxTransactions {
 		state.Transactions = state.Transactions[len(state.Transactions)-MaxTransactions:]
 	}
 }
 
+// Deploy initializes the application state from constructor parameters.
+// The AllowedTokens list specifies which tokens the app accepts; ETH (0x0) is always allowed.
+func Deploy(appId int64, paramsJSON string) types.DeployResult {
+	allowedTokens := make(map[string]bool)
+	// ETH is always allowed
+	allowedTokens[ethTokenHex] = true
+
+	if paramsJSON != "" {
+		var params DeployParams
+		if err := json.Unmarshal([]byte(paramsJSON), &params); err != nil {
+			utils.LogError("Deploy: failed to parse deploy params: %v", err)
+			return types.DeployResult{
+				Error: fmt.Sprintf("failed to parse deploy params: %v", err),
+			}
+		}
+		for _, tokenHex := range params.AllowedTokens {
+			if _, err := types.HexToAddress(tokenHex); err != nil {
+				utils.LogError("Deploy: invalid token address %q: %v", tokenHex, err)
+				return types.DeployResult{
+					Error: fmt.Sprintf("invalid token address %q: %v", tokenHex, err),
+				}
+			}
+			allowedTokens[tokenHex] = true
+		}
+	}
+
+	initialState := &ApplicationInternalState{
+		AppID:         uint64(appId),
+		Accounts:      make(map[string]*AccountState),
+		AllowedTokens: allowedTokens,
+	}
+	stateJSON, err := json.Marshal(initialState)
+	if err != nil {
+		utils.LogError("Deploy: failed to marshal initial state: %v", err)
+		return types.DeployResult{
+			Error: fmt.Sprintf("failed to marshal initial state: %v", err),
+		}
+	}
+	fuel := types.NewUint256(5)
+	utils.LogDebug("Deploy: appId=%d, allowedTokens=%d, stateSize=%d, fuel=%v", uint64(appId), len(allowedTokens), len(stateJSON), fuel)
+	return types.DeployResult{
+		State: stateJSON,
+		Fuel:  fuel,
+	}
+}
+
+// LoadModule is retained for cache warm-up by getOrLoadModule (see wasmtime_runtime.go).
+// New deployments should use Deploy instead.
 func LoadModule(appId int64) types.LoadModuleResult {
 	initialState := &ApplicationInternalState{
-		AppID:    uint64(appId),
-		Accounts: make(map[string]*AccountState),
+		AppID:         uint64(appId),
+		Accounts:      make(map[string]*AccountState),
+		AllowedTokens: map[string]bool{ethTokenHex: true},
 	}
 	stateJSON, err := json.Marshal(initialState)
 	if err != nil {
@@ -42,64 +97,101 @@ func LoadModule(appId int64) types.LoadModuleResult {
 		}
 	}
 	fuel := types.NewUint256(5)
-	utils.LogDebug("LoadModule: appId=%d, stateSize=%d, fuel=%v", appId, len(stateJSON), fuel)
+	utils.LogDebug("LoadModule: appId=%d, stateSize=%d, fuel=%v", uint64(appId), len(stateJSON), fuel)
 	return types.LoadModuleResult{
 		State: stateJSON,
 		Fuel:  fuel,
 	}
 }
 
-func DepositFunds(senderPtr *types.Address, value *types.Uint256, stateJSON string) types.DepositResult {
+// getOrCreateTokenBalance returns the balance for a specific token, initialising
+// the map entry to zero if it does not yet exist.  The returned pointer is always
+// stored in acc.Balances, so mutations are reflected in the state.
+func getOrCreateTokenBalance(acc *AccountState, tokenHex string) *types.Uint256 {
+	if acc.Balances == nil {
+		acc.Balances = make(map[string]*types.Uint256)
+	}
+	if bal, ok := acc.Balances[tokenHex]; ok {
+		return bal
+	}
+	bal := types.NewUint256(0)
+	acc.Balances[tokenHex] = bal
+	return bal
+}
+
+// resolveTokenHex returns the hex of the token address, defaulting to ETH if the address is zero.
+func resolveTokenHex(tokenAddress types.Address) string {
+	if tokenAddress == (types.Address{}) {
+		return ethTokenHex
+	}
+	return tokenAddress.Hex()
+}
+
+func DepositFunds(senderPtr *types.Address, tokenPtr *types.Address, value *types.Uint256, stateJSON string) types.DepositResult {
 	if senderPtr == nil {
 		utils.LogError("DepositFunds: sender address is nil")
 		return types.DepositResult{Error: "Sender address is nil"}
 	}
 
-	//This should never happens but just in case
+	if tokenPtr == nil {
+		utils.LogError("DepositFunds: token address is nil")
+		return types.DepositResult{Error: "Token address is nil"}
+	}
+
 	if value == nil {
 		utils.LogError("DepositFunds: value is nil")
 		return types.DepositResult{Error: "value is nil"}
 	}
 
-	utils.LogDebug("DepositFunds called with address %s, value %s", senderPtr.String(), value.String())
-
-	senderHex := senderPtr.Hex()
-
 	var currentState ApplicationInternalState
 	if err := json.Unmarshal([]byte(stateJSON), &currentState); err != nil {
-		// we could add the stateJSON to the error, but it is not safe if it is very large
 		utils.LogError("DepositFunds: failed to parse application state: %v", err)
 		return types.DepositResult{Error: fmt.Sprintf("Failed to parse application state: %v", err)}
 	}
+
+	tokenHex := resolveTokenHex(*tokenPtr)
+
+	// Validate token against app allowlist
+	if !currentState.AllowedTokens[tokenHex] {
+		return types.DepositResult{Error: fmt.Sprintf("Token %s is not allowed by this application", tokenHex)}
+	}
+
+	senderHex := senderPtr.Hex()
 
 	var events []types.PlainEvent
 
 	// Handle deposit only if value > 0
 	if !value.IsZero() {
 		// Ensure sender account exists
-		if currentState.Accounts[senderHex] == nil {
-			currentState.Accounts[senderHex] = &AccountState{
-				Address: *senderPtr,
-				Balance: types.NewUint256(0),
+		acc, exists := currentState.Accounts[senderHex]
+		if !exists {
+			acc = &AccountState{
+				Address:  *senderPtr,
+				Balances: make(map[string]*types.Uint256),
 			}
+			currentState.Accounts[senderHex] = acc
 		}
+		// Get or initialize per-token balance
+		balance := getOrCreateTokenBalance(acc, tokenHex)
 
-		// Add deposit to sender's balance (copy old balance by value for revert on overflow)
-		oldBalance := *currentState.Accounts[senderHex].Balance
-		if currentState.Accounts[senderHex].Balance.AddOverflow(*currentState.Accounts[senderHex].Balance, *value) {
+		// Add deposit to per-token balance (overflow check)
+		oldBalance := *balance
+		if balance.AddOverflow(*balance, *value) {
 			utils.LogError("DepositFunds: overflow while adding amount %s to balance %s for account %s", value.String(), oldBalance.String(), senderHex)
-			*currentState.Accounts[senderHex].Balance = oldBalance // revert to previous balance
+			*balance = oldBalance // revert
 			return types.DepositResult{Error: fmt.Sprintf("Overflow while adding amount %s to balance: %s", value, oldBalance)}
 		}
+
 		currentState.Nonce++
-		recordTransaction(&currentState, "deposit", *senderPtr, *senderPtr, value, "")
+		recordTransaction(&currentState, "deposit", *senderPtr, *senderPtr, *tokenPtr, value, "")
 
 		// Create deposit event
 		eventData := DepositEvent{
-			Type:    "deposit",
-			Amount:  value,
-			Balance: currentState.Accounts[senderHex].Balance,
-			Nonce:   currentState.Nonce,
+			Type:         "deposit",
+			TokenAddress: *tokenPtr,
+			Amount:       value,
+			Balance:      balance,
+			Nonce:        currentState.Nonce,
 		}
 		eventDataBytes, err := json.Marshal(eventData)
 		if err != nil {
@@ -107,10 +199,14 @@ func DepositFunds(senderPtr *types.Address, value *types.Uint256, stateJSON stri
 			return types.DepositResult{Error: fmt.Sprintf("Failed to serialize event data: %+v, err: %v", eventData, err)}
 		}
 
+		// EventSubType is intentionally left unset ([32]byte{}). The payment app
+		// assumes the user has registered a seed (ASSOCIATEKEY with 226-byte
+		// payload), so the executor always overrides PlainEvent subtypes with a
+		// privacy-preserving HMAC value from the seed — any value set here would
+		// be discarded. See ENCRYPTED_SEED_SPEC.md and executor.encryptEvents.
 		events = append(events, types.PlainEvent{
-			UserID:       *senderPtr,
-			EventSubType: "deposit",
-			Data:         eventDataBytes,
+			UserID: *senderPtr,
+			Data:   eventDataBytes,
 		})
 	}
 
@@ -121,17 +217,9 @@ func DepositFunds(senderPtr *types.Address, value *types.Uint256, stateJSON stri
 		return types.DepositResult{Error: fmt.Sprintf("Failed to serialize new state: %v", err)}
 	}
 
-	// Get balance string safely (account may not exist, for instance in case of zero deposits)
-	var balanceStr string
-	if currentState.Accounts[senderHex] != nil {
-		balanceStr = currentState.Accounts[senderHex].Balance.String()
-	} else {
-		balanceStr = "0"
-	}
-
 	fuel := types.NewUint256(35)
-	utils.LogDebug("DepositFunds: sender=%s, value=%s, newBalance=%s, eventsCount=%d, stateSize=%d, fuel=%s",
-		senderHex, value.String(), balanceStr, len(events), len(newStateBytes), fuel.String())
+	utils.LogDebug("DepositFunds: sender=%s, token=%s, value=%s, eventsCount=%d, stateSize=%d, fuel=%s",
+		senderHex, tokenHex, value.String(), len(events), len(newStateBytes), fuel.String())
 	return types.DepositResult{State: newStateBytes, Events: events, Fuel: fuel}
 }
 
@@ -151,6 +239,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 	}
 
 	var events []types.PlainEvent
+	var appEvents []types.AppEvent
 	var withdrawals []types.Withdrawal
 
 	// Determine instruction type: requestType has priority over payload
@@ -188,12 +277,22 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: fmt.Sprintf("invoice_id exceeds maximum length of %d characters", MaxInvoiceIDLength)}
 			}
 
+			// Resolve token (defaults to ETH if omitted)
+			tokenHex := resolveTokenHex(instructions.Transfer.TokenAddress)
+
+			// Validate token against app allowlist
+			if !currentState.AllowedTokens[tokenHex] {
+				return types.ProcessResult{Error: fmt.Sprintf("Token %s is not allowed for transfer", tokenHex)}
+			}
+
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
 				utils.LogError("ProcessRequest: account %s does not exist", senderHex)
 				return types.ProcessResult{Error: fmt.Sprintf("Account %s does not exist!", senderHex)}
 			}
-			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Transfer.Amount) < 0 {
+
+			senderBalance := getOrCreateTokenBalance(currentState.Accounts[senderHex], tokenHex)
+			if senderBalance.Cmp(*instructions.Transfer.Amount) < 0 {
 				utils.LogError("ProcessRequest: insufficient balance for transfer")
 				return types.ProcessResult{Error: "Insufficient balance for transfer"}
 			}
@@ -204,35 +303,37 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			if currentState.Accounts[recipientHex] == nil {
 				currentState.Accounts[recipientHex] = &AccountState{
 					Address: instructions.Transfer.To,
-					Balance: types.NewUint256(0),
 				}
 			}
 
-			// Execute transfer (save both balances for revert on overflow)
-			oldSenderBalance := *currentState.Accounts[senderHex].Balance
-			oldRecipientBalance := *currentState.Accounts[recipientHex].Balance
+			recipientBalance := getOrCreateTokenBalance(currentState.Accounts[recipientHex], tokenHex)
 
-			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Transfer.Amount)
-			if currentState.Accounts[recipientHex].Balance.AddOverflow(*currentState.Accounts[recipientHex].Balance, *instructions.Transfer.Amount) {
+			// Execute transfer (save both balances for revert on overflow)
+			oldSenderBalance := *senderBalance
+			oldRecipientBalance := *recipientBalance
+
+			senderBalance.Sub(*senderBalance, *instructions.Transfer.Amount)
+			if recipientBalance.AddOverflow(*recipientBalance, *instructions.Transfer.Amount) {
 				utils.LogError("ProcessRequest: overflow while adding transfer amount %s to recipient %s balance %s",
 					instructions.Transfer.Amount.String(), recipientHex, oldRecipientBalance.String())
 				// Revert both sender and recipient balances
-				*currentState.Accounts[senderHex].Balance = oldSenderBalance
-				*currentState.Accounts[recipientHex].Balance = oldRecipientBalance
+				*senderBalance = oldSenderBalance
+				*recipientBalance = oldRecipientBalance
 				return types.ProcessResult{Error: fmt.Sprintf("Overflow while adding transfer amount %s to recipient balance: %s",
 					instructions.Transfer.Amount, oldRecipientBalance)}
 			}
 			currentState.Nonce++
-			recordTransaction(&currentState, "transfer", sender, instructions.Transfer.To, instructions.Transfer.Amount, instructions.Transfer.InvoiceID)
+			recordTransaction(&currentState, "transfer", sender, instructions.Transfer.To, instructions.Transfer.TokenAddress, instructions.Transfer.Amount, instructions.Transfer.InvoiceID)
 
 			// Create events for both parties
 			senderEventData := SenderEvent{
-				Type:      "transfer_sent",
-				To:        instructions.Transfer.To,
-				Amount:    instructions.Transfer.Amount,
-				Balance:   currentState.Accounts[senderHex].Balance,
-				Nonce:     currentState.Nonce,
-				InvoiceID: instructions.Transfer.InvoiceID,
+				Type:         "transfer_sent",
+				To:           instructions.Transfer.To,
+				TokenAddress: instructions.Transfer.TokenAddress,
+				Amount:       instructions.Transfer.Amount,
+				Balance:      senderBalance,
+				Nonce:        currentState.Nonce,
+				InvoiceID:    instructions.Transfer.InvoiceID,
 			}
 			senderEventDataBytes, err := json.Marshal(senderEventData)
 			if err != nil {
@@ -241,12 +342,13 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 			}
 
 			recipientEventData := RecipientEvent{
-				Type:      "transfer_received",
-				From:      sender,
-				Amount:    instructions.Transfer.Amount,
-				Balance:   currentState.Accounts[recipientHex].Balance,
-				Nonce:     currentState.Nonce,
-				InvoiceID: instructions.Transfer.InvoiceID,
+				Type:         "transfer_received",
+				From:         sender,
+				TokenAddress: instructions.Transfer.TokenAddress,
+				Amount:       instructions.Transfer.Amount,
+				Balance:      recipientBalance,
+				Nonce:        currentState.Nonce,
+				InvoiceID:    instructions.Transfer.InvoiceID,
 			}
 			recipientEventDataBytes, err := json.Marshal(recipientEventData)
 			if err != nil {
@@ -254,17 +356,46 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: "Failed to serialize recipient event data"}
 			}
 
+			// EventSubType is left unset — see the note in DepositFunds.
 			events = append(events, types.PlainEvent{
-				UserID:       sender,
-				EventSubType: "transfer_sent",
-				Data:         senderEventDataBytes,
+				UserID: sender,
+				Data:   senderEventDataBytes,
 			})
 
 			events = append(events, types.PlainEvent{
-				UserID:       instructions.Transfer.To,
-				EventSubType: "transfer_received",
-				Data:         recipientEventDataBytes,
+				UserID: instructions.Transfer.To,
+				Data:   recipientEventDataBytes,
 			})
+
+			// Emit transfer receipt as AppEvent when InvoiceID is present
+			// Note: the receipt hash is not encrypted, so that could be used as a proof of succesful transfer
+			// verifiable by any third party
+			//
+			// Field boundaries must be unambiguous to prevent collisions across
+			// different transfers: InvoiceID is length-prefixed (uint32 big-endian),
+			// and Amount.Bytes() returns a fixed 32-byte big-endian encoding.
+			// sender, TokenAddress and To are fixed 20-byte addresses.
+			if instructions.Transfer.InvoiceID != "" {
+				invoiceIDBytes := []byte(instructions.Transfer.InvoiceID)
+				var lenPrefix [4]byte
+				binary.BigEndian.PutUint32(lenPrefix[:], uint32(len(invoiceIDBytes)))
+
+				h := sha3.NewLegacyKeccak256()
+				h.Write(lenPrefix[:])
+				h.Write(invoiceIDBytes)
+				h.Write(sender[:])
+				h.Write(instructions.Transfer.TokenAddress[:])
+				h.Write(instructions.Transfer.Amount.Bytes())
+				h.Write(instructions.Transfer.To[:])
+
+				var receiptSubType [32]byte
+				copy(receiptSubType[:], h.Sum(nil))
+
+				appEvents = append(appEvents, types.AppEvent{
+					EventSubType: receiptSubType,
+					Data:         nil,
+				})
+			}
 
 		case "withdraw":
 			if instructions.Withdraw == nil {
@@ -275,36 +406,48 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: "Withdraw amount is nil"}
 			}
 
+			// Resolve token (defaults to ETH if omitted)
+			tokenHex := resolveTokenHex(instructions.Withdraw.TokenAddress)
+
+			// Validate token against app allowlist
+			if !currentState.AllowedTokens[tokenHex] {
+				return types.ProcessResult{Error: fmt.Sprintf("Token %s is not allowed for withdrawal", tokenHex)}
+			}
+
 			// Validate sender account exists and has sufficient balance
 			if currentState.Accounts[senderHex] == nil {
 				utils.LogError("ProcessRequest: account %s does not exist", senderHex)
 				return types.ProcessResult{Error: fmt.Sprintf("Account %s does not exist", senderHex)}
 			}
 
-			if currentState.Accounts[senderHex].Balance.Cmp(*instructions.Withdraw.Amount) < 0 {
+			senderBalance := getOrCreateTokenBalance(currentState.Accounts[senderHex], tokenHex)
+
+			if senderBalance.Cmp(*instructions.Withdraw.Amount) < 0 {
 				utils.LogError("ProcessRequest: insufficient balance for account %s", senderHex)
 				return types.ProcessResult{Error: fmt.Sprintf("Insufficient balance %s for withdrawal %s for account %s",
-					currentState.Accounts[senderHex].Balance, *instructions.Withdraw.Amount, senderHex)}
+					senderBalance, *instructions.Withdraw.Amount, senderHex)}
 			}
 
-			// Execute withdrawal
-			currentState.Accounts[senderHex].Balance.Sub(*currentState.Accounts[senderHex].Balance, *instructions.Withdraw.Amount)
+			// Execute withdrawal — debit per-token balance
+			senderBalance.Sub(*senderBalance, *instructions.Withdraw.Amount)
 			currentState.Nonce++
-			recordTransaction(&currentState, "withdrawal", sender, instructions.Withdraw.To, instructions.Withdraw.Amount, "")
+			recordTransaction(&currentState, "withdrawal", sender, instructions.Withdraw.To, instructions.Withdraw.TokenAddress, instructions.Withdraw.Amount, "")
 
-			// Create withdrawal
+			// Create token-aware withdrawal
 			withdrawals = append(withdrawals, types.Withdrawal{
+				TokenAddress:       instructions.Withdraw.TokenAddress,
 				DestinationAddress: instructions.Withdraw.To,
 				Amount:             instructions.Withdraw.Amount,
 			})
 
 			// Create event for sender
 			withdrawEventData := WithdrawalEvent{
-				Type:    "withdrawal",
-				To:      instructions.Withdraw.To,
-				Amount:  instructions.Withdraw.Amount,
-				Balance: currentState.Accounts[senderHex].Balance,
-				Nonce:   currentState.Nonce,
+				Type:         "withdrawal",
+				To:           instructions.Withdraw.To,
+				TokenAddress: instructions.Withdraw.TokenAddress,
+				Amount:       instructions.Withdraw.Amount,
+				Balance:      senderBalance,
+				Nonce:        currentState.Nonce,
 			}
 			withdrawEventDataBytes, err := json.Marshal(withdrawEventData)
 			if err != nil {
@@ -312,10 +455,10 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 				return types.ProcessResult{Error: fmt.Sprintf("Failed to serialize withdraw event data: %+v, err: %v", withdrawEventData, err)}
 			}
 
+			// EventSubType is left unset — see the note in DepositFunds.
 			events = append(events, types.PlainEvent{
-				UserID:       sender,
-				EventSubType: "withdrawal",
-				Data:         withdrawEventDataBytes,
+				UserID: sender,
+				Data:   withdrawEventDataBytes,
 			})
 
 		case "deanonymize":
@@ -356,17 +499,17 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 					filtered = append(filtered, tx)
 				}
 
-				// Look up current balance for the requested address
-				var balance *types.Uint256
-				if acc := currentState.Accounts[addrHex]; acc != nil {
-					balance = acc.Balance
+				// Look up current balances for the requested address
+				var balances map[string]*types.Uint256
+				if acc := currentState.Accounts[addrHex]; acc != nil && acc.Balances != nil {
+					balances = acc.Balances
 				} else {
-					balance = types.NewUint256(0)
+					balances = make(map[string]*types.Uint256)
 				}
 
 				reportBytes, err = json.Marshal(TxHistoryReport{
 					Address:      addr,
-					Balance:      balance,
+					Balances:     balances,
 					Transactions: filtered,
 				})
 			default:
@@ -404,6 +547,7 @@ func ProcessRequest(senderPtr *types.Address, requestType int32, payloadJSON, st
 	return types.ProcessResult{
 		State:       newStateBytes,
 		Events:      events,
+		AppEvents:   appEvents,
 		Withdrawals: withdrawals,
 		Fuel:        fuel,
 	}

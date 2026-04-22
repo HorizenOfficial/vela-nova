@@ -5,5 +5,17 @@ ProcessorAddress=
 TeeAuthenticatorAddress=
 AuthorityServiceURL=
 SubgraphURL=
+# On-chain application ID assigned during deploy (required for all commands except deployapp and key management)
+ApplicationID=
 BlockchainPollingInterval=
 BlockchainPollingTimeout=
+# Maximum number of events to scan when looking for a token balance (default: 200)
+# PrivateBalanceScanDepth=200
+
+# ERC-20 token registry (optional)
+# Define tokens so the wallet can resolve symbols (e.g. --token USDC)
+# and display amounts with correct decimals.
+# token.USDC.address=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+# token.USDC.decimals=6
+# token.USDT.address=0xdAC17F958D2ee523a2206206994597C13D831ec7
+# token.USDT.decimals=6

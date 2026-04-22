@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"path/filepath"
 	"testing"
 	"time"
 
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -59,6 +61,39 @@ func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.
 
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// DeployTestApplication deploys and registers an application on the simulated
+// blockchain, returning the system-assigned application ID.
+func DeployTestApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.ApplicationIdType {
+	t.Helper()
+
+	blockchainClient := SetupNewBlockChainClient(testHelper)
+
+	// Submit deploy request (uses the Deployer account)
+	deployTx := testHelper.SubmitDeployRequest(nil, big.NewInt(100))
+	testHelper.WaitMined(deployTx)
+
+	// Get the pending deploy request to extract the assigned applicationId
+	deployReq, deployStateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, deployReq, "expected a pending deploy request")
+
+	// Complete the deploy with a successful stateUpdate
+	err = blockchainClient.SubmitStateUpdate(context.Background(), &common.UpdatePayload{
+		ApplicationID:  deployReq.ApplicationID,
+		RequestID:      deployReq.RequestID,
+		PrevStateRoot:  deployStateRoot,
+		NewStateRoot:   [32]byte{0x01, 0x02, 0x03},
+		Events:         []common.Event{},
+		Withdrawals:    []common.Withdrawal{},
+		Signature:      make([]byte, 65),
+		RefundAmount:   common.NewBig(95),
+		ApplicationFee: common.NewBig(5),
+	})
+	require.NoError(t, err)
+
+	return deployReq.ApplicationID
 }
 
 func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refundAmount *big.Int, applicationFees *big.Int) {
@@ -131,6 +166,7 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 }
 
 // StubSubgraphClient returns canned RequestCompleted responses for tests.
+// Both GetRequestCompletedByID and GetDeployRequestCompletedByID return the same Result/Err.
 type StubSubgraphClient struct {
 	Result *subgraph.RequestCompleted
 	Err    error
@@ -144,27 +180,35 @@ func (StubSubgraphClient) HealthCheck(context.Context) error {
 	return nil
 }
 
-func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, string, int, *big.Int) ([]subgraph.UserEvent, error) {
+func (s StubSubgraphClient) GetDeployRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+	return s.Result, s.Err
+}
+
+func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, [][32]byte, int, *big.Int) ([]subgraph.UserEvent, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetUserEventsBySubTypes(context.Context, common.ApplicationIdType, []string, int, *big.Int) ([]subgraph.UserEvent, error) {
+func (StubSubgraphClient) GetUserEvents(context.Context, common.ApplicationIdType, [32]byte, int, *big.Int) ([]subgraph.UserEvent, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetDeployRequestCompletedByID(_ context.Context, _ common.RequestIdType) (*subgraph.RequestCompleted, error) {
+func (StubSubgraphClient) GetAppEvents(context.Context, common.ApplicationIdType, [32]byte, int, *big.Int) ([]subgraph.AppEvent, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetRefunds(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainRefund, error) {
+func (StubSubgraphClient) GetAppEventsBySubTypes(context.Context, common.ApplicationIdType, [][32]byte, int, *big.Int) ([]subgraph.AppEvent, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetWithdrawals(_ context.Context, _ common.ApplicationIdType, _ *common.RequestIdType, _ int) ([]subgraph.OnChainWithdrawal, error) {
+func (StubSubgraphClient) GetRefunds(context.Context, common.ApplicationIdType, *common.RequestIdType, int) ([]subgraph.OnChainRefund, error) {
 	return nil, nil
 }
 
-func (StubSubgraphClient) GetClaimsExecuted(_ context.Context, _ ethCommon.Address, _ *ethCommon.Address, _ int) ([]subgraph.ClaimExecuted, error) {
+func (StubSubgraphClient) GetWithdrawals(context.Context, common.ApplicationIdType, *common.RequestIdType, int) ([]subgraph.OnChainWithdrawal, error) {
+	return nil, nil
+}
+
+func (StubSubgraphClient) GetClaimsExecuted(context.Context, ethCommon.Address, *ethCommon.Address, int) ([]subgraph.ClaimExecuted, error) {
 	return nil, nil
 }
 
@@ -182,4 +226,12 @@ func SubgraphClientFailure() subgraph.Client {
 
 func SubgraphClientEmpty() subgraph.Client {
 	return StubSubgraphClient{}
+}
+
+// WriteTempConf writes a Config to a temporary wallet.conf and returns the path.
+func WriteTempConf(t *testing.T, cfg *app.Config) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "wallet.conf")
+	require.NoError(t, app.SaveConfigToFile(cfg, path))
+	return path
 }
