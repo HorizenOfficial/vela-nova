@@ -4,23 +4,40 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/spf13/cobra"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // BalanceClient is the subset of a chain client needed to read public balances.
-// BalanceAt serves the ETH path; bind.ContractBackend serves the ERC-20 path
-// (for calling balanceOf via the generated contract bindings). Both
+// BalanceAt serves the ETH path; bind.ContractBackend (specifically its
+// ContractCaller.CallContract) serves the ERC-20 balanceOf path. Both
 // *ethclient.Client (production) and simulated.Client (tests) satisfy it.
 type BalanceClient interface {
 	bind.ContractBackend
 	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 }
+
+// erc20BalanceOfABI is the minimal ABI fragment needed to call balanceOf on
+// any ERC-20. Parsed once at init — the signature is universal across tokens,
+// so we do not pull in a specific token binding (which would pin us to a
+// single implementation).
+const erc20BalanceOfABIJSON = `[{"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
+
+var erc20BalanceOfABI = func() abi.ABI {
+	parsed, err := abi.JSON(strings.NewReader(erc20BalanceOfABIJSON))
+	if err != nil {
+		panic(fmt.Sprintf("getpublicbalance: failed to parse erc20 balanceOf ABI: %v", err))
+	}
+	return parsed
+}()
 
 type GetPublicBalanceCommand struct {
 	*app.AppCommand
@@ -51,11 +68,6 @@ func (c *GetPublicBalanceCommand) Exec(ctx context.Context) error {
 		return err
 	}
 
-	if tokenInfo.Address != ETH_TOKEN {
-		// TODO: implement ERC-20 balanceOf via generated bindings using c.Client.
-		return fmt.Errorf("ERC-20 public balance query not yet implemented for %s", tokenInfo.Symbol)
-	}
-
 	client, cleanup, err := c.resolveClient(ctx)
 	if err != nil {
 		return fmt.Errorf("connecting to rpc node: %w", err)
@@ -65,13 +77,49 @@ func (c *GetPublicBalanceCommand) Exec(ctx context.Context) error {
 	}
 
 	account := common.HexToAddress(c.Config.KeySecp.PublicKey().Address())
-	balance, err := client.BalanceAt(ctx, account, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get balance: %w", err)
+
+	var balance *big.Int
+	if tokenInfo.Address == ETH_TOKEN {
+		balance, err = client.BalanceAt(ctx, account, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get ETH balance: %w", err)
+		}
+	} else {
+		balance, err = erc20BalanceOf(ctx, client, tokenInfo.Address, account)
+		if err != nil {
+			return fmt.Errorf("failed to get %s balance: %w", tokenInfo.Symbol, err)
+		}
 	}
 
 	fmt.Println(c.Config.Tokens.FormatAmount(balance, tokenInfo))
 	return nil
+}
+
+// erc20BalanceOf performs a read-only balanceOf(account) call on `token` via
+// an eth_call. Decodes the single uint256 return value. Relies on the ERC-20
+// balanceOf signature being universal across implementations, so no
+// token-specific binding is required.
+func erc20BalanceOf(ctx context.Context, client bind.ContractCaller, token, account common.Address) (*big.Int, error) {
+	calldata, err := erc20BalanceOfABI.Pack("balanceOf", account)
+	if err != nil {
+		return nil, fmt.Errorf("pack balanceOf: %w", err)
+	}
+	result, err := client.CallContract(ctx, ethereum.CallMsg{To: &token, Data: calldata}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("call balanceOf: %w", err)
+	}
+	values, err := erc20BalanceOfABI.Unpack("balanceOf", result)
+	if err != nil {
+		return nil, fmt.Errorf("unpack balanceOf: %w", err)
+	}
+	if len(values) != 1 {
+		return nil, fmt.Errorf("balanceOf returned %d values, expected 1", len(values))
+	}
+	balance, ok := values[0].(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("balanceOf returned unexpected type %T, expected *big.Int", values[0])
+	}
+	return balance, nil
 }
 
 // resolveClient returns the injected client if one was set, otherwise dials
