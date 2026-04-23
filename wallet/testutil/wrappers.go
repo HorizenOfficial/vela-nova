@@ -121,6 +121,73 @@ func (d *WalletDriver) GetPrivateBalance(ctx context.Context, token string) (*bi
 	return balance, nil
 }
 
+// PrivateTransfer submits an encrypted transfer of `amount` of `token` from
+// the wallet's user to `receiver` within the app's private state. Unlike
+// Deposit/Withdraw this touches only the encrypted state — no on-chain asset
+// movement — so both parties observe the result via decrypted events.
+func (d *WalletDriver) PrivateTransfer(ctx context.Context, receiver, amount, token, maxFee string) error {
+	d.t.Helper()
+
+	cfg := d.loadConfig()
+	c := cmd.NewPrivateTransferCommand(cfg, d.newUserClient())
+	cobraCmd := c.Command()
+	require.NoError(d.t, cobraCmd.Flags().Set("to", receiver))
+	require.NoError(d.t, cobraCmd.Flags().Set("amount", amount))
+	require.NoError(d.t, cobraCmd.Flags().Set("max-value-fee", maxFee))
+	if token != "" {
+		require.NoError(d.t, cobraCmd.Flags().Set("token", token))
+	}
+	c.SubgraphClient = d.suite.GetSubgraph()
+
+	if err := c.Exec(ctx); err != nil {
+		return fmt.Errorf("wallet driver: PrivateTransfer: %w", err)
+	}
+	return nil
+}
+
+// RequestReport submits a Deanonymize request on-chain. The caller must have
+// been granted the authority role for the app (e.g. via
+// suite.RegisterAuthority) AND have registered as a user
+// (driver.RegisterUser) so the executor can encrypt the resulting report to
+// this wallet's P521 key. Returns the request ID, used as the reportID for
+// the subsequent DownloadReport call.
+func (d *WalletDriver) RequestReport(ctx context.Context, reportType, maxFee string) (common.RequestIdType, error) {
+	d.t.Helper()
+
+	cfg := d.loadConfig()
+	c := cmd.NewRequestReportCommand(cfg, d.newUserClient())
+	cobraCmd := c.Command()
+	require.NoError(d.t, cobraCmd.Flags().Set("max-value-fee", maxFee))
+	if reportType != "" {
+		require.NoError(d.t, cobraCmd.Flags().Set("report-type", reportType))
+	}
+	c.SubgraphClient = d.suite.GetSubgraph()
+
+	reqID, err := c.Exec(ctx)
+	if err != nil {
+		return reqID, fmt.Errorf("wallet driver: RequestReport: %w", err)
+	}
+	return reqID, nil
+}
+
+// DownloadReport runs the full /nonce + /getreport + decrypt flow and writes
+// the result to destPath. Decrypt defaults to true so callers get the
+// readable JSON form without exposing the wallet's P521 key to test code.
+func (d *WalletDriver) DownloadReport(ctx context.Context, reportIDHex, destPath string) error {
+	d.t.Helper()
+
+	cfg := d.loadConfig()
+	c := cmd.NewDownloadReportCommand(cfg, d.newUserClient())
+	cobraCmd := c.Command()
+	require.NoError(d.t, cobraCmd.Flags().Set("report-id", reportIDHex))
+	require.NoError(d.t, cobraCmd.Flags().Set("dest", destPath))
+
+	if err := c.Exec(ctx); err != nil {
+		return fmt.Errorf("wallet driver: DownloadReport: %w", err)
+	}
+	return nil
+}
+
 // ClaimPendingPayments pulls pending claims for `token` from the
 // ProcessorEndpoint contract into the user's public balance.
 func (d *WalletDriver) ClaimPendingPayments(ctx context.Context, token string) error {

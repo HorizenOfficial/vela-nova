@@ -182,6 +182,16 @@ func (d *WalletDriver) NewBlockchainClient() blockchain.Client {
 	return d.newUserClient()
 }
 
+// SetApplicationID writes the given application ID into the temp wallet.conf.
+// Tests that want a second driver (e.g. recipient of a private transfer) to
+// operate on an app deployed by a different driver call this after the first
+// driver's DeployApp returns. Matches what the CLI would do: SaveApplicationID
+// mutates the conf; subsequent loadConfig() picks it up.
+func (d *WalletDriver) SetApplicationID(appID common.ApplicationIdType) {
+	d.t.Helper()
+	require.NoError(d.t, app.SaveApplicationID(d.confPath, appID))
+}
+
 // AddToken appends an ERC-20 entry to the wallet.conf file so subsequent
 // wrapper calls can resolve the symbol (e.g. Deposit(..., "MOCK", ...)). The
 // driver does not mutate an in-memory registry — each wrapper re-loads the

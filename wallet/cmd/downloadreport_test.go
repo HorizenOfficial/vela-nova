@@ -67,6 +67,7 @@ func TestDownloadReportWithoutDecryptSavesReport(t *testing.T) {
 		KeySecp:             keySecp,
 		AuthorityServiceURL: ts.URL,
 		RpcUrl:              rpcSrv.URL,
+		ApplicationID:       common.ApplicationIdType(1),
 	}
 	testutil.WriteTempConf(t, cfg)
 
@@ -78,7 +79,7 @@ func TestDownloadReportWithoutDecryptSavesReport(t *testing.T) {
 	cmd.destPath = destPath
 	cmd.decrypt = false
 
-	err = cmd.run(context.Background())
+	err = cmd.Exec(context.Background())
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(destPath)

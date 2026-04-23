@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/big"
 
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
@@ -31,106 +30,91 @@ func NewPrivateTransferCommand(config *app.Config, blockchainClient blockchain.C
 	return cmd
 }
 
+// Exec runs the privatetransfer flow outside of the Cobra wrapper. Exported
+// so test drivers can invoke it directly after setting flag-bound struct
+// fields.
+func (c *PrivateTransferCommand) Exec(ctx context.Context) error {
+	if err := c.RequireApplicationID(); err != nil {
+		return err
+	}
+
+	tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
+	if err != nil {
+		return err
+	}
+
+	to, err := app.ValidateAndChecksumAddress(c.receiver)
+	if err != nil {
+		return fmt.Errorf("invalid receiver address: %w", err)
+	}
+
+	amount, err := parseAssetAmount(c.Config.Tokens, tokenInfo, c.value)
+	if err != nil {
+		return fmt.Errorf("invalid amount: %w", err)
+	}
+
+	maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("invalid max fee amount: %w", err)
+	}
+
+	if err := c.InitChainClient(ctx); err != nil {
+		return fmt.Errorf("connecting to rpc node: %w", err)
+	}
+	defer c.CloseClient()
+
+	toAddr, err := types.HexToAddress(to.Hex())
+	if err != nil {
+		return fmt.Errorf("invalid receiver address, could not convert to byte array: %w", err)
+	}
+
+	if len(c.invoiceID) > runtimeapp.MaxInvoiceIDLength {
+		return fmt.Errorf("invoice_id exceeds maximum length of %d characters", runtimeapp.MaxInvoiceIDLength)
+	}
+
+	tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
+	if err != nil {
+		return fmt.Errorf("invalid token address: %w", err)
+	}
+
+	payload := runtimeapp.PayloadInstructions{
+		Type: "transfer",
+		Transfer: &runtimeapp.TransferInstruction{
+			To:           toAddr,
+			TokenAddress: tokenAddr,
+			Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
+			InvoiceID:    c.invoiceID,
+		},
+	}
+	encryptedPayload, err := c.EncryptPayload(&payload, ctx)
+	if err != nil {
+		return fmt.Errorf("encrypting private transfer payload: %w", err)
+	}
+
+	// On-chain: no business asset deposited (it's a private-state transfer),
+	// so tokenAddress=ETH_TOKEN and assetAmount=0.
+	requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, common.Process, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("sending request to transfer amount %s to %s: %w", c.value, to, err)
+	}
+
+	fmt.Printf("Waiting for confirmation from Vela for requestID: %s\n", requestID)
+	if err := c.WaitForRequestCompleted(requestID, ctx); err != nil {
+		return fmt.Errorf("Private transfer failed: %w", err)
+	}
+	fmt.Println("Private transfer completed successfully")
+	return nil
+}
+
 func (c *PrivateTransferCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "privatetransfer",
 		Short: `submits a private transfer request to a receiver address`,
 		Long:  `submits a private transfer request to a receiver address`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.RequireApplicationID(); err != nil {
-				log.Fatalf("Error: %v", err)
-			}
-
-			// Resolve token
-			tokenInfo, err := c.Config.Tokens.ResolveToken(c.token)
-			if err != nil {
+			if err := c.Exec(resolveContext(cmd)); err != nil {
 				fmt.Printf("Error: %v\n", err)
-				return
 			}
-
-			//get receiver
-			to, err := app.ValidateAndChecksumAddress(c.receiver)
-			if err != nil {
-				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
-			}
-
-			// Parse amount with correct decimals
-			var amount *big.Int
-			if tokenInfo.Address == ETH_TOKEN {
-				amount, err = app.ParseEtherValue(c.value)
-			} else {
-				amount, err = c.Config.Tokens.ParseAmount(c.value, tokenInfo)
-			}
-			if err != nil {
-				fmt.Printf("Error: invalid amount: %v\n", err)
-				return
-			}
-
-			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error: invalid max fee amount: %v\n", err)
-				return
-			}
-
-			ctx := context.Background()
-			if cmd != nil && cmd.Context() != nil {
-				ctx = cmd.Context()
-			}
-			if c.BlockchainClient == nil {
-				if err := c.InitChainClient(ctx); err != nil {
-					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return
-				}
-			}
-			defer c.CloseClient()
-
-			toAddr, err := types.HexToAddress(to.Hex())
-			if err != nil {
-				log.Fatalf("Error: invalid receiver: %s\n", c.receiver)
-			}
-
-			if len(c.invoiceID) > runtimeapp.MaxInvoiceIDLength {
-				fmt.Printf("Error: invoice_id exceeds maximum length of %d characters\n", runtimeapp.MaxInvoiceIDLength)
-				return
-			}
-
-			// Resolve token address for the encrypted payload
-			tokenAddr, err := types.HexToAddress(tokenInfo.Address.Hex())
-			if err != nil {
-				log.Fatalf("Error: invalid token address: %v\n", err)
-			}
-
-			//build payload with type transfer (token identity goes in the encrypted payload)
-			payload := runtimeapp.PayloadInstructions{
-				Type: "transfer",
-				Transfer: &runtimeapp.TransferInstruction{
-					To:           toAddr,
-					TokenAddress: tokenAddr,
-					Amount:       new(types.Uint256).SetBytes(amount.Bytes()),
-					InvoiceID:    c.invoiceID,
-				},
-			}
-			encryptedPayload, err := c.EncryptPayload(&payload, ctx)
-			if err != nil {
-				log.Fatalf("Error encrypting private transfer payload: %v", err)
-			}
-
-			// On-chain: no business asset deposited (it's a private-state transfer),
-			// so tokenAddress=ETH_TOKEN and assetAmount=0.
-			requestType := common.Process
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, encryptedPayload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error sending request to transfer amount %s to %s: %v", c.value, to, err)
-				return
-			}
-			fmt.Printf("Waiting for confirmation from Vela for requestID: %s\n", requestID)
-			err = c.WaitForRequestCompleted(requestID, ctx)
-			if err != nil {
-				fmt.Printf("Private transfer failed: %v\n", err)
-				return
-			}
-
-			fmt.Println("Private transfer completed successfully")
 		},
 	}
 	cmd.Flags().StringVarP(&c.value, "amount", "a", "", "The amount to transfer (e.g., '1.5 ETH', '100' for ERC-20)")
