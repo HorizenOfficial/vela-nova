@@ -72,6 +72,23 @@ func NewWalletDriver(t *testing.T, suite *fullstack.FullStackSystemTestSuite) *W
 	return NewWalletDriverWithKeys(t, suite, secpKey, p521Key)
 }
 
+// NewWalletDriverNoDeployerRole is like NewWalletDriver but SKIPS the
+// DEPLOYER_ROLE grant. Use it for tests that want to assert the contract-side
+// role check — a driver built via this constructor will have its DeployApp
+// calls reverted with DeployerNotAllowed until the caller subsequently calls
+// suite.GrantDeployerRole on the driver's address.
+func NewWalletDriverNoDeployerRole(t *testing.T, suite *fullstack.FullStackSystemTestSuite) *WalletDriver {
+	t.Helper()
+
+	_, secpKey, err := suite.CreateFundedAccount()
+	require.NoError(t, err)
+
+	p521Key, err := crypto.GeneratePrivateKeyP521()
+	require.NoError(t, err)
+
+	return newWalletDriverInternal(t, suite, secpKey, p521Key, false)
+}
+
 // NewWalletDriverWithKeys is like NewWalletDriver but uses caller-supplied
 // keys. The user's secp key is registered with the suite (funded with ETH,
 // TransactOpts stored) and granted DEPLOYER_ROLE on the ProcessorEndpoint.
@@ -80,6 +97,20 @@ func NewWalletDriverWithKeys(
 	suite *fullstack.FullStackSystemTestSuite,
 	secpKey *cryptotypes.PrivateKeySecp256k1,
 	p521Key *cryptotypes.PrivateKeyP521,
+) *WalletDriver {
+	t.Helper()
+	return newWalletDriverInternal(t, suite, secpKey, p521Key, true)
+}
+
+// newWalletDriverInternal is the shared body for the public constructors.
+// grantDeployerRole gates the role grant so test variants can build a driver
+// whose deploys will be rejected on-chain.
+func newWalletDriverInternal(
+	t *testing.T,
+	suite *fullstack.FullStackSystemTestSuite,
+	secpKey *cryptotypes.PrivateKeySecp256k1,
+	p521Key *cryptotypes.PrivateKeyP521,
+	grantDeployerRole bool,
 ) *WalletDriver {
 	t.Helper()
 
@@ -92,8 +123,10 @@ func NewWalletDriverWithKeys(
 		suite.RegisterAccount(secpKey.PrivateKey)
 	}
 
-	// Grant DEPLOYER_ROLE so wallet-driven DeployApp can submit deploy requests.
-	suite.GrantDeployerRole(userAddr)
+	if grantDeployerRole {
+		// Grant DEPLOYER_ROLE so wallet-driven DeployApp can submit deploy requests.
+		suite.GrantDeployerRole(userAddr)
+	}
 
 	sim := suite.GetSimTestHelper()
 	processor := sim.ProcessorContractAddress
