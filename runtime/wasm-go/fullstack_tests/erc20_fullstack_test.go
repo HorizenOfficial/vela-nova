@@ -155,5 +155,6 @@ func TestERC20FullStack(t *testing.T) {
 	require.Equal(t, 0, remainingRaw.Cmp(privBal2),
 		"remaining private balance should be 600 MOCK; got %s", privBal2.String())
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("ERC-20 full-stack flow passed")
 }

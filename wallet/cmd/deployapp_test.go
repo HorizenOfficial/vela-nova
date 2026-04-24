@@ -338,7 +338,8 @@ func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
 	}))
 	defer artifactServer.Close()
 
-	testHelper := velatestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := velatestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	// Create a blockchain client using the Submitter account, which does NOT have

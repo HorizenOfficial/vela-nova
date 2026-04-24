@@ -160,5 +160,6 @@ func TestFullStackRestart_KeysetRecovery(t *testing.T) {
 	require.Equal(t, 0, wantBalFinal.Cmp(custody),
 		"final on-chain custody should be 1.2 ETH (deposits minus withdrawn amount); got %s", custody.String())
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("Full-stack restart + keyset recovery: pre-restart state readable post-restart; new operations succeed against the restored keyset")
 }

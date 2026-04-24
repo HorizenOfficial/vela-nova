@@ -28,7 +28,8 @@ func TestPrivateTransfer(t *testing.T) {
 		var key2, _ = crypto.GeneratePrivateKeyP521()
 		var teeKey, _ = crypto.GeneratePrivateKeyP521()
 
-		testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+		autoMining, useMockContracts := true, true
+		testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 		defer testHelper.Close()
 
 		appID := testutil.DeployTestApplication(t, testHelper)

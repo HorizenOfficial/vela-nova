@@ -64,7 +64,8 @@ func TestDecryptReport(t *testing.T) {
 	os.Stdout = w
 
 	//create client
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 	client := testutil.SetupNewBlockChainClient(testHelper)
 

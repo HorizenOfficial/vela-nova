@@ -105,5 +105,6 @@ func TestPrivateTransfer_TwoUsers(t *testing.T) {
 	require.Equal(t, 0, transferred.Cmp(balB),
 		"B's post-transfer balance should be 0.3 ETH; got %s wei", balB.String())
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("Private transfer between two users — balances, subgraph indexing, and per-user decryption all verified")
 }

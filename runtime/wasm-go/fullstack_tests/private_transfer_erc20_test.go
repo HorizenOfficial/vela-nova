@@ -167,5 +167,6 @@ func TestPrivateTransfer_TwoUsers_ERC20(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, balBEth, "B should have no ETH private balance — A holds ETH but never transferred any to B")
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("ERC-20 private transfer with multi-token isolation verified: non-18 decimals, per-token filter, per-user routing")
 }

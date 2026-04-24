@@ -131,5 +131,6 @@ func TestDeanonymize_RealRoundTrip(t *testing.T) {
 		strings.ToLower(driverUser.UserAddress().Hex()),
 		"balances report should mention the depositing user; raw=%s", string(got.ReportData))
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("Real deanonymize /getreport round-trip verified")
 }

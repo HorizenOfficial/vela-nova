@@ -27,7 +27,8 @@ func TestRegisterUserCmd(t *testing.T) {
 	var key2, _ = crypto.GeneratePrivateKeyP521()
 	teeKey, _ := crypto.GeneratePrivateKeyP521()
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -78,7 +79,8 @@ func TestRegisterUserCmdFailure(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -129,7 +131,8 @@ func TestRegisterUserCmdTimeout(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

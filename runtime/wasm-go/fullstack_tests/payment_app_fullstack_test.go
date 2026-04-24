@@ -164,6 +164,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	require.Equal(t, 0, depositAmount.Cmp(sgEventData.Amount.ToInt()),
 		"subgraph event amount: expected %s, got %s", depositAmount, sgEventData.Amount.ToInt())
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("Fullstack deploy + deposit + subgraph verification passed")
 }
 

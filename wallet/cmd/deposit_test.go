@@ -30,7 +30,8 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -77,7 +78,8 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -124,7 +126,8 @@ func TestDepositCmd(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -176,7 +179,8 @@ func TestDepositCmdFailure(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -227,7 +231,8 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

@@ -231,5 +231,6 @@ func TestMultiAppIsolation(t *testing.T) {
 	require.Equal(t, 0, halfEther.Cmp(balB3),
 		"B's private balance must remain 0.5 ETH — A's withdraw perturbed B's view")
 
+	suite.AssertNoStateUpdateErrors(t)
 	t.Log("Multi-app isolation verified: on-chain custody, subgraph event filter, executor state, and private-balance decrypt all scope correctly by appID")
 }

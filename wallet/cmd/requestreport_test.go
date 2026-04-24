@@ -20,7 +20,8 @@ import (
 func TestRequestReportCmd(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

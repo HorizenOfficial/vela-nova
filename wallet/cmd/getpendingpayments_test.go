@@ -25,7 +25,8 @@ func TestGetPendingPaymentsCmd(t *testing.T) {
 	key1, err := crypto.GeneratePrivateKeySecp256k1()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -55,7 +56,8 @@ func TestGetPendingPaymentsCmdNoKey(t *testing.T) {
 	require.NoError(t, err)
 	os.Stdout = w
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	autoMining, useMockContracts := true, true
+	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
