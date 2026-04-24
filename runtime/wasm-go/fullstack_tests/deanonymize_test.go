@@ -17,9 +17,9 @@ import (
 
 // TestDeanonymize_RealRoundTrip exercises the full authority deanonymization
 // pipeline against real components — no synthetic injection. It is the
-// end-to-end counterpart to Phase 3's /nonce smoke test, which only
-// verified the HTTP service boot and signature check against a hand-written
-// report file.
+// end-to-end counterpart to TestAuthorityServiceGetReportRoundTrip (in the
+// vela fullstack package), which only verifies the HTTP service boot and
+// signature check against a hand-written report file.
 //
 // Flow:
 //  1. Two wallet drivers: user (deposits ETH so there's something to report)
@@ -81,9 +81,10 @@ func TestDeanonymize_RealRoundTrip(t *testing.T) {
 	// application — otherwise the Deanonymize submitRequest reverts with
 	// AuthorityNotAllowed.
 	suite.RegisterAuthority(appID)
-	// suite.RegisterAuthority grants the *in-process authority* (Phase 3
-	// key) the default-authority role, but our driverAuth is a different
-	// address. Grant it too via the lower-level helper.
+	// suite.RegisterAuthority grants the *in-process authority* (the key
+	// baked into the fullstack suite's InProcessAuthority) the
+	// default-authority role, but our driverAuth is a different address.
+	// Grant it too via the lower-level helper.
 	sim := suite.GetSimTestHelper()
 	sim.WaitMined(sim.AddAuthority(new(big.Int).SetUint64(uint64(appID)), driverAuth.UserAddress()))
 
@@ -91,10 +92,11 @@ func TestDeanonymize_RealRoundTrip(t *testing.T) {
 	reportID, err := driverAuth.RequestReport(t.Context(), "balances", "100 wei")
 	require.NoError(t, err)
 
-	// Report is now persisted to the manager's reports dir (same path the
-	// authority service reads from — Phase 3 wiring) and the subgraph has
-	// the RequestCompleted entry for the /getreport endpoint's sanity check.
-	// Pull it down via the full HTTP + decrypt pipeline.
+	// Report is now persisted to the manager's reports dir (the same path
+	// the in-process authority service reads from — configured at suite
+	// setup) and the subgraph has the RequestCompleted entry for the
+	// /getreport endpoint's sanity check. Pull it down via the full HTTP +
+	// decrypt pipeline.
 	reportIDHex := fmt.Sprintf("%x", reportID[:])
 	t.Logf("deanonymization request id: %s", reportIDHex)
 	destPath := filepath.Join(t.TempDir(), "report.json")

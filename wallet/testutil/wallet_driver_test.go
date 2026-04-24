@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestWalletDriver_DeployRegisterDeposit is the Phase 4 end-to-end smoke.
-// It drives three wallet commands (DeployApp, RegisterUser, Deposit) against
-// a real simulated chain + in-process subgraph + in-process authority +
-// mock-runtime executor. Assertions target on-chain custody and subgraph
-// state rather than stdout — the driver returns structured errors, and the
-// subgraph is the same source the wallet's WaitForRequestCompleted polls.
+// TestWalletDriver_DeployRegisterDeposit is the end-to-end smoke for the
+// WalletDriver harness: it drives three wallet commands (DeployApp,
+// RegisterUser, Deposit) against a real simulated chain + in-process
+// subgraph + in-process authority + mock-runtime executor. Assertions target
+// on-chain custody and subgraph state rather than stdout — the driver
+// returns structured errors, and the subgraph is the same source the
+// wallet's WaitForRequestCompleted polls.
 //
 // The runtime is mock-runtime so no TinyGo build is required; any bytes are
 // accepted as the "WASM" artifact. This keeps the test hermetic.

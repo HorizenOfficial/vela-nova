@@ -605,21 +605,24 @@ func TestPaymentAppERC20MultiToken(t *testing.T) {
 //     seed, and events reach userA via the privacy-preserving hashed-subtype
 //     set (WaitForEventBySubtypes with AllSubtypes(seed, N)).
 //   - userB is NO-SEED: AssociateKey request carries only the P521 public
-//     key (133 bytes, no encrypted seed). Events reach userB via the plain
-//     subtype the guest emits (WaitForEvent with the literal subtype name).
+//     key (133 bytes, no encrypted seed). The payment-app emits PlainEvents
+//     with EventSubType == [32]byte{} (zero); with no seed, the executor
+//     preserves that zero value. Tests match via WaitForEvent with the
+//     zero-value subtype, which accepts any subtype (here, zero).
 //
 // The transfer goes A -> B, so we verify:
-//   - userA receives a "transfer_sent" event via the seed path, with correct
+//   - userA receives the sender event (JSON payload type "transfer_sent")
+//     via the seed path, with correct tokenAddress, amount, and
+//     post-transfer balance
+//   - userB receives the recipient event (JSON payload type
+//     "transfer_received") via the no-seed zero-subtype path, with correct
 //     tokenAddress, amount, and post-transfer balance
-//   - userB receives a "transfer_received" event via the no-seed plain-
-//     subtype path, with correct tokenAddress, amount, and post-transfer
-//     balance
 //   - the deanonymization report shows both accounts with the expected
 //     balances
 //   - total conservation: (userA remaining + userB remaining) == sum of the
 //     two original deposits (no tokens minted or lost by the transfer)
 //
-// The no-seed user receiving a transfer_received event is new coverage vs
+// The no-seed user receiving a recipient event is new coverage vs
 // TestPaymentAppFullFlow, which only exercises the no-seed path for deposit
 // events.
 func TestPaymentAppERC20MultiUser(t *testing.T) {
@@ -711,10 +714,12 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 	require.Equal(t, 0, expectedABalance.Cmp(senderData.Balance.ToInt()),
 		"userA post-transfer balance: expected %s, got %s", expectedABalance, senderData.Balance.ToInt())
 
-	// --- Verify recipient event (userB, no-seed plain-subtype path) ---
-	// The guest emits the recipient event with subtype "transfer_received";
-	// with no seed registered the framework preserves that literal subtype.
-	recipientEvent, err := suite.WaitForEvent(userB, "transfer_received", timeout)
+	// --- Verify recipient event (userB, no-seed zero-subtype path) ---
+	// The payment-app sets EventSubType to [32]byte{} on PlainEvents (it
+	// relies on the executor's HMAC override when a seed is registered).
+	// With no seed, the executor preserves the zero value. Passing the
+	// zero-value subtype to WaitForEvent matches any subtype.
+	recipientEvent, err := suite.WaitForEvent(userB, [32]byte{}, timeout)
 	require.NoError(t, err)
 	recipientDecrypted, err := cryptoHelper.DecryptEvent(userB, recipientEvent, executorPubKey)
 	require.NoError(t, err)

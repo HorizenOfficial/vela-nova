@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMultiAppIsolation is the Tier 2 multi-tenancy test. It deploys two
+// TestMultiAppIsolation is the multi-tenancy isolation test. It deploys two
 // independent payment applications on the same simulated chain, registers
 // the SAME user in both, and then verifies that every piece of state is
 // scoped per-appID and cannot bleed across the boundary. A regression that

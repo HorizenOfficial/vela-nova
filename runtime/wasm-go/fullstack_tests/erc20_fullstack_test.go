@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestERC20FullStack is the Phase 5 reference test: a full end-to-end ERC-20
-// flow that exercises every layer of the harness (real simulated chain, real
-// Wasmtime payment-app, in-process subgraph, in-process authority, wallet
-// driver). The flow mirrors the plan's 14 steps:
+// TestERC20FullStack is the reference end-to-end ERC-20 flow test. It
+// exercises every layer of the harness (real simulated chain, real Wasmtime
+// payment-app, in-process subgraph, in-process authority, wallet driver)
+// via 14 sequential steps:
 //
 //  1. Start the suite.
 //  2. Deploy MockERC20.
@@ -94,9 +94,9 @@ func TestERC20FullStack(t *testing.T) {
 		"user should hold the minted MOCK before deposit")
 
 	// Step 10: pre-approve the ProcessorEndpoint to spend the user's MOCK.
-	// Option A of the Phase 5 flow — the wallet's submitRequest uses
-	// transferFrom and does not embed an EIP-2612 permit, so approval must be
-	// pre-staged. A permit-embedding wallet (option B) is future work.
+	// The wallet's submitRequest uses transferFrom and does not embed an
+	// EIP-2612 permit, so approval must be pre-staged. A permit-embedding
+	// wallet variant is future work.
 	userOpts, err := suite.GetTransactOpts(user)
 	require.NoError(t, err)
 	sim.WaitMined(sim.ApproveERC20(userOpts, sim.ProcessorContractAddress, mintAmount))
@@ -155,5 +155,5 @@ func TestERC20FullStack(t *testing.T) {
 	require.Equal(t, 0, remainingRaw.Cmp(privBal2),
 		"remaining private balance should be 600 MOCK; got %s", privBal2.String())
 
-	t.Log("Phase 5 ERC-20 full-stack flow passed")
+	t.Log("ERC-20 full-stack flow passed")
 }

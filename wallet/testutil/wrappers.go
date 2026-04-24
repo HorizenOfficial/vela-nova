@@ -16,7 +16,8 @@ import (
 // Returns the assigned ApplicationID.
 //
 // allowedTokens may be nil (ETH is always allowed). ERC-20 symbols require
-// those tokens to be registered in the driver's conf; that lands with Phase 5.
+// those tokens to be registered in the driver's conf first via
+// WalletDriver.AddToken; otherwise resolution of the symbol here would fail.
 func (d *WalletDriver) DeployApp(ctx context.Context, wasmPath, maxFee string, allowedTokens []string) (common.ApplicationIdType, error) {
 	d.t.Helper()
 

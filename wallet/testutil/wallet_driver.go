@@ -132,8 +132,10 @@ func newWalletDriverInternal(
 	processor := sim.ProcessorContractAddress
 	teeAuth := sim.TeeSignerAddress
 
-	// Seed the registry with just the implicit ETH entry. Phase 5 will add
-	// ERC-20 tokens by writing token.* conf entries before SaveConfigToFile.
+	// Seed the registry with just the implicit ETH entry. ERC-20 tokens are
+	// added later via WalletDriver.AddToken, which appends token.* entries
+	// to the on-disk conf; the next loadConfig() call rebuilds the registry
+	// from disk.
 	tokens, err := app.LoadTokenRegistry(nil)
 	require.NoError(t, err)
 
