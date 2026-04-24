@@ -14,11 +14,12 @@ replace github.com/HorizenOfficial/vela => ../../../vela
 replace github.com/HorizenOfficial/vela-nova/wallet => ../../wallet
 
 require (
-	github.com/HorizenOfficial/vela v0.0.28
-	github.com/HorizenOfficial/vela-common-go v0.0.28
+	github.com/HorizenOfficial/vela v0.1.0
+	github.com/HorizenOfficial/vela-common-go v0.1.0
 	github.com/HorizenOfficial/vela-nova/wallet v0.0.0-00010101000000-000000000000
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.44.0
 )
 
 require (
@@ -88,7 +89,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
@@ -97,7 +98,7 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
-	github.com/minio/sha256-simd v1.0.0 // indirect
+	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/pion/dtls/v2 v2.2.7 // indirect
@@ -129,7 +130,6 @@ require (
 	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect

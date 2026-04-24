@@ -89,8 +89,8 @@ func BuildAssociateKeyPayloadWithSeed(
 }
 
 // EventSubTypesFromSeed generates the deterministic set of N privacy-preserving
-// event subtypes from a seed. Each subtype is "0x" + hex(HMAC-SHA256(seed, byte(i)))
-// for i in [1, n].
-func EventSubTypesFromSeed(seed []byte, n int) []string {
+// event subtypes from a seed. Each subtype is the raw 32-byte HMAC-SHA256(seed,
+// byte(i)) digest, matching the on-chain bytes32 event subtype, for i in [1, n].
+func EventSubTypesFromSeed(seed []byte, n int) [][32]byte {
 	return subtypes.GenerateSubtypesN(seed, n)
 }

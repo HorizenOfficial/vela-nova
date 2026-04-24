@@ -22,14 +22,16 @@ var userEventsPageSize = 1000
 //
 // eventSubTypes controls subtype filtering:
 //   - nil or empty: no subtype filter — all events are returned.
-//   - one or more entries: passed directly to the subgraph query as a server-side filter.
+//   - one or more entries: passed directly to the subgraph query as a
+//     server-side filter. The subgraph client handles the [32]byte→hex wire
+//     format conversion internally.
 func FetchAndDecryptUserEvents(
 	ctx context.Context,
 	sg subgraph.Client,
 	teePubKey *cryptotypes.PublicKeyP521,
 	privKey cryptotypes.PrivateKeyP521,
 	applicationID common.ApplicationIdType,
-	eventSubTypes []string,
+	eventSubTypes [][32]byte,
 	limit int,
 	filter func([]byte) bool,
 ) ([][]byte, error) {

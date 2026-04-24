@@ -12,9 +12,9 @@ replace github.com/HorizenOfficial/vela => ../../vela
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
-	github.com/HorizenOfficial/vela v0.0.28
-	github.com/HorizenOfficial/vela-common-go v0.0.28
-	github.com/HorizenOfficial/vela-nova/payment-app v0.0.28
+	github.com/HorizenOfficial/vela v0.1.0
+	github.com/HorizenOfficial/vela-common-go v0.1.0
+	github.com/HorizenOfficial/vela-nova/payment-app v0.1.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/magiconair/properties v1.8.10
 	github.com/spf13/cobra v1.9.1
@@ -88,7 +88,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
-	github.com/minio/sha256-simd v1.0.0 // indirect
+	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/pion/dtls/v2 v2.2.7 // indirect
