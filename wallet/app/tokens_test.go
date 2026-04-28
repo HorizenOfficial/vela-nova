@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/magiconair/properties"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func TestLoadTokenRegistry_NilConfig_OnlyETH(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ETH", eth.Symbol)
 	require.Equal(t, uint8(18), eth.Decimals)
-	require.Equal(t, ethCommon.Address{}, eth.Address)
+	require.Equal(t, velacommon.ETH_TOKEN, eth.Address)
 
 	// No ERC-20 tokens are registered.
 	require.Empty(t, r.AllTokenAddresses())
@@ -294,7 +295,7 @@ func TestAllTokenAddresses_ExcludesETHAndReturnsLowercase(t *testing.T) {
 	require.Len(t, addrs, 1)
 	// Lowercased, not checksummed.
 	assert.Equal(t, strings.ToLower(usdcAddrHex), addrs[0])
-	assert.NotContains(t, addrs, ethCommon.Address{}.Hex())
+	assert.NotContains(t, addrs, velacommon.ETH_TOKEN.Hex())
 }
 
 // ---------- FormatTokenAmount ----------

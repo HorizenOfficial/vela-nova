@@ -7,7 +7,7 @@ toolchain go1.24.3
 // Can be useful for local developments
 replace github.com/HorizenOfficial/vela => ../../vela
 
-//replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
+replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
 
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 

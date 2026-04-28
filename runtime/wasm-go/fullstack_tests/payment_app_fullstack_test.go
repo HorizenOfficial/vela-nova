@@ -91,7 +91,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 
 	// Deposit 2 ETH
 	depositAmount := big.NewInt(2_000_000_000_000_000_000)
-	depositReq, err := cryptoHelper.CreateTokenDepositRequest(appID, commontestutil.GenerateRandomRequestID(), userAddress, ethCommon.Address{}, depositAmount, executorPubKey)
+	depositReq, err := cryptoHelper.CreateTokenDepositRequest(appID, commontestutil.GenerateRandomRequestID(), userAddress, velacommon.ETH_TOKEN, depositAmount, executorPubKey)
 	require.NoError(t, err)
 	require.NoError(t, suite.SubmitRequest(depositReq))
 	require.NoError(t, suite.AssertRequestCompleted(depositReq.RequestID, timeout))

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	walletTestutil "github.com/HorizenOfficial/vela-nova/wallet/testutil"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,7 +116,7 @@ func TestFeeRefundClaim(t *testing.T) {
 	// the accumulator is broken somewhere between the executor computing
 	// refundAmount and the contract crediting pendingClaims.
 	sim := suite.GetSimTestHelper()
-	ethAddr := ethCommon.Address{}
+	ethAddr := velacommon.ETH_TOKEN
 	refundTotal := sim.GetPendingClaims(ethAddr, user)
 	require.Equal(t, 1, refundTotal.Sign(),
 		"pendingClaims[ETH][user] should be strictly positive after three successful requests with maxFee=100 wei; got %s",

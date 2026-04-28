@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
@@ -257,7 +258,7 @@ func registerNoSeedUser(t *testing.T, suite *systemTests.SystemTestSuite, crypto
 		Sender:        user,
 		Timestamp:     common.ToBig(new(big.Int).SetInt64(time.Now().Unix())),
 		AssetAmount:   common.NewBig(0),
-		TokenAddress:  ethCommon.Address{},
+		TokenAddress:  velacommon.ETH_TOKEN,
 		MaxFeeValue:   common.NewBig(100),
 	}
 	require.NoError(t, suite.SubmitRequest(req))
@@ -362,11 +363,11 @@ func TestPaymentAppFullFlow(t *testing.T) {
 
 	// Deposit 2 ETH and validate event fields (seed-registered user -> hashed subtypes)
 	depositAmount := big.NewInt(2000000000000000000)
-	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, ethCommon.Address{}, depositAmount, true)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, velacommon.ETH_TOKEN, depositAmount, true)
 
 	// Withdraw 0.5 ETH and validate event fields
 	withdrawAmount := big.NewInt(500000000000000000)
-	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, ethCommon.Address{}, withdrawAmount)
+	withdrawFromPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), userAddress, recipientAddress, velacommon.ETH_TOKEN, withdrawAmount)
 
 	// --- No-seed user: register without a seed, deposit, and verify that
 	// WaitForEvent with the plaintext "deposit" subtype works. When no seed
@@ -377,14 +378,14 @@ func TestPaymentAppFullFlow(t *testing.T) {
 
 	// Deposit 1 ETH for the no-seed user; plaintext "deposit" subtype should match
 	noSeedDepositAmount := big.NewInt(1000000000000000000)
-	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), noSeedUser, ethCommon.Address{}, noSeedDepositAmount, false)
+	depositToPaymentApp(t, suite, cryptoHelper, appID, commontestutil.GenerateRandomRequestID(), noSeedUser, velacommon.ETH_TOKEN, noSeedDepositAmount, false)
 
 	// Deanonymization report as auditor — verifies final state after deposit and withdrawal.
 	// Verify balances: seed user (2 ETH - 0.5 ETH = 1.5 ETH) and no-seed user (1 ETH)
 	accounts := fetchDeanonAccounts(t, suite, cryptoHelper, executorPubKey, appID, auditorAddress, timeout)
 	require.Len(t, accounts, 2, "expected two accounts in report (seed user + no-seed user)")
 
-	ethTokenHex := ethCommon.Address{}.Hex()
+	ethTokenHex := velacommon.ETH_TOKEN.Hex()
 	expectedBalances := map[ethCommon.Address]*big.Int{
 		userAddress: new(big.Int).Sub(depositAmount, withdrawAmount), // 1.5 ETH
 		noSeedUser:  noSeedDepositAmount,                             // 1 ETH
@@ -471,7 +472,7 @@ func TestPaymentAppERC20FullFlow(t *testing.T) {
 	// containing tokenAddress, the deposit below would be rejected by the
 	// guest and AssertRequestCompleted would fail. The decrypted deanonymization
 	// report at the end also shows the balance keyed under tokenAddress.
-	ethHex := strings.ToLower(ethCommon.Address{}.Hex())
+	ethHex := strings.ToLower(velacommon.ETH_TOKEN.Hex())
 	tokenHex := strings.ToLower(tokenAddress.Hex())
 
 	// --- Register user and auditor keys ---

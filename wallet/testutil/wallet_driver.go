@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -240,7 +241,7 @@ func (d *WalletDriver) SetApplicationID(appID common.ApplicationIdType) {
 func (d *WalletDriver) AddToken(symbol string, address ethCommon.Address, decimals uint8) {
 	d.t.Helper()
 	require.NotEmpty(d.t, symbol, "AddToken: symbol must not be empty")
-	require.NotEqual(d.t, ethCommon.Address{}, address, "AddToken: zero address is reserved for ETH")
+	require.NotEqual(d.t, velacommon.ETH_TOKEN, address, "AddToken: zero address is reserved for ETH")
 
 	upperSym := strings.ToUpper(symbol)
 	entry := fmt.Sprintf("token.%s.address=%s\ntoken.%s.decimals=%d\n", upperSym, address.Hex(), upperSym, decimals)

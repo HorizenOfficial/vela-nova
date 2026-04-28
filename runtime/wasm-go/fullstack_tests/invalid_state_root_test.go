@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	walletTestutil "github.com/HorizenOfficial/vela-nova/wallet/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -128,7 +128,7 @@ func TestInvalidPrevStateRootRejection(t *testing.T) {
 		appID,
 		common.Process,
 		nil, // empty payload — guard 2 doesn't inspect it
-		ethCommon.Address{},
+		velacommon.ETH_TOKEN,
 		oneTenthEth,
 		maxFee,
 		userOpts,

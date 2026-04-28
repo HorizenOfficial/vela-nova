@@ -4,14 +4,14 @@ import (
 	"context"
 	"math/big"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
 
-// ETH_TOKEN is the sentinel address representing native ETH.
-// Matches Structs.sol: address constant ETH_TOKEN = address(0).
-var ETH_TOKEN = ethCommon.Address{}
+// ETH_TOKEN is the package-local alias for the canonical native-token sentinel
+// in vela-common-go. Matches Structs.sol: address constant ETH_TOKEN = address(0).
+var ETH_TOKEN = velacommon.ETH_TOKEN
 
 const PROTOCOL_VERSION uint8 = 0
 const BLOCK_BATCH_SIZE = 100000

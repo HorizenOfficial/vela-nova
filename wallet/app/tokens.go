@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/magiconair/properties"
 )
@@ -20,7 +21,7 @@ type TokenInfo struct {
 // ethTokenInfo is the implicit ETH entry — always available, never in config.
 var ethTokenInfo = TokenInfo{
 	Symbol:   "ETH",
-	Address:  ethCommon.Address{},
+	Address:  velacommon.ETH_TOKEN,
 	Decimals: 18,
 }
 
@@ -75,7 +76,7 @@ func LoadTokenRegistry(config *properties.Properties) (*TokenRegistry, error) {
 			return nil, fmt.Errorf("token %s: invalid address %q", sym, addrStr)
 		}
 		addr := ethCommon.HexToAddress(addrStr)
-		if addr == (ethCommon.Address{}) {
+		if addr == velacommon.ETH_TOKEN {
 			return nil, fmt.Errorf("token %s: zero address is reserved for ETH", sym)
 		}
 
@@ -145,7 +146,7 @@ func (r *TokenRegistry) ResolveToken(symbolOrAddress string) (*TokenInfo, error)
 func (r *TokenRegistry) AllTokenAddresses() []string {
 	var addrs []string
 	for _, t := range r.bySymbol {
-		if t.Address != (ethCommon.Address{}) {
+		if t.Address != velacommon.ETH_TOKEN {
 			addrs = append(addrs, strings.ToLower(t.Address.Hex()))
 		}
 	}

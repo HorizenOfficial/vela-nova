@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	walletTestutil "github.com/HorizenOfficial/vela-nova/wallet/testutil"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,7 +129,7 @@ func TestMultiAppIsolation(t *testing.T) {
 	require.NoError(t, driver.RegisterUser(t.Context(), "100 wei"))
 
 	// Handy constants reused across the assertions.
-	ethAddr := ethCommon.Address{} // sentinel for native ETH in appCustody
+	ethAddr := velacommon.ETH_TOKEN // sentinel for native ETH in appCustody
 	zero := big.NewInt(0)
 	oneEther := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	halfEther := new(big.Int).Div(oneEther, big.NewInt(2))

@@ -349,7 +349,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawal := withdrawals[0]
 	assert.Equal(t, withdrawAddress, withdrawal.DestinationAddress)
 	assert.Equal(t, withdrawValue, withdrawal.Amount.ToInt())
-	assert.Equal(t, ethCommon.Address{}, withdrawal.TokenAddress, "ETH withdrawal should have zero token address")
+	assert.Equal(t, ethToken, withdrawal.TokenAddress, "ETH withdrawal should have zero token address")
 
 	// Verify the state was updated
 	var stateData applicationInternalState

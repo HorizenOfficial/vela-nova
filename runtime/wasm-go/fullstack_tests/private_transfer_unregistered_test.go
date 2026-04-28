@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	walletTestutil "github.com/HorizenOfficial/vela-nova/wallet/testutil"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,7 +115,7 @@ func TestPrivateTransferToUnregisteredRecipient(t *testing.T) {
 	// deliberately NOT: driverB.RegisterUser(...)
 
 	// Step 5: establish the pre-condition — A has funds to attempt to send.
-	ethAddr := ethCommon.Address{}
+	ethAddr := velacommon.ETH_TOKEN
 	oneEther := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	require.NoError(t, driverA.Deposit(t.Context(), "1 ETH", "", "100 wei"))
 

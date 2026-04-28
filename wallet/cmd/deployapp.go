@@ -18,7 +18,6 @@ import (
 	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
 
@@ -110,7 +109,7 @@ func (c *DeployAppCommand) Exec(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("--allowed-tokens: %w", err)
 			}
-			if info.Address == (ethCommon.Address{}) {
+			if info.Address == ETH_TOKEN {
 				// ETH is always allowed by the guest — don't include it explicitly
 				continue
 			}
