@@ -9,7 +9,6 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,8 +24,7 @@ func TestClaimPendingPaymentsCmd(t *testing.T) {
 	key1, err := crypto.GeneratePrivateKeySecp256k1()
 	require.NoError(t, err)
 
-	autoMining, useMockContracts := true, true
-	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -56,8 +54,7 @@ func TestClaimPendingPaymentsCmdNoKey(t *testing.T) {
 	require.NoError(t, err)
 	os.Stdout = w
 
-	autoMining, useMockContracts := true, true
-	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)

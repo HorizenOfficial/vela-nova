@@ -189,6 +189,27 @@ func (d *WalletDriver) DownloadReport(ctx context.Context, reportIDHex, destPath
 	return nil
 }
 
+// GetPendingPayments returns the wallet's pending-claims amount for `token`.
+// Lets tests assert on the wallet's view of pendingClaims accumulation
+// (fee refunds, withdrawals not yet claimed) end-to-end through the wallet
+// code path, not just by reading the contract directly.
+func (d *WalletDriver) GetPendingPayments(ctx context.Context, token string) (*big.Int, error) {
+	d.t.Helper()
+
+	cfg := d.loadConfig()
+	c := cmd.NewGetPendingPaymentsCommand(cfg, d.newUserClient())
+	cobraCmd := c.Command()
+	if token != "" {
+		require.NoError(d.t, cobraCmd.Flags().Set("token", token))
+	}
+
+	amount, _, err := c.Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("wallet driver: GetPendingPayments: %w", err)
+	}
+	return amount, nil
+}
+
 // ClaimPendingPayments pulls pending claims for `token` from the
 // ProcessorEndpoint contract into the user's public balance.
 func (d *WalletDriver) ClaimPendingPayments(ctx context.Context, token string) error {

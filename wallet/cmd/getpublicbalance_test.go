@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/magiconair/properties"
@@ -27,8 +26,7 @@ func TestGetPublicBalanceCmd_ZeroBalance(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = old }()
 
-	autoMining, useMockContracts := true, true
-	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	key, err := crypto.GeneratePrivateKeySecp256k1()
@@ -56,8 +54,7 @@ func TestGetPublicBalanceCmd_FundedBalance(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = old }()
 
-	autoMining, useMockContracts := true, true
-	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	key, err := crypto.GeneratePrivateKeySecp256k1()
@@ -85,8 +82,7 @@ func TestGetPublicBalanceCmd_FundedBalance(t *testing.T) {
 // non-18 decimals keep the test honest — a hardcoded 10^18 divisor in the
 // format path would surface here as the wrong number of whole tokens.
 func TestGetPublicBalanceCmd_ERC20_Balance(t *testing.T) {
-	autoMining, useMockContracts := true, true
-	testHelper := pestestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	const mockDecimals = 6

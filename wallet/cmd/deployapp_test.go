@@ -17,7 +17,6 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	cmdtestutil "github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	velatestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -338,8 +337,7 @@ func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
 	}))
 	defer artifactServer.Close()
 
-	autoMining, useMockContracts := true, true
-	testHelper := velatestutil.NewSimTestHelper(t, autoMining, useMockContracts, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	// Create a blockchain client using the Submitter account, which does NOT have
