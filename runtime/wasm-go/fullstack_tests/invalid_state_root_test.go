@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
@@ -160,8 +159,7 @@ func TestInvalidPrevStateRootRejection(t *testing.T) {
 	// Guard 4 fails because prev=zero ≠ stored non-zero root.
 	err = suite.SubmitStateUpdateAsManager(bogus)
 	require.Error(t, err, "stateUpdate with stale prevStateRoot must be rejected")
-	require.True(t,
-		strings.Contains(err.Error(), "InvalidStateRoot"),
+	require.Contains(t, err.Error(), "InvalidStateRoot",
 		"expected InvalidStateRoot revert (ProcessorEndpoint guard 4); got: %v", err,
 	)
 

@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
@@ -102,8 +101,7 @@ func TestNonManagerStateUpdateReverts(t *testing.T) {
 	// Expect the OZ AccessControl revert.
 	err = suite.SubmitStateUpdateAs(rogueKey, update)
 	require.Error(t, err, "stateUpdate from non-manager account must be rejected")
-	require.True(t,
-		strings.Contains(err.Error(), "AccessControlUnauthorizedAccount"),
+	require.Contains(t, err.Error(), "AccessControlUnauthorizedAccount",
 		"expected OZ AccessControlUnauthorizedAccount revert selector "+
 			"(stateUpdate's onlyRole(UPDATE_STATUS_ROLE) gate); got: %v",
 		err,

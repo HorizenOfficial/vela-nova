@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
@@ -142,8 +141,7 @@ func TestPrivateTransferToUnregisteredRecipient(t *testing.T) {
 	// care about — a different code would indicate a different rejection
 	// path (e.g., insufficient balance, invalid payload), which would mean
 	// this test isn't testing what it thinks it's testing.
-	require.True(t,
-		strings.Contains(err.Error(), "code 9"),
+	require.Contains(t, err.Error(), "code 9",
 		"expected PubKeyNotRegistered rejection (error code 9 from apperrors.CodePubKeyNotRegistered); got: %v",
 		err,
 	)

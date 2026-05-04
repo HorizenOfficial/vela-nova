@@ -1,7 +1,6 @@
 package main_test
 
 import (
-	"context"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -125,7 +124,7 @@ func TestFeeRefundClaim(t *testing.T) {
 	// Step 4: snapshot the user's on-chain balance before the claim. After
 	// the claim we expect this to increase by exactly refundTotal (deployer
 	// pays the gas in step 5).
-	ctx := context.Background()
+	ctx := t.Context()
 	balanceBefore, err := sim.Client().BalanceAt(ctx, user, nil)
 	require.NoError(t, err)
 

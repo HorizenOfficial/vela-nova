@@ -7,15 +7,15 @@ go 1.24.0
 toolchain go1.24.3
 
 // Can be useful for local developments
-replace github.com/HorizenOfficial/vela => ../../../vela
+//replace github.com/HorizenOfficial/vela => ../../../vela
 
-replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
+//replace github.com/HorizenOfficial/vela-common-go => ../../../vela-common-go
 
 replace github.com/HorizenOfficial/vela-nova/wallet => ../../wallet
 
 require (
-	github.com/HorizenOfficial/vela v0.1.0
-	github.com/HorizenOfficial/vela-common-go v0.1.0
+	github.com/HorizenOfficial/vela v0.1.1
+	github.com/HorizenOfficial/vela-common-go v0.1.1
 	github.com/HorizenOfficial/vela-nova/wallet v0.0.0-00010101000000-000000000000
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/stretchr/testify v1.11.1

@@ -3,7 +3,6 @@ package main_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
@@ -111,8 +110,7 @@ func TestDeanonymizeRequestFromUnauthorizedAuthorityReverts(t *testing.T) {
 	// error string.
 	_, err = driver.RequestReport(t.Context(), "balances", "100 wei")
 	require.Error(t, err, "deanonymize request from unauthorized account must fail at submitRequest time")
-	require.True(t,
-		strings.Contains(err.Error(), "AuthorityNotAllowed"),
+	require.Contains(t, err.Error(), "AuthorityNotAllowed",
 		"expected AuthorityNotAllowed revert (ProcessorEndpoint's DEANONYMIZATION branch check); got: %v", err,
 	)
 
