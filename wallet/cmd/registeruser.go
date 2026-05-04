@@ -22,73 +22,62 @@ type RegisterUserCommand struct {
 	maxFeeValue string
 }
 
+// Exec runs the registeruser flow outside of the Cobra wrapper. Exported so
+// test drivers can invoke it directly after setting flag-bound struct fields.
+func (c *RegisterUserCommand) Exec(ctx context.Context) error {
+	if err := c.RequireApplicationID(); err != nil {
+		return err
+	}
+
+	maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("invalid max fee amount: %w", err)
+	}
+
+	if err := c.InitChainClient(ctx); err != nil {
+		return fmt.Errorf("connecting to rpc node: %w", err)
+	}
+	defer c.CloseClient()
+
+	if c.Config.KeyP521 == nil {
+		return fmt.Errorf("P521 key not found in the wallet")
+	}
+	if c.Config.KeySecp == nil {
+		return fmt.Errorf("secp256k1 key not found in the wallet")
+	}
+
+	teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
+	if err != nil {
+		return fmt.Errorf("retrieving TEE public key: %w", err)
+	}
+
+	payload, err := BuildAssociateKeyPayloadWithSeed(c.Config.KeyP521, c.Config.KeySecp, teePubKey)
+	if err != nil {
+		return fmt.Errorf("building payload with seed: %w", err)
+	}
+
+	requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, common.AssociateKey, payload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
+	if err != nil {
+		return fmt.Errorf("sending request to register public key: %w", err)
+	}
+
+	fmt.Println("Waiting for confirmation from Vela")
+	if err := c.WaitForRequestCompleted(requestID, ctx); err != nil {
+		return fmt.Errorf("Register user failed: %w", err)
+	}
+	fmt.Println("Public key registered successfully")
+	return nil
+}
+
 func (c *RegisterUserCommand) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "registeruser",
 		Short: `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
 		Long:  `register the association [address, encryption key (P521)] of the wallet into the Vela system`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.RequireApplicationID(); err != nil {
+			if err := c.Exec(resolveContext(cmd)); err != nil {
 				fmt.Printf("Error: %v\n", err)
-				return
 			}
-
-			maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error: invalid max fee amount: %v\n", err)
-				return
-			}
-
-			ctx := context.Background()
-			if cmd != nil && cmd.Context() != nil {
-				ctx = cmd.Context()
-			}
-			if c.BlockchainClient == nil {
-				//create blockchain client
-				if err := c.InitChainClient(ctx); err != nil {
-					fmt.Printf("Error connecting to rpc node: %v\n", err)
-					return
-
-				}
-			}
-			defer c.CloseClient()
-
-			if c.Config.KeyP521 == nil {
-				fmt.Println("Error: P521 key not found in the wallet")
-				return
-			}
-
-			if c.Config.KeySecp == nil {
-				fmt.Println("Error: secp256k1 key not found in the wallet")
-				return
-			}
-			teePubKey, err := c.BlockchainClient.GetTeePublicKey(ctx)
-			if err != nil {
-				fmt.Printf("Error retrieving TEE public key: %v\n", err)
-				return
-			}
-			payload, err := BuildAssociateKeyPayloadWithSeed(c.Config.KeyP521, c.Config.KeySecp, teePubKey)
-			if err != nil {
-				fmt.Printf("Error building payload with seed: %v\n", err)
-				return
-			}
-
-			requestType := common.AssociateKey
-			requestID, _, err := c.BlockchainClient.SubmitRequest(ctx, PROTOCOL_VERSION, c.Config.ApplicationID, requestType, payload, ETH_TOKEN, big.NewInt(0), maxFeeValue)
-			if err != nil {
-				fmt.Printf("Error sending request to register public key: %v\n", err)
-				return
-			}
-
-			fmt.Println("Waiting for confirmation from Vela")
-
-			err = c.WaitForRequestCompleted(requestID, ctx)
-			if err != nil {
-				fmt.Printf("Register user failed: %v\n", err)
-				return
-			}
-			fmt.Println("Public key registered successfully")
-
 		},
 	}
 	cmd.Flags().StringVarP(&c.maxFeeValue, "max-value-fee", "f", "100 wei", "Maximum fee value reserved for this request (e.g., 0.1 ETH)")

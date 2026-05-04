@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -199,7 +200,7 @@ func SaveConfigToFile(cfg *Config, path string) error {
 	// Serialize token registry entries
 	if cfg.Tokens != nil {
 		for _, t := range cfg.Tokens.bySymbol {
-			if t.Address != (ethCommon.Address{}) { // skip ETH (implicit)
+			if t.Address != velacommon.ETH_TOKEN { // skip ETH (implicit)
 				sym := strings.ToUpper(t.Symbol)
 				lines = append(lines, fmt.Sprintf("token.%s.address=%s", sym, t.Address.Hex()))
 				lines = append(lines, fmt.Sprintf("token.%s.decimals=%d", sym, t.Decimals))

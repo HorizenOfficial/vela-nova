@@ -11,7 +11,6 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,7 @@ func TestDepositCmdInvalidDepositAmount(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -77,7 +76,7 @@ func TestDepositCmdInvalidMaxValueFee(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	var blockchainClient blockchain.Client = testutil.SetupNewBlockChainClient(testHelper)
@@ -124,7 +123,7 @@ func TestDepositCmd(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -176,7 +175,7 @@ func TestDepositCmdFailure(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -227,7 +226,7 @@ func TestDepositCmdUsesDefaultMaxValueFee(t *testing.T) {
 	key2, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
 
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

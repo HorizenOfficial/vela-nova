@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 )
 
@@ -36,31 +36,7 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 		Short: "download a deanonymization report from the authority service",
 		Long:  "download a deanonymization report from the authority service, optionally decrypting it after download",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.RequireApplicationID(); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				return
-			}
-			ctx := context.Background()
-			if cmd != nil && cmd.Context() != nil {
-				ctx = cmd.Context()
-			}
-			if c.reportID == "" {
-				fmt.Println("Error: report id is required")
-				return
-			}
-			if c.Config.AuthorityServiceURL == "" {
-				fmt.Println("Error: AuthorityServiceURL is not configured")
-				return
-			}
-			if c.Config.KeySecp == nil {
-				fmt.Println("Error: secp256k1 key not configured")
-				return
-			}
-			if c.destPath == "" {
-				c.destPath = filepath.Join(".", c.reportID)
-			}
-
-			if err := c.run(ctx); err != nil {
+			if err := c.Exec(resolveContext(cmd)); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		},
@@ -73,7 +49,67 @@ func (c *DownloadReportCommand) Command() *cobra.Command {
 	return cmd
 }
 
-func (c *DownloadReportCommand) run(ctx context.Context) error {
+// Exec runs the downloadreport flow outside of the Cobra wrapper. Exported so
+// test drivers can invoke it directly after setting flag-bound struct fields.
+func (c *DownloadReportCommand) Exec(ctx context.Context) error {
+	if err := c.RequireApplicationID(); err != nil {
+		return err
+	}
+	if c.reportID == "" {
+		return fmt.Errorf("report id is required")
+	}
+	if c.Config.AuthorityServiceURL == "" {
+		return fmt.Errorf("AuthorityServiceURL is not configured")
+	}
+	if c.Config.KeySecp == nil {
+		return fmt.Errorf("secp256k1 key not configured")
+	}
+	if c.destPath == "" {
+		c.destPath = filepath.Join(".", c.reportID)
+	}
+
+	// Two paths for resolving chain ID:
+	//   - In-process harness (fullstack tests): BlockchainClient is injected
+	//     pre-connected to a simulated backend; we ask it directly. The conf's
+	//     RpcUrl is a placeholder and cannot be dialed.
+	//   - CLI / unit-tests: no BlockchainClient is injected; fall back to a
+	//     lightweight ethclient.Dial on the configured RpcUrl just for chain
+	//     id. This keeps CLI behavior unchanged.
+	var chainID uint64
+	if c.BlockchainClient != nil {
+		chainIDBig, err := c.BlockchainClient.ChainID(ctx)
+		if err != nil {
+			return fmt.Errorf("fetching chain id from injected client: %w", err)
+		}
+		chainID = chainIDBig.Uint64()
+	} else {
+		if strings.TrimSpace(c.Config.RpcUrl) == "" {
+			return fmt.Errorf("rpcUrl not configured to auto-detect chain ID")
+		}
+		ethc, err := ethclient.DialContext(ctx, c.Config.RpcUrl)
+		if err != nil {
+			return fmt.Errorf("dialing rpc to fetch chain id: %w", err)
+		}
+		defer ethc.Close()
+		id, err := ethc.ChainID(ctx)
+		if err != nil {
+			return fmt.Errorf("fetching chain id: %w", err)
+		}
+		chainID = id.Uint64()
+	}
+
+	authClient := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, c.Config.ApplicationID, c.Config.KeySecp)
+
+	nonceResp, err := authClient.FetchNonce(ctx)
+	if err != nil {
+		return err
+	}
+
+	report, err := authClient.FetchReport(ctx, c.reportID, nonceResp)
+	if err != nil {
+		return err
+	}
+
 	type decryptedReportOutput struct {
 		ApplicationID    common.ApplicationIdType `json:"applicationId"`
 		RequestID        common.RequestIdType     `json:"requestId"`
@@ -82,38 +118,12 @@ func (c *DownloadReportCommand) run(ctx context.Context) error {
 		Authority        string                   `json:"authority,omitempty"`
 	}
 
-	if strings.TrimSpace(c.Config.RpcUrl) == "" {
-		return fmt.Errorf("rpcUrl not configured to auto-detect chain ID")
-	}
-	ethc, err := ethclient.DialContext(ctx, c.Config.RpcUrl)
-	if err != nil {
-		return fmt.Errorf("dialing rpc to fetch chain id: %w", err)
-	}
-	defer ethc.Close()
-	id, err := ethc.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("fetching chain id: %w", err)
-	}
-	chainID := id.Uint64()
-
-	client := app.NewAuthorityClient(c.Config.AuthorityServiceURL, chainID, c.Config.ApplicationID, c.Config.KeySecp)
-
-	nonceResp, err := client.FetchNonce(ctx)
-	if err != nil {
-		return err
-	}
-
-	report, err := client.FetchReport(ctx, c.reportID, nonceResp)
-	if err != nil {
-		return err
-	}
-
 	var dataToWrite []byte
 	if c.decrypt {
-		if c.BlockchainClient == nil {
-			if err := c.InitChainClient(ctx); err != nil {
-				return fmt.Errorf("connecting to rpc node: %w", err)
-			}
+		// Decrypt path needs a blockchain client to fetch the TEE public key.
+		// If not pre-injected, InitChainClient builds one from Config.
+		if err := c.InitChainClient(ctx); err != nil {
+			return fmt.Errorf("connecting to rpc node: %w", err)
 		}
 		defer c.CloseClient()
 

@@ -6,13 +6,14 @@ toolchain go1.24.3
 
 // Can be useful for local developments
 //replace github.com/HorizenOfficial/vela => ../../vela
+
 //replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
 
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
-	github.com/HorizenOfficial/vela v0.1.0
-	github.com/HorizenOfficial/vela-common-go v0.1.0
+	github.com/HorizenOfficial/vela v0.1.1
+	github.com/HorizenOfficial/vela-common-go v0.1.1
 	github.com/HorizenOfficial/vela-nova/payment-app v0.1.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/magiconair/properties v1.8.10
@@ -26,8 +27,23 @@ require (
 	github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20251001021608-1fe7b43fc4d6 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.13.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.41.1 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.29.14 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.67 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.17 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.17 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kms v1.49.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
+	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
+	github.com/bytecodealliance/wasmtime-go v1.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
@@ -48,7 +64,9 @@ require (
 	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect
 	github.com/ferranbt/fastssz v0.1.4 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.2.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -62,6 +80,7 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/hashicorp/go-bexpr v0.1.10 // indirect
+	github.com/hf/nsm v0.0.0-20220930140112-cd181bd646b9 // indirect
 	github.com/holiman/billy v0.0.0-20250707135307-f2f9b9aae7db // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
@@ -75,6 +94,8 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
+	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
@@ -91,6 +112,7 @@ require (
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.7.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
@@ -99,6 +121,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/urfave/cli/v2 v2.27.5 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.40.0 // indirect
@@ -106,6 +129,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.31.0 // indirect

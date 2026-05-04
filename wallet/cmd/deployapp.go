@@ -18,7 +18,6 @@ import (
 	runtimeapp "github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +42,7 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 		Short: `Uploads a wasm artifact and triggers app deployment`,
 		Long:  `Uploads a wasm artifact to the authority service and submits a deploy request with an artifact descriptor payload.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := c.run(context.Background()); err != nil {
+			if err := c.Exec(context.Background()); err != nil {
 				fmt.Printf("Error: %v\n", err)
 			}
 		},
@@ -57,7 +56,10 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 	return cmd
 }
 
-func (c *DeployAppCommand) run(ctx context.Context) error {
+// Exec runs the deploy flow outside of the Cobra wrapper. Exported so test
+// drivers (wallet/testutil) can invoke it directly after setting flag-bound
+// struct fields via cmd.Flags().Set(...).
+func (c *DeployAppCommand) Exec(ctx context.Context) error {
 	maxFeeValue, err := app.ParseEtherValue(c.maxFeeValue)
 	if err != nil {
 		return fmt.Errorf("invalid max fee amount: %w", err)
@@ -107,7 +109,7 @@ func (c *DeployAppCommand) run(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("--allowed-tokens: %w", err)
 			}
-			if info.Address == (ethCommon.Address{}) {
+			if info.Address == ETH_TOKEN {
 				// ETH is always allowed by the guest — don't include it explicitly
 				continue
 			}
