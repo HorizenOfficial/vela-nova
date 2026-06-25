@@ -184,7 +184,7 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 		require.NoError(t, err)
 
 		newState, events, appEvents, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(
-			ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
+			ctx, appId, sender, common.Process, uint64(0), payloadBytes, stateAfterDeposit, wasmBytes)
 		require.Nil(t, failure)
 		require.NotNil(t, newState, "New state should not be nil")
 		require.Len(t, events, 2, "Should generate two events (sender and recipient)")
@@ -324,7 +324,7 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err, "Should marshal withdrawal payload")
 
-	newState, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, stateAfterDeposit, wasmBytes)
+	newState, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, uint64(0), payloadBytes, stateAfterDeposit, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, newState, "New state should not be nil")
 	require.Len(t, events, 1, "Should generate one event")
@@ -384,7 +384,7 @@ func TestWasmtimeRuntime_ProcessRequest_Deanonymize(t *testing.T) {
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, []byte("{}"), stateWithData, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, uint64(0), []byte("{}"), stateWithData, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes, "Report should not be nil")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
@@ -436,7 +436,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	var reportBytes []byte
-	state, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	state, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
@@ -456,7 +456,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	payloadBytes, err = json.Marshal(withdrawPayload)
 	require.NoError(t, err)
 
-	state, events, _, withdrawals, reportBytes, fuel, failure = runtime.ProcessRequest(ctx, appId, user2, common.Process, payloadBytes, state, wasmBytes)
+	state, events, _, withdrawals, reportBytes, fuel, failure = runtime.ProcessRequest(ctx, appId, user2, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
@@ -464,7 +464,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 	t.Log("Step 5: Generate deanonymization report via ProcessRequest")
-	_, _, _, _, report, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Deanonymize, []byte("{}"), state, wasmBytes)
+	_, _, _, _, report, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Deanonymize, uint64(0), []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, report)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
@@ -547,7 +547,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 0))
-	_, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, payloadBytes, state, wasmBytes)
+	_, events, _, withdrawals, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	assert.Len(t, events, 2)
 	assert.Len(t, withdrawals, 0)
@@ -634,7 +634,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 
 	t.Run("InvalidJSON", func(t *testing.T) {
 		invalidPayload := []byte("invalid json")
-		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, invalidPayload, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), invalidPayload, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, failure.Error(), "Failed to parse payload instructions")
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -646,7 +646,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 			"type": "transfer",
 		}
 		payloadBytes, _ := json.Marshal(incompletePayload)
-		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, failure.Error(), "Transfer instruction is missing")
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -662,7 +662,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 			},
 		}
 		payloadBytes, _ := json.Marshal(negativePayload)
-		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 		assert.NotNil(t, failure)
 		assert.Contains(t, strings.ToLower(failure.Error()), fmt.Sprintf("account %s does not exist!", strings.ToLower(user1.String())))
 		require.Nil(t, reportBytes, "Report should be nil on error")
@@ -701,7 +701,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	}
 	payloadBytes, _ := json.Marshal(transferPayload)
 
-	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	assert.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Insufficient balance for transfer")
 	require.Nil(t, reportBytes, "Report should be nil on error")
@@ -730,7 +730,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, largePayload, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), largePayload, state, wasmBytes)
 	// should not panic but return an error that the payload does not conform to the expected format
 	require.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Failed to parse payload instructions")
@@ -816,7 +816,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	require.NoError(t, err)
 
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
-	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, user1, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	assert.NotNil(t, failure)
 	assert.Contains(t, failure.Error(), "Unsupported instruction type")
 	require.Nil(t, reportBytes, "Report should be nil on error")
