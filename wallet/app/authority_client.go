@@ -88,7 +88,8 @@ func (c *AuthorityClient) FetchReport(ctx context.Context, reportIDHex string, n
 	}
 
 	msg := authorityapi.BuildMessage(c.ChainID, c.AppID, reportID, nonceBytes)
-	hash := ethCrypto.Keccak256Hash(msg)
+	prefix := fmt.Sprintf("\x19Ethereum Signed Message:\n%d", len(msg))
+	hash := ethCrypto.Keccak256Hash([]byte(prefix), msg)
 
 	sig, err := ethCrypto.Sign(hash.Bytes(), c.KeySecp.PrivateKey)
 	if err != nil {
