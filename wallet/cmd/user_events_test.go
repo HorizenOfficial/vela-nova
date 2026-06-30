@@ -7,6 +7,7 @@ import (
 
 	"github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 
 	"github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
@@ -240,7 +241,7 @@ func TestFetchAndDecryptUserEvents_SeedSubTypesFilter(t *testing.T) {
 	// Generate seed-derived subtypes for this user.
 	seed, err := GenerateSeed(secpKey)
 	require.NoError(t, err)
-	subtypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+	subtypes := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
 
 	appID := common.NewApplicationId(7)
 	reqID1 := testutil.GenerateRandomRequestID()

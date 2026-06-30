@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
@@ -44,7 +45,7 @@ func TestGetPrivateBalance_HexEncodedBalance(t *testing.T) {
 	teePub := teeKey.PublicKey()
 
 	seed, _ := GenerateSeed(key1)
-	subtypesList := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+	subtypesList := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
 
 	// Balance must be hex-encoded with 0x prefix for common.Big unmarshaling
 	// 12345 decimal = 0x3039 hex
@@ -224,7 +225,7 @@ func (c privateBalanceCase) run(t *testing.T, tokens *app.TokenRegistry) string 
 
 	seed, err := GenerateSeed(userSecp)
 	require.NoError(t, err)
-	subtypesList := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+	subtypesList := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
 
 	var sgEvents []subgraph.UserEvent
 	for _, payload := range c.events {

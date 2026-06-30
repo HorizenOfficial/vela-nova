@@ -8,10 +8,10 @@ import (
 	"time"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
-	"github.com/HorizenOfficial/vela/pkg/executor"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -99,7 +99,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	// Verify deposit event received
 	userSeed, err := cryptoHelper.ComputeSeed(userAddress)
 	require.NoError(t, err)
-	depositEvent, err := suite.WaitForEventBySubtypes(userAddress, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+	depositEvent, err := suite.WaitForEventBySubtypes(userAddress, subtypes.AllSubtypes(userSeed, subtypes.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 
 	// Decrypt and validate event
@@ -141,7 +141,7 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 
 	// Query user events from the subgraph — the deposit should have produced an event
 	// with the hashed subtype. Query with all subtypes for this user's seed.
-	allSubtypes := executor.AllSubtypes(userSeed, executor.DefaultSubtypeN)
+	allSubtypes := subtypes.AllSubtypes(userSeed, subtypes.DefaultSubtypeN)
 	sgEvents, err := sgClient.GetUserEventsBySubTypes(t.Context(), appID, allSubtypes, 10, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, sgEvents, "subgraph should have at least one user event after deposit")

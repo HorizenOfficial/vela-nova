@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	ethCrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestGenerateSeed_RecoverMatchesSender(t *testing.T) {
 	require.NoError(t, err)
 
 	// Recover signer from seed and verify it matches the key's address
-	msgHash := ethCrypto.Keccak256([]byte(SubtypeKeyMessage))
+	msgHash := ethCrypto.Keccak256([]byte(subtypes.SubtypeKeyMessage))
 	recoveredPub, err := ethCrypto.SigToPub(msgHash, seed)
 	require.NoError(t, err)
 
@@ -127,7 +128,7 @@ func TestBuildAssociateKeyPayloadWithSeed(t *testing.T) {
 	require.Len(t, decryptedSeed, SeedSize)
 
 	// Verify the decrypted seed is a valid signature from the secp256k1 key
-	msgHash := ethCrypto.Keccak256([]byte(SubtypeKeyMessage))
+	msgHash := ethCrypto.Keccak256([]byte(subtypes.SubtypeKeyMessage))
 	recoveredPub, err := ethCrypto.SigToPub(msgHash, decryptedSeed)
 	require.NoError(t, err)
 	recoveredAddr := ethCrypto.PubkeyToAddress(*recoveredPub)
@@ -150,21 +151,21 @@ func TestEventSubTypesFromSeed(t *testing.T) {
 	seed, err := GenerateSeed(secpKey)
 	require.NoError(t, err)
 
-	subtypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
-	require.Len(t, subtypes, DefaultSubtypeN)
+	subs := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
+	require.Len(t, subs, subtypes.DefaultSubtypeN)
 
 	// Each subtype must be a non-zero [32]byte (SHA-256 output)
-	for _, st := range subtypes {
+	for _, st := range subs {
 		require.NotEqual(t, [32]byte{}, st, "subtype must not be all zeros")
 	}
 
 	// Deterministic: same seed produces same subtypes
-	subtypes2 := EventSubTypesFromSeed(seed, DefaultSubtypeN)
-	require.Equal(t, subtypes, subtypes2)
+	subs2 := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
+	require.Equal(t, subs, subs2)
 
 	// All subtypes must be unique
-	seen := make(map[[32]byte]bool, DefaultSubtypeN)
-	for _, st := range subtypes {
+	seen := make(map[[32]byte]bool, subtypes.DefaultSubtypeN)
+	for _, st := range subs {
 		require.False(t, seen[st], "duplicate subtype found")
 		seen[st] = true
 	}
@@ -181,7 +182,7 @@ func TestEventSubTypesFromSeed_DifferentSeeds(t *testing.T) {
 	seed2, err := GenerateSeed(key2)
 	require.NoError(t, err)
 
-	subtypes1 := EventSubTypesFromSeed(seed1, DefaultSubtypeN)
-	subtypes2 := EventSubTypesFromSeed(seed2, DefaultSubtypeN)
-	require.NotEqual(t, subtypes1, subtypes2, "different seeds must produce different subtypes")
+	subs1 := EventSubTypesFromSeed(seed1, subtypes.DefaultSubtypeN)
+	subs2 := EventSubTypesFromSeed(seed2, subtypes.DefaultSubtypeN)
+	require.NotEqual(t, subs1, subs2, "different seeds must produce different subtypes")
 }

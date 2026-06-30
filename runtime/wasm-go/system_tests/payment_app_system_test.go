@@ -13,13 +13,13 @@ import (
 	"time"
 
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
-	"github.com/HorizenOfficial/vela/pkg/executor"
 	"github.com/HorizenOfficial/vela/pkg/logger"
 	systemTests "github.com/HorizenOfficial/vela/pkg/testutil"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -91,7 +91,7 @@ func depositToPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, crypt
 	if useSeed {
 		userSeed, err := cryptoHelper.ComputeSeed(user)
 		require.NoError(t, err)
-		depositEvent, err = suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+		depositEvent, err = suite.WaitForEventBySubtypes(user, subtypes.AllSubtypes(userSeed, subtypes.DefaultSubtypeN), timeout)
 		require.NoError(t, err)
 	} else {
 		// No seed registered for this user: the executor does not override the
@@ -136,7 +136,7 @@ func withdrawFromPaymentApp(t *testing.T, suite *systemTests.SystemTestSuite, cr
 
 	userSeed, err := cryptoHelper.ComputeSeed(user)
 	require.NoError(t, err)
-	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, executor.AllSubtypes(userSeed, executor.DefaultSubtypeN), timeout)
+	withdrawalEvent, err := suite.WaitForEventBySubtypes(user, subtypes.AllSubtypes(userSeed, subtypes.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	decryptedData, err := cryptoHelper.DecryptEvent(user, withdrawalEvent, executorPubKey)
 	require.NoError(t, err)
@@ -700,7 +700,7 @@ func TestPaymentAppERC20MultiUser(t *testing.T) {
 	// --- Verify sender event (userA, seed path) ---
 	userASeed, err := cryptoHelper.ComputeSeed(userA)
 	require.NoError(t, err)
-	senderEvent, err := suite.WaitForEventBySubtypes(userA, executor.AllSubtypes(userASeed, executor.DefaultSubtypeN), timeout)
+	senderEvent, err := suite.WaitForEventBySubtypes(userA, subtypes.AllSubtypes(userASeed, subtypes.DefaultSubtypeN), timeout)
 	require.NoError(t, err)
 	senderDecrypted, err := cryptoHelper.DecryptEvent(userA, senderEvent, executorPubKey)
 	require.NoError(t, err)
