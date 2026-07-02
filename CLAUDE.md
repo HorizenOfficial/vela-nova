@@ -88,3 +88,7 @@ Deploy note: the sender used by `novaw deployapp` must have `DEPLOYER_ROLE` on t
 ## CI / release
 
 `.github/workflows/ci.yml` runs the wasm-go suite twice (fast + full), then the wallet suite, using Go 1.24 and TinyGo 0.39.0. Tags matching `v*` trigger a release that ships `production_build/payment_app.wasm`, `wallet/releases/novaw-linux`, and `wallet.conf.template` as GitHub Release artifacts. Bumping the Vela dependency version typically requires tagging both `vela` and `vela-common-go` at matching versions and updating both `go.mod` files together.
+
+## Dependencies & NOTICES
+
+Whenever dependencies change (any edit to either `go.mod` — version bumps, added, or removed modules), update the `NOTICES` file in the same change so its listed versions, licenses, and source links stay in sync with the `go.mod` files. `NOTICES` tracks the go-ethereum LGPL-3.0 relinking obligation and all third-party notices, so drift here is a licensing-compliance issue, not just documentation.
