@@ -12,7 +12,6 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ func TestWithdrawCmd(t *testing.T) {
 
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	testHelper := setupSimTestHelper(t, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)
@@ -87,7 +86,7 @@ func TestWithdrawCmdFailure(t *testing.T) {
 
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	testHelper := setupSimTestHelper(t, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

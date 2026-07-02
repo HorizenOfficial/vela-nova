@@ -12,6 +12,7 @@ import (
 
 	"strings"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-common-go/wasm/types"
 	"golang.org/x/crypto/sha3"
 	"github.com/HorizenOfficial/vela-nova/payment-app/app"
@@ -24,7 +25,7 @@ import (
 )
 
 var (
-	ethToken     = ethCommon.Address{}                                                  // zero address = ETH
+	ethToken     = velacommon.ETH_TOKEN                                                 // canonical native-token sentinel
 	usdcToken    = ethCommon.HexToAddress("0xcafeBABE00000000000000000000000000000001") // synthetic test-only USDC address
 	usdcTokenHex = strings.ToLower(usdcToken.Hex())                                     // lowercase to match wasm types.Address.Hex()
 )
@@ -401,7 +402,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	require.Len(t, withdrawals, 1)
 	assert.Equal(t, ethWithdrawAddr, withdrawals[0].DestinationAddress)
 	assert.Equal(t, withdrawValue.String(), withdrawals[0].Amount.String())
-	assert.Equal(t, ethCommon.Address{}, withdrawals[0].TokenAddress, "ETH withdrawal should have zero token address")
+	assert.Equal(t, ethToken, withdrawals[0].TokenAddress, "ETH withdrawal should have zero token address")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(50)))
 
 	expectedBalance := types.NewUint256(0)

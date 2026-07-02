@@ -10,7 +10,6 @@ import (
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ import (
 func TestRequestReportCmd(t *testing.T) {
 	teeKey, err := crypto.GeneratePrivateKeyP521()
 	require.NoError(t, err)
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	testHelper := setupSimTestHelper(t, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 
 	appID := testutil.DeployTestApplication(t, testHelper)

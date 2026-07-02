@@ -9,7 +9,6 @@ import (
 
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,7 +27,7 @@ func TestPrivateTransfer(t *testing.T) {
 		var key2, _ = crypto.GeneratePrivateKeyP521()
 		var teeKey, _ = crypto.GeneratePrivateKeyP521()
 
-		testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+		testHelper := setupSimTestHelper(t, teeKey.PublicKey().Bytes())
 		defer testHelper.Close()
 
 		appID := testutil.DeployTestApplication(t, testHelper)

@@ -11,7 +11,6 @@ import (
 	commontestutil "github.com/HorizenOfficial/vela/pkg/common/testutil"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
-	pestestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +63,7 @@ func TestDecryptReport(t *testing.T) {
 	os.Stdout = w
 
 	//create client
-	testHelper := pestestutil.NewSimTestHelper(t, true, true, nil, teeKey.PublicKey().Bytes())
+	testHelper := setupSimTestHelper(t, teeKey.PublicKey().Bytes())
 	defer testHelper.Close()
 	client := testutil.SetupNewBlockChainClient(testHelper)
 

@@ -17,7 +17,6 @@ import (
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	cmdtestutil "github.com/HorizenOfficial/vela-nova/wallet/cmd/testutil"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
-	velatestutil "github.com/HorizenOfficial/vela/pkg/blockchain/testutil"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	cryptotypes "github.com/HorizenOfficial/vela/pkg/common/crypto"
 	ethCommon "github.com/ethereum/go-ethereum/common"
@@ -140,7 +139,7 @@ func TestDeployAppCommand_Success(t *testing.T) {
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
-	err := cmd.run(context.Background())
+	err := cmd.Exec(context.Background())
 	require.NoError(t, err)
 
 	require.NotEmpty(t, mockBC.deployPayload)
@@ -165,7 +164,7 @@ func TestDeployAppCommand_FailsWithoutArtifactServiceURL(t *testing.T) {
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
-	err := cmd.run(context.Background())
+	err := cmd.Exec(context.Background())
 	require.ErrorContains(t, err, "authority service URL is required")
 }
 
@@ -194,7 +193,7 @@ func TestDeployAppCommand_FailsOnUploadHashMismatch(t *testing.T) {
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
-	err := cmd.run(context.Background())
+	err := cmd.Exec(context.Background())
 	require.ErrorContains(t, err, "deploy upload hash mismatch")
 
 	require.Empty(t, mockBC.deployPayload)
@@ -230,7 +229,7 @@ func TestDeployAppCommand_OverwritesExistingApplicationID(t *testing.T) {
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
-	err := cmd.run(context.Background())
+	err := cmd.Exec(context.Background())
 	require.NoError(t, err)
 
 	// Read the raw file — old value should be commented out
@@ -289,7 +288,7 @@ func TestDeployThenRestart_LoadedConfigUsesAssignedApplicationID(t *testing.T) {
 	deployCmd.wasmPath = wasmPath
 	deployCmd.maxFeeValue = "100 wei"
 
-	err := deployCmd.run(context.Background())
+	err := deployCmd.Exec(context.Background())
 	require.NoError(t, err)
 
 	// Phase 2: Simulate wallet restart — load config fresh from the file
@@ -338,7 +337,7 @@ func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
 	}))
 	defer artifactServer.Close()
 
-	testHelper := velatestutil.NewSimTestHelper(t, true, true, nil, nil)
+	testHelper := setupSimTestHelper(t, nil)
 	defer testHelper.Close()
 
 	// Create a blockchain client using the Submitter account, which does NOT have
@@ -362,7 +361,7 @@ func TestDeployAppCommand_UnauthorizedDeployerReverts(t *testing.T) {
 	cmd.wasmPath = wasmPath
 	cmd.maxFeeValue = "100 wei"
 
-	err := cmd.run(context.Background())
+	err := cmd.Exec(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "DeployerNotAllowed",
 		"contract should reject deploy from an account without DEPLOYER_ROLE")
@@ -421,7 +420,7 @@ func TestDeployAppCommand_WithAllowedTokens(t *testing.T) {
 	// silently dropped since guest always allows it).
 	cmd.allowedTokens = []string{"MOCK", mockAddr, "ETH"}
 
-	require.NoError(t, cmd.run(context.Background()))
+	require.NoError(t, cmd.Exec(context.Background()))
 
 	// Decode the submitted deploy payload and inspect ConstructorParams
 	var payload struct {
@@ -485,7 +484,7 @@ func TestDeployAppCommand_WithAllowedTokens_HexAddressOnly(t *testing.T) {
 	// Pass ONLY the raw hex address (no symbol)
 	cmd.allowedTokens = []string{mockAddrChecksum}
 
-	require.NoError(t, cmd.run(context.Background()))
+	require.NoError(t, cmd.Exec(context.Background()))
 
 	var payload struct {
 		ConstructorParams json.RawMessage `json:"constructorParams"`
@@ -542,7 +541,7 @@ func TestDeployAppCommand_WithAllowedTokens_MultipleDistinctTokens(t *testing.T)
 	cmd.maxFeeValue = "100 wei"
 	cmd.allowedTokens = []string{"MOCK", "USDC"}
 
-	require.NoError(t, cmd.run(context.Background()))
+	require.NoError(t, cmd.Exec(context.Background()))
 
 	var payload struct {
 		ConstructorParams json.RawMessage `json:"constructorParams"`
@@ -590,7 +589,7 @@ func TestDeployAppCommand_NoAllowedTokens_OmitsConstructorParams(t *testing.T) {
 	cmd.maxFeeValue = "100 wei"
 	// allowedTokens left as zero value (nil) — simulating no flag given
 
-	require.NoError(t, cmd.run(context.Background()))
+	require.NoError(t, cmd.Exec(context.Background()))
 
 	// Decode into a map so we can check for field absence (not presence-with-zero-value)
 	var payload map[string]any
@@ -634,7 +633,7 @@ func TestDeployAppCommand_WithAllowedTokens_UnknownSymbol(t *testing.T) {
 	cmd.maxFeeValue = "100 wei"
 	cmd.allowedTokens = []string{"UNKNOWN"}
 
-	err = cmd.run(context.Background())
+	err = cmd.Exec(context.Background())
 	require.ErrorContains(t, err, "--allowed-tokens")
 	require.Empty(t, mockBC.deployPayload, "no request should be submitted when resolution fails")
 }

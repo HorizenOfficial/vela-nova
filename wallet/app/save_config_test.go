@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela/pkg/common"
 	"github.com/HorizenOfficial/vela/pkg/crypto"
-	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/magiconair/properties"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,7 +115,7 @@ func TestSaveConfigToFile_SkipsImplicitETH(t *testing.T) {
 	content := string(data)
 
 	assert.NotContains(t, content, "token.ETH.")
-	assert.NotContains(t, content, ethCommon.Address{}.Hex())
+	assert.NotContains(t, content, velacommon.ETH_TOKEN.Hex())
 }
 
 // TestLoadConfigFromFile_RejectsMalformedTokens verifies that corrupt token
