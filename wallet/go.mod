@@ -12,8 +12,8 @@ toolchain go1.24.3
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
-	github.com/HorizenOfficial/vela v0.1.1
-	github.com/HorizenOfficial/vela-common-go v0.1.1
+	github.com/HorizenOfficial/vela v0.2.0
+	github.com/HorizenOfficial/vela-common-go v0.2.0
 	github.com/HorizenOfficial/vela-nova/payment-app v0.1.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/magiconair/properties v1.8.10
