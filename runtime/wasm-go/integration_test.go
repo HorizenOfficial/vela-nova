@@ -244,7 +244,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 		require.NoError(t, err)
 
 		newState, events, appEvents, withdrawals, _, fuel, failure := runtime.ProcessRequest(
-			ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+			ctx, appId, ethSender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 		require.Nil(t, failure)
 		require.Len(t, events, 2)
 		require.Len(t, withdrawals, 0)
@@ -351,7 +351,7 @@ func TestIntegration_ProcessRequest_Transfer_ERC20(t *testing.T) {
 	require.NoError(t, err)
 
 	newState, events, _, withdrawals, _, _, failure := runtime.ProcessRequest(
-		ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+		ctx, appId, ethSender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 2)
 	require.Len(t, withdrawals, 0)
@@ -396,7 +396,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, _, withdrawals, _, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+	newState, events, _, withdrawals, _, fuel, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
@@ -446,7 +446,7 @@ func TestIntegration_ProcessRequest_Withdrawal_ERC20(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	newState, events, _, withdrawals, _, _, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+	newState, events, _, withdrawals, _, _, failure := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.Len(t, events, 1)
 	require.Len(t, withdrawals, 1)
@@ -480,7 +480,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	require.Nil(t, failure)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(35)))
 
-	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, []byte("{}"), state, wasmBytes)
+	_, _, _, _, reportBytes, fuel, failure := runtime.ProcessRequest(ctx, appId, sender, common.Deanonymize, uint64(0), []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(20)))
@@ -525,7 +525,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	}
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
-	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
+	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), transferBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 
 	withdrawAddr, err := types.HexToAddress(withdrawAddrHex)
@@ -536,7 +536,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	}
 	withdrawBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err)
-	state, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
+	state, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), withdrawBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 
 	// Verify state has transaction records
@@ -553,7 +553,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	payloadBytes, err := json.Marshal(deanonPayload)
 	require.NoError(t, err)
 
-	_, _, _, _, reportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 	require.NotNil(t, reportBytes)
 
@@ -577,7 +577,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	payloadBytes2, err := json.Marshal(deanonPayload2)
 	require.NoError(t, err)
 
-	_, _, _, _, reportBytes2, _, failure2 := runtime.ProcessRequest(ctx, appId, ethRecipient, common.Deanonymize, payloadBytes2, state, wasmBytes)
+	_, _, _, _, reportBytes2, _, failure2 := runtime.ProcessRequest(ctx, appId, ethRecipient, common.Deanonymize, uint64(0), payloadBytes2, state, wasmBytes)
 	require.Nil(t, failure2)
 	require.NotNil(t, reportBytes2)
 
@@ -587,7 +587,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	assert.Equal(t, "transfer", report2.Transactions[0].Type)
 
 	// Backward compatibility: empty payload defaults to balances
-	_, _, _, _, balanceReportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, []byte("{}"), state, wasmBytes)
+	_, _, _, _, balanceReportBytes, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), []byte("{}"), state, wasmBytes)
 	require.Nil(t, failure2)
 	require.NotNil(t, balanceReportBytes)
 
@@ -601,7 +601,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	}
 	badBytes, err := json.Marshal(badPayload)
 	require.NoError(t, err)
-	_, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, badBytes, state, wasmBytes)
+	_, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), badBytes, state, wasmBytes)
 	require.NotNil(t, failure2, "tx_history without address should fail")
 }
 
@@ -635,7 +635,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	}
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
-	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
+	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), transferBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 
 	withdrawAddr, err := types.HexToAddress("0x1234567890123456789012345678901234567890")
@@ -646,7 +646,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	}
 	withdrawBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err)
-	state, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
+	state, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), withdrawBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 
 	// Verify timestamps are populated (non-zero)
@@ -681,7 +681,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 		}
 		payloadBytes, err := json.Marshal(payload)
 		require.NoError(t, err)
-		_, _, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), payloadBytes, state, wasmBytes)
 		require.Nil(t, fail)
 		require.NotNil(t, reportBytes)
 		var report app.TxHistoryReport
@@ -734,7 +734,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 		}
 		payloadBytes, err := json.Marshal(payloadInstr)
 		require.NoError(t, err)
-		_, _, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, state, wasmBytes)
+		_, _, _, _, reportBytes, _, fail := runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), payloadBytes, state, wasmBytes)
 		require.Nil(t, fail)
 		assert.Contains(t, string(reportBytes), `"transactions":[]`, "empty transactions should be [] not null")
 	})
@@ -797,7 +797,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, transferBytes, state, wasmBytes)
+	state, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), transferBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (transfer)")
 
@@ -809,7 +809,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	withdrawBytes, err := json.Marshal(withdrawPayload)
 	require.NoError(t, err)
 
-	stateBytes, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, withdrawBytes, state, wasmBytes)
+	stateBytes, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), withdrawBytes, state, wasmBytes)
 	require.Nil(t, failure2)
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after ProcessRequest (withdraw)")
 
@@ -820,7 +820,7 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	payloadBytes, err := json.Marshal(deanonPayload)
 	require.NoError(t, err)
 
-	stateBytes, _, _, _, _, _, failure = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, payloadBytes, stateBytes, wasmBytes)
+	stateBytes, _, _, _, _, _, failure = runtime.ProcessRequest(ctx, appId, ethSender, common.Deanonymize, uint64(0), payloadBytes, stateBytes, wasmBytes)
 
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after GenerateDeanonymizationReport")
 }
@@ -856,7 +856,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	_, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, payloadBytes, state, wasmBytes)
+	_, _, _, _, _, _, failure2 := runtime.ProcessRequest(ctx, appId, ethSender, common.Process, uint64(0), payloadBytes, state, wasmBytes)
 	require.NotNil(t, failure2, "expected error for insufficient balance")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after insufficient balance error")
 
@@ -868,7 +868,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	transferBytes, err := json.Marshal(transferPayload)
 	require.NoError(t, err)
 
-	_, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, nonExistentUser, common.Process, transferBytes, state, wasmBytes)
+	_, _, _, _, _, _, failure2 = runtime.ProcessRequest(ctx, appId, nonExistentUser, common.Process, uint64(0), transferBytes, state, wasmBytes)
 	require.NotNil(t, failure2, "expected error for non-existent account")
 	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after non-existent account error")
 
@@ -912,7 +912,7 @@ func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	payloadBytes, err := json.Marshal(deanonPayload)
 	require.NoError(t, err)
 
-	_, _, _, _, reportBytes, _, failure := runtime.ProcessRequest(ctx, appId, ethCommon.Address{}, common.Deanonymize, payloadBytes, state, wasmBytes)
+	_, _, _, _, reportBytes, _, failure := runtime.ProcessRequest(ctx, appId, ethCommon.Address{}, common.Deanonymize, uint64(0), payloadBytes, state, wasmBytes)
 	require.Nil(t, failure)
 	require.NotNil(t, reportBytes)
 

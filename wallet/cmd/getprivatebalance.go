@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/HorizenOfficial/vela-common-go/subgraph"
+	"github.com/HorizenOfficial/vela-common-go/subtypes"
 	"github.com/HorizenOfficial/vela-nova/wallet/app"
 	"github.com/HorizenOfficial/vela/pkg/blockchain"
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -152,7 +153,7 @@ func (c *GetPrivateBalanceCommand) Exec(ctx context.Context) (*big.Int, *app.Tok
 	if err != nil {
 		return nil, tokenInfo, 0, fmt.Errorf("failed to generate seed: %w", err)
 	}
-	seedSubTypes := EventSubTypesFromSeed(seed, DefaultSubtypeN)
+	seedSubTypes := EventSubTypesFromSeed(seed, subtypes.DefaultSubtypeN)
 
 	tokenHex := strings.ToLower(tokenInfo.Address.Hex())
 

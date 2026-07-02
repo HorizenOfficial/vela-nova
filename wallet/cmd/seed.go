@@ -10,13 +10,6 @@ import (
 )
 
 const (
-	// SubtypeKeyMessage is the message signed to produce the seed.
-	// Changing this value rotates all user subtype sets.
-	SubtypeKeyMessage = "subtype-key-v1"
-
-	// DefaultSubtypeN is the number of privacy-preserving subtypes generated per seed.
-	DefaultSubtypeN = 50
-
 	// SeedSize is the expected size of a seed (secp256k1 signature in [R||S||V] format).
 	SeedSize = 65
 
@@ -29,12 +22,15 @@ const (
 )
 
 // GenerateSeed creates a 65-byte secp256k1 signature [R||S||V] by signing
-// keccak256(SubtypeKeyMessage) with the user's secp256k1 private key.
+// keccak256(subtypes.SubtypeKeyMessage) with the user's secp256k1 private
+// key. The constant is the cross-repo wire-format source-of-truth in
+// vela-common-go/subtypes — this wallet imports it rather than redeclare
+// it (b-full dedup, 2026-06-30).
 func GenerateSeed(key *cryptotypes.PrivateKeySecp256k1) ([]byte, error) {
 	if key == nil {
 		return nil, fmt.Errorf("secp256k1 private key is required")
 	}
-	msgHash := ethCrypto.Keccak256([]byte(SubtypeKeyMessage))
+	msgHash := ethCrypto.Keccak256([]byte(subtypes.SubtypeKeyMessage))
 	seed, err := ethCrypto.Sign(msgHash, key.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign subtype key message: %w", err)
