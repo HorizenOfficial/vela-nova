@@ -75,7 +75,7 @@ func getTestBalance(stateData applicationInternalState, account ethCommon.Addres
 	return bal.ToInt()
 }
 
-func TestWasmtimeRuntime_LoadModule(t *testing.T) {
+func TestWasmtimeRuntime_Deploy(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
@@ -84,8 +84,8 @@ func TestWasmtimeRuntime_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.NotNil(t, state, "State should not be nil")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -110,8 +110,8 @@ func TestWasmtimeRuntime_Deposit(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
 
-	initialState, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	initialState, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	newState, events, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
@@ -164,8 +164,8 @@ func TestWasmtimeRuntime_ProcessRequest_Transfer(t *testing.T) {
 	depositAmount := big.NewInt(2000000000000000000) // 2 ETH
 	transferValue := big.NewInt(500000000000000000)  // 0.5 ETH
 
-	initialState, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	initialState, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	stateAfterDeposit, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
@@ -305,8 +305,8 @@ func TestWasmtimeRuntime_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawValue := big.NewInt(500000000000000000)  // 0.5 ETH
 	withdrawAddress := ethCommon.HexToAddress("0x1234567890123456789012345678901234567890")
 
-	initialState, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	initialState, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	stateAfterDeposit, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
@@ -376,8 +376,8 @@ func TestWasmtimeRuntime_ProcessRequest_Deanonymize(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1000000000000000000) // 1 ETH
 
-	initialState, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	initialState, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
 	stateWithData, _, _, fuel, failure := runtime.Deposit(ctx, appId, sender, ethToken, depositAmount, initialState, wasmBytes)
@@ -411,8 +411,8 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 
 	t.Log("Step 1: Load module")
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
-	require.NoError(t, err, "LoadModule should succeed")
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
+	require.NoError(t, err, "Deploy should succeed")
 	require.NotNil(t, state)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -497,7 +497,7 @@ func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			appId := common.NewApplicationId(uint64(id))
-			_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+			_, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 			if err != nil {
 				errors <- err
 			}
@@ -521,7 +521,7 @@ func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -563,7 +563,7 @@ func TestWasmtimeRuntime_InvalidWasmModule(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	invalidWasm := []byte("invalid wasm bytes")
 
-	_, fuel, err := runtime.LoadModule(ctx, appId, invalidWasm)
+	_, fuel, err := runtime.Deploy(ctx, appId, nil, invalidWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
@@ -577,7 +577,7 @@ func TestWasmtimeRuntime_EmptyWasmModule(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	emptyWasm := []byte{}
 
-	_, fuel, err := runtime.LoadModule(ctx, appId, emptyWasm)
+	_, fuel, err := runtime.Deploy(ctx, appId, nil, emptyWasm)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to compile WASM module")
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
@@ -594,14 +594,14 @@ func TestWasmtimeRuntime_NilInputs(t *testing.T) {
 	appId := common.NewApplicationId(1)
 
 	t.Run("NilWasmBytes", func(t *testing.T) {
-		_, fuel, err := runtime.LoadModule(ctx, appId, nil)
+		_, fuel, err := runtime.Deploy(ctx, appId, nil, nil)
 		assert.Error(t, err)
 		require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 	})
 
 	t.Run("InvalidAppId", func(t *testing.T) {
 		appId := common.ApplicationIdType(math.MaxInt64 + 1)
-		_, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+		_, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 		if err == nil {
 			_, _, _, fuel, failure := runtime.Deposit(ctx, appId, user1, ethToken, big.NewInt(1000), []byte("{}"), wasmBytes)
 			assert.NotNil(t, failure)
@@ -628,7 +628,7 @@ func TestWasmtimeRuntime_InvalidPayloads(t *testing.T) {
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -682,7 +682,7 @@ func TestWasmtimeRuntime_InsufficientFunds(t *testing.T) {
 	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 	depositAmount := new(big.Int).SetUint64(12345678901234567890) // fits in uint64, > max int64
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -725,7 +725,7 @@ func TestWasmtimeRuntime_LargePayload(t *testing.T) {
 	wasmBytes, err := os.ReadFile(wasmPath)
 	require.NoError(t, err)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -758,7 +758,7 @@ func TestWasmtimeRuntime_InvalidStateFormat(t *testing.T) {
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(0)))
 }
 
-func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
+func TestWasmtimeRuntime_MultipleDeploy(t *testing.T) {
 	wasmBytes := readWasm(t)
 
 	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
@@ -767,7 +767,7 @@ func TestWasmtimeRuntime_MultipleLoadModule(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 5; i++ {
-		_, _, err := runtime.LoadModule(ctx, common.NewApplicationId(uint64(i)), wasmBytes)
+		_, _, err := runtime.Deploy(ctx, common.NewApplicationId(uint64(i)), nil, wasmBytes)
 		require.NoError(t, err)
 	}
 }
@@ -782,7 +782,7 @@ func TestWasmtimeRuntime_ZeroValueOperations(t *testing.T) {
 	appId := common.NewApplicationId(1)
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -805,7 +805,7 @@ func TestWasmtimeRuntime_InvalidInstruction(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
