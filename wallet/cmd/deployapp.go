@@ -27,6 +27,7 @@ type DeployAppCommand struct {
 	wasmPath      string
 	confFile      string // path to wallet.conf for persisting ApplicationID
 	allowedTokens []string
+	deployPayload string // raw JSON constructor params; mutually exclusive with allowedTokens
 }
 
 func NewDeployAppCommand(config *app.Config, blockchainClient blockchain.Client, confFile string) *DeployAppCommand {
@@ -52,6 +53,10 @@ func (c *DeployAppCommand) Command() *cobra.Command {
 	cmd.Flags().StringSliceVar(&c.allowedTokens, "allowed-tokens", nil,
 		"Comma-separated ERC-20 symbols or hex addresses to allowlist at deploy (ETH is always allowed). "+
 			"Symbols are resolved via the wallet.conf token registry.")
+	cmd.Flags().StringVar(&c.deployPayload, "deploy-payload", "",
+		"Arbitrary JSON string sent as the deploy payload (constructor params) to the app. "+
+			"Only checked to be valid JSON. Cannot be combined with --allowed-tokens.")
+	cmd.MarkFlagsMutuallyExclusive("allowed-tokens", "deploy-payload")
 	_ = cmd.MarkFlagRequired("wasm")
 	return cmd
 }
@@ -67,6 +72,15 @@ func (c *DeployAppCommand) Exec(ctx context.Context) error {
 
 	if strings.TrimSpace(c.wasmPath) == "" {
 		return fmt.Errorf("--wasm is required")
+	}
+
+	if c.deployPayload != "" {
+		if len(c.allowedTokens) > 0 {
+			return fmt.Errorf("--deploy-payload cannot be used together with --allowed-tokens")
+		}
+		if !json.Valid([]byte(c.deployPayload)) {
+			return fmt.Errorf("--deploy-payload is not valid JSON")
+		}
 	}
 
 	serviceURL, err := c.resolveArtifactServiceURL()
@@ -101,7 +115,10 @@ func (c *DeployAppCommand) Exec(ctx context.Context) error {
 	// The guest keys AllowedTokens by the exact hex string; the runtime looks up using
 	// types.Address.Hex() which produces lowercase hex, so we normalize to match.
 	var ctorParams velacommon.ConstructorParams
-	if len(c.allowedTokens) > 0 {
+	if c.deployPayload != "" {
+		// Passed through verbatim: the guest is responsible for interpreting it.
+		ctorParams = velacommon.ConstructorParams(c.deployPayload)
+	} else if len(c.allowedTokens) > 0 {
 		resolved := make([]string, 0, len(c.allowedTokens))
 		seen := make(map[string]bool)
 		for _, tok := range c.allowedTokens {
