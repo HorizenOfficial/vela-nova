@@ -83,7 +83,7 @@ func ethAddressHex() string {
 	return ethToken.Hex()
 }
 
-func TestIntegration_LoadModule(t *testing.T) {
+func TestIntegration_DeployNilParams(t *testing.T) {
 	wasmBytes := readWasm(t)
 	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
 	defer runtime.Close()
@@ -91,7 +91,7 @@ func TestIntegration_LoadModule(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
@@ -144,7 +144,7 @@ func TestIntegration_Deposit(t *testing.T) {
 	ethSender := ethCommon.HexToAddress(senderHex)
 	depositAmount := big.NewInt(1_000_000_000_000_000_000)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -195,7 +195,7 @@ func TestIntegration_Deposit_RejectsNonAllowlistedToken(t *testing.T) {
 	depositAmount := big.NewInt(1_000_000)
 
 	// Deploy with ETH only (no USDC)
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 
 	// Try to deposit USDC — should fail
@@ -217,7 +217,7 @@ func TestIntegration_ProcessRequest_Transfer(t *testing.T) {
 	depositAmount := big.NewInt(2_000_000_000_000_000_000)
 	transferValue := types.NewUint256(500_000_000_000_000_000)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -381,7 +381,7 @@ func TestIntegration_ProcessRequest_Withdrawal(t *testing.T) {
 	withdrawAddress, err := types.HexToAddress(withdrawAddrHex)
 	require.NoError(t, err)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -472,7 +472,7 @@ func TestIntegration_ProcessRequest_Deanonymize(t *testing.T) {
 	sender := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	depositAmount := big.NewInt(1_000_000_000_000_000_000)
 
-	state, fuel, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 	require.Equal(t, 0, fuel.Cmp(big.NewInt(5)))
 
@@ -511,7 +511,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	withdrawValue := types.NewUint256(100_000_000_000_000_000)
 
 	// Load module + deposit + transfer + withdrawal
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 
 	state, _, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
@@ -621,7 +621,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory_TimestampFilter(t *tes
 	withdrawValue := types.NewUint256(100_000_000_000_000_000)
 
 	// Build state with 3 transactions: deposit, transfer, withdrawal
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 
 	state, _, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, depositAmount, state, wasmBytes)
@@ -779,10 +779,10 @@ func TestIntegration_MemoryCleanBetweenOps(t *testing.T) {
 	withdrawAddress, err := types.HexToAddress(withdrawAddrHex)
 	require.NoError(t, err)
 
-	// LoadModule
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	// Deploy
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
-	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after LoadModule")
+	requireMemoryClean(t, runtime, appId, wasmBytes, "memory leak after Deploy")
 
 	// Deposit
 	state, _, _, _, failure := runtime.Deposit(ctx, appId, ethSender, ethToken, big.NewInt(5_000_000_000_000_000_000), state, wasmBytes)
@@ -840,7 +840,7 @@ func TestIntegration_ErrorPathMemory(t *testing.T) {
 	withdrawAddress, err := types.HexToAddress("0x1234567890123456789012345678901234567890")
 	require.NoError(t, err)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 
 	// Deposit so sender has a balance
@@ -888,7 +888,7 @@ func TestIntegration_LargeResultRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	appId := common.NewApplicationId(1)
 
-	state, _, err := runtime.LoadModule(ctx, appId, wasmBytes)
+	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 
 	// Create 100 accounts with deposits
