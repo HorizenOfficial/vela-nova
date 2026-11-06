@@ -134,15 +134,15 @@ func TestPrivateTransferToUnregisteredRecipient(t *testing.T) {
 		driverB.UserAddress().Hex(), "0.3 ETH", "", "100 wei")
 	require.Error(t, err, "private transfer to unregistered recipient must fail")
 	// The executor's encryptEvents returns CodePubKeyNotRegistered (numeric
-	// code 9) when the recipient's P521 pubkey is missing from the keystore.
+	// code 8) when the recipient's P521 pubkey is missing from the keystore.
 	// That code is embedded in the signed error payload the manager records
-	// on-chain and surfaced by the wallet as "request failed (code 9)".
-	// Asserting on "code 9" specifically pins the exact failure mode we
+	// on-chain and surfaced by the wallet as "request failed (code 8)".
+	// Asserting on "code 8" specifically pins the exact failure mode we
 	// care about — a different code would indicate a different rejection
 	// path (e.g., insufficient balance, invalid payload), which would mean
 	// this test isn't testing what it thinks it's testing.
-	require.Contains(t, err.Error(), "code 9",
-		"expected PubKeyNotRegistered rejection (error code 9 from apperrors.CodePubKeyNotRegistered); got: %v",
+	require.Contains(t, err.Error(), "code 8",
+		"expected PubKeyNotRegistered rejection (error code 8 from apperrors.CodePubKeyNotRegistered); got: %v",
 		err,
 	)
 
