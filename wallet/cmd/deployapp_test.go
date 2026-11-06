@@ -637,3 +637,92 @@ func TestDeployAppCommand_WithAllowedTokens_UnknownSymbol(t *testing.T) {
 	require.ErrorContains(t, err, "--allowed-tokens")
 	require.Empty(t, mockBC.deployPayload, "no request should be submitted when resolution fails")
 }
+
+// TestDeployAppCommand_WithDeployPayload verifies that --deploy-payload is
+// embedded verbatim as the DeployDescriptor's ConstructorParams.
+func TestDeployAppCommand_WithDeployPayload(t *testing.T) {
+	wasmBytes := []byte("dummy-wasm-module")
+	wasmPath := writeTempWASM(t, wasmBytes)
+	shaHexStr := shaHex(wasmBytes)
+
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"artifactId": "sha256:" + shaHexStr,
+			"wasmSha256": shaHexStr,
+		})
+	}))
+	defer artifactServer.Close()
+
+	confFile := cmdtestutil.WriteTempConf(t, &app.Config{})
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{
+		AuthorityServiceURL:       artifactServer.URL,
+		BlockchainPollingInterval: 1,
+		BlockchainPollingTimeout:  5,
+	}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, confFile)
+	cmd.SubgraphClient = cmdtestutil.SubgraphClientOK()
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	cmd.deployPayload = `{"foo":"bar","n":[1,2,3],"nested":{"x":true}}`
+
+	require.NoError(t, cmd.Exec(context.Background()))
+
+	var payload struct {
+		ConstructorParams json.RawMessage `json:"constructorParams"`
+	}
+	require.NoError(t, json.Unmarshal(mockBC.deployPayload, &payload))
+	require.JSONEq(t, cmd.deployPayload, string(payload.ConstructorParams))
+}
+
+// TestDeployAppCommand_WithDeployPayload_InvalidJSON verifies that a
+// non-JSON --deploy-payload is rejected before anything is uploaded or submitted.
+func TestDeployAppCommand_WithDeployPayload_InvalidJSON(t *testing.T) {
+	wasmPath := writeTempWASM(t, []byte("dummy-wasm-module"))
+
+	uploaded := false
+	artifactServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		uploaded = true
+	}))
+	defer artifactServer.Close()
+
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{AuthorityServiceURL: artifactServer.URL}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, cmdtestutil.WriteTempConf(t, &app.Config{}))
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	cmd.deployPayload = `{"foo":`
+
+	err := cmd.Exec(context.Background())
+	require.ErrorContains(t, err, "--deploy-payload")
+	require.False(t, uploaded, "wasm must not be uploaded when --deploy-payload is invalid")
+	require.Empty(t, mockBC.deployPayload)
+}
+
+// TestDeployAppCommand_DeployPayloadAndAllowedTokens_MutuallyExclusive verifies
+// that --deploy-payload and --allowed-tokens cannot be combined.
+func TestDeployAppCommand_DeployPayloadAndAllowedTokens_MutuallyExclusive(t *testing.T) {
+	wasmPath := writeTempWASM(t, []byte("dummy-wasm-module"))
+
+	mockBC := &deployAppTestBlockchainClient{}
+	cfg := &app.Config{AuthorityServiceURL: "http://127.0.0.1:0"}
+
+	cmd := NewDeployAppCommand(cfg, mockBC, cmdtestutil.WriteTempConf(t, &app.Config{}))
+	cmd.wasmPath = wasmPath
+	cmd.maxFeeValue = "100 wei"
+	cmd.deployPayload = `{"foo":"bar"}`
+	cmd.allowedTokens = []string{"ETH"}
+
+	err := cmd.Exec(context.Background())
+	require.ErrorContains(t, err, "--allowed-tokens")
+	require.Empty(t, mockBC.deployPayload)
+
+	// The cobra layer rejects the combination too.
+	cobraCmd := NewDeployAppCommand(cfg, mockBC, "").Command()
+	cobraCmd.SetArgs([]string{"--wasm", wasmPath, "--deploy-payload", `{}`, "--allowed-tokens", "ETH"})
+	cobraCmd.SilenceUsage = true
+	cobraCmd.SilenceErrors = true
+	require.ErrorContains(t, cobraCmd.Execute(), "deploy-payload")
+}
