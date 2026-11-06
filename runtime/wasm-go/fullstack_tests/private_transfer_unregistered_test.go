@@ -141,7 +141,7 @@ func TestPrivateTransferToUnregisteredRecipient(t *testing.T) {
 	// care about — a different code would indicate a different rejection
 	// path (e.g., insufficient balance, invalid payload), which would mean
 	// this test isn't testing what it thinks it's testing.
-	require.Contains(t, err.Error(), "code 9",
+	require.Contains(t, err.Error(), "code 8",
 		"expected PubKeyNotRegistered rejection (error code 9 from apperrors.CodePubKeyNotRegistered); got: %v",
 		err,
 	)

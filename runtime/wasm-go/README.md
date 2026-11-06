@@ -35,7 +35,7 @@ tinygo version
 This module depends on two external packages:
 
 - **`vela`** — The application-agnostic Vela framework. Provides the generic WASM runtime (Wasmtime), common types (`common.Request`, `common.Event`, `common.Withdrawal`), and the `Runtime` interface. Used in tests to run the compiled WASM module.
-- **`vela-common-go/wasm`** — Shared WASM guest-side types and utilities. Provides `types.Uint256`, `types.Address`, `types.PlainEvent`, result types (`LoadModuleResult`, `DepositResult`, `ProcessResult`, `DeanonymizationResult`), memory allocator (`utils.Allocate`/`Deallocate`), logging, and pointer conversions. These are the shared data structures that the wallet also imports to ensure identical serialization.
+- **`vela-common-go/wasm`** — Shared WASM guest-side types and utilities. Provides `types.Uint256`, `types.Address`, `types.PlainEvent`, result types (`DeployResult`, `DepositResult`, `ProcessResult`, `DeanonymizationResult`), memory allocator (`utils.Allocate`/`Deallocate`), logging, and pointer conversions. These are the shared data structures that the wallet also imports to ensure identical serialization.
 
 Both dependencies use `replace` directives in `go.mod`. For local development, uncomment the local path replaces pointing to sibling directories.
 
@@ -60,7 +60,7 @@ This will create the `build/payment_app.wasm` file.
 runtime/wasm-go/
 ├── main.go              # WASM export functions (bridge between runtime and app logic)
 ├── app/
-│   ├── app.go           # Application logic (LoadModule, DepositFunds, ProcessRequest, GenerateDeanonymizationReport)
+│   ├── app.go           # Application logic (Deploy, DepositFunds, ProcessRequest, GenerateDeanonymizationReport)
 │   └── types.go         # App-specific types (PayloadInstructions, TransferInstruction, WithdrawInstruction, AccountState)
 ├── wasmtime_runtime_test.go  # Unit/integration tests against WASM runtime
 ├── integration_test.go       # Integration tests for compiled WASM binary
@@ -76,7 +76,7 @@ The module exports these functions for the generic Vela runtime to call:
 
 | Export | Purpose |
 |---|---|
-| `load_module(appId)` | Initialize application state |
+| `deploy(appId, paramsJSON)` | Initialize application state from deploy params |
 | `deposit(appId, sender, value, state)` | Credit sender account |
 | `process_request(appId, sender, payload, state)` | Handle transfers and withdrawals |
 | `generate_deanonymization_report(payload, state)` | Generate compliance reports |

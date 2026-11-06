@@ -30,6 +30,16 @@ type deployAppTestBlockchainClient struct {
 	nextID        byte
 }
 
+// GetPendingRequestsWithStateRoot implements [blockchain.Client].
+func (c *deployAppTestBlockchainClient) GetPendingRequestsWithStateRoot(ctx context.Context, maxCount uint64) (common.ApplicationIdType, []*common.Request, [32]byte, error) {
+	panic("unimplemented")
+}
+
+// SubmitBatchStateUpdate implements [blockchain.Client].
+func (c *deployAppTestBlockchainClient) SubmitBatchStateUpdate(ctx context.Context, updates []*common.UpdatePayload, batchSignature []byte) error {
+	panic("unimplemented")
+}
+
 func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, tokenAddress ethCommon.Address, assetAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
 	c.nextID++
 	var requestID common.RequestIdType
