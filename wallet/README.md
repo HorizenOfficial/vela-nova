@@ -51,4 +51,9 @@ novaw deployapp --wasm /path/to/app.wasm --max-value-fee "100 wei"
 
 This command uploads the WASM to authorityservice (`/deploy/upload`) and submits a deploy descriptor payload (`mode=artifact_ref`) on-chain.
 
+Optional deploy parameters (mutually exclusive):
+
+- `--allowed-tokens MOCK,0x...` — ERC-20 symbols/addresses to allowlist; translated into the deploy payload `{"allowedTokens":[...]}`.
+- `--deploy-payload '<json>'` — arbitrary JSON sent verbatim as the deploy payload (constructor params). The only client-side check is that it is valid JSON.
+
 Operational requirement: the wallet deploy sender must be allowed on-chain by `ProcessorEndpoint` (`DEPLOYER_ROLE`).
