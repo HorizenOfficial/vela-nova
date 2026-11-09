@@ -73,7 +73,7 @@ testify
 PERMISSIVE DEPENDENCIES - Go (Indirect, notable)
 ================================================================================
 
-wasmtime-go/v50
+wasmtime-go
   Version:    v50.0.0
   License:    Apache-2.0 WITH LLVM-exception
   Source:     https://github.com/bytecodealliance/wasmtime-go

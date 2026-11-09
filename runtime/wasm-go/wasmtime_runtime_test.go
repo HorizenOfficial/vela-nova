@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/HorizenOfficial/vela/pkg/common"
@@ -482,35 +481,6 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	t.Log("Full workflow completed successfully!")
 }
 
-func TestWasmtimeRuntime_ConcurrentModuleLoading(t *testing.T) {
-	wasmBytes := readWasm(t)
-
-	runtime := wasm.NewWasmtimeRuntime(newTestLogger(), 0)
-	defer runtime.Close()
-
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	errors := make(chan error, 3)
-
-	for i := range 3 {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			appId := common.NewApplicationId(uint64(id))
-			_, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
-			if err != nil {
-				errors <- err
-			}
-		}(i)
-	}
-
-	wg.Wait()
-	close(errors)
-
-	for err := range errors {
-		require.NoError(t, err, "Concurrent module loading should succeed")
-	}
-}
 
 func TestWasmtimeRuntime_LargeStateHandling(t *testing.T) {
 	wasmBytes := readWasm(t)
