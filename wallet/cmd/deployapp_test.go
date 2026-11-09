@@ -30,16 +30,6 @@ type deployAppTestBlockchainClient struct {
 	nextID        byte
 }
 
-// GetPendingRequestsWithStateRoot implements [blockchain.Client].
-func (c *deployAppTestBlockchainClient) GetPendingRequestsWithStateRoot(ctx context.Context, maxCount uint64) (common.ApplicationIdType, []*common.Request, [32]byte, error) {
-	panic("unimplemented")
-}
-
-// SubmitBatchStateUpdate implements [blockchain.Client].
-func (c *deployAppTestBlockchainClient) SubmitBatchStateUpdate(ctx context.Context, updates []*common.UpdatePayload, batchSignature []byte) error {
-	panic("unimplemented")
-}
-
 func (c *deployAppTestBlockchainClient) SubmitRequest(_ context.Context, protocolVersion uint8, applicationId common.ApplicationIdType, requestType common.RequestType, payload []byte, tokenAddress ethCommon.Address, assetAmount *big.Int, maxFeeValue *big.Int) (common.RequestIdType, uint64, error) {
 	c.nextID++
 	var requestID common.RequestIdType
@@ -72,11 +62,22 @@ func (c *deployAppTestBlockchainClient) GetPendingRequests(_ context.Context) ([
 	return append([]*common.Request(nil), c.pending...), nil
 }
 
-func (*deployAppTestBlockchainClient) GetNextPendingRequest(context.Context) (*common.Request, [32]byte, error) {
-	return nil, [32]byte{}, nil
+func (c *deployAppTestBlockchainClient) GetPendingRequestsWithStateRoot(_ context.Context, maxCount uint64) (common.ApplicationIdType, []*common.Request, [32]byte, error) {
+	pending := append([]*common.Request(nil), c.pending...)
+	if uint64(len(pending)) > maxCount {
+		pending = pending[:maxCount]
+	}
+	if maxCount == 0 || len(c.pending) == 0 {
+		return 0, nil, [32]byte{}, nil
+	}
+	return pending[0].ApplicationID, pending, [32]byte{}, nil
 }
 
 func (*deployAppTestBlockchainClient) SubmitStateUpdate(context.Context, *common.UpdatePayload) error {
+	return nil
+}
+
+func (*deployAppTestBlockchainClient) SubmitBatchStateUpdate(context.Context, []*common.UpdatePayload, []byte) error {
 	return nil
 }
 

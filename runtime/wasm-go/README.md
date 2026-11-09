@@ -76,10 +76,9 @@ The module exports these functions for the generic Vela runtime to call:
 
 | Export | Purpose |
 |---|---|
-| `deploy(appId, paramsJSON)` | Initialize application state from deploy params |
-| `deposit(appId, sender, value, state)` | Credit sender account |
-| `process_request(appId, sender, payload, state)` | Handle transfers and withdrawals |
-| `generate_deanonymization_report(payload, state)` | Generate compliance reports |
+| `deploy(appId, paramsJSON)` | Initialize state from `DeployParams` (`AllowedTokens`) — ETH (0x0) always allowed |
+| `deposit(appId, sender, token, value, state)` | Credit a token balance |
+| `process_request(appId, sender, requestType, payload, state)` | Dispatch transfer / withdraw / deanonymize based on `PayloadInstructions.Type` |
 | `get_memory_stats()` | Return WASM memory allocation statistics |
 
 ### Shared Data Structures

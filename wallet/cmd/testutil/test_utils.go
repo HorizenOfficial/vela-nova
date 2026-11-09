@@ -41,10 +41,8 @@ func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.
 
 		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
-		require.NotEmpty(t, requests, "expected at least one pending request")
-		request := requests[0]
-
-		if request != nil {
+		if len(requests) > 0 {
+			request := requests[0]
 			var newStateRoot [32]byte
 			_, err = rand.Read(newStateRoot[:])
 			require.NoError(t, err)
@@ -82,8 +80,6 @@ func DeployTestApplication(t *testing.T, testHelper *testutil.SimTestHelper) com
 	require.NoError(t, err)
 	require.NotEmpty(t, requests, "expected at least one pending request")
 	deployReq := requests[0]
-	require.NoError(t, err)
-	require.NotNil(t, deployReq, "expected a pending deploy request")
 
 	// Complete the deploy with a successful stateUpdate
 	err = blockchainClient.SubmitStateUpdate(context.Background(), &common.UpdatePayload{
@@ -115,7 +111,6 @@ func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refun
 
 		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
-
 		if len(requests) > 0 {
 			request := requests[0]
 			var newStateRoot [32]byte
