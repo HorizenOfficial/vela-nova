@@ -159,6 +159,6 @@ To rebuild this software with a modified version of go-ethereum:
 3. Run: go mod tidy
 4. Build the module:
    - Runtime: cd runtime/wasm-go && go build ./...
-   - Wallet:  cd wallet && go build ./cmd/wallet
+   - Wallet:  cd wallet && go build -o novaw .
 
 Full build instructions are available in CLAUDE.md.

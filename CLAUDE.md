@@ -33,7 +33,7 @@ make wat                # disassemble to .wat (requires wasm2wat)
 make clean
 
 go test -v ./...                  # full suite (requires Wasmtime via the vela dep)
-CI_FLAG=true go test -v ./...     # fast suite; skips Wasmtime-dependent tests and system_tests
+CI_FLAG=true go test -v ./...     # fast suite; skips Wasmtime-dependent tests, system_tests and fullstack_tests
 go test -v -run TestName ./...    # single test
 ```
 
@@ -44,6 +44,7 @@ go test -v -run TestName ./...    # single test
 - `wasmtime_runtime_test.go` — exercises the `WasmtimeRuntime` interaction layer (error paths, concurrency, large payloads).
 - `integration_test.go` — loads the compiled `payment_app.wasm` and validates business logic through real WASM calls.
 - `system_tests/payment_app_system_test.go` — end-to-end with simulated Executor + Manager + DB + blockchain; skipped under `CI_FLAG=true` because it's slow.
+- `fullstack_tests/` — end-to-end against Vela's `FullStackSystemTestSuite` (real simulated chain, Manager, Executor, in-process subgraph), driven through the wallet's `testutil`; covers deposits, private transfers (ETH/ERC-20), deanonymization, access control and failure paths; skipped under `CI_FLAG=true`.
 
 ## Architecture
 

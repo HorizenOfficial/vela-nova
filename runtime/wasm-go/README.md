@@ -65,6 +65,7 @@ runtime/wasm-go/
 ├── wasmtime_runtime_test.go  # Unit/integration tests against WASM runtime
 ├── integration_test.go       # Integration tests for compiled WASM binary
 ├── system_tests/             # E2E system tests (full Vela stack simulation)
+├── fullstack_tests/          # E2E tests on Vela's full stack (simulated chain + subgraph)
 ├── build/                    # Dev WASM binary output
 ├── production_build/         # Production WASM binary output
 └── Makefile
@@ -107,11 +108,11 @@ CI_FLAG=true go test -v ./...
 go test -v ./...
 ```
 
-Use `CI_FLAG=true` to skip tests that require the Wasmtime runtime or external dependencies.
+Use `CI_FLAG=true` to skip tests that require the Wasmtime runtime or external dependencies (including `system_tests/` and `fullstack_tests/`).
 
 ### Test Files Overview
 
-This project contains three distinct types of tests, each with a different focus:
+This project contains four distinct types of tests, each with a different focus:
 
 1.  **`wasmtime_runtime_test.go`**:
     *   **Type**: Unit/Integration Test
@@ -129,6 +130,19 @@ This project contains three distinct types of tests, each with a different focus
     *   **Purpose**: To validate that all components of the system work together correctly in a production-like environment. It tests the full user flow, including cryptographic operations, request submission, and state verification across the entire distributed system.
     *   **Key tests**:
         -   `TestPaymentAppFullFlow`: Deploys the app, registers user and auditor keys, deposits funds, withdraws funds, and generates a deanonymization report. Validates deposit and withdrawal event fields, verifies on-chain withdrawal recording, checks update payload signatures, and verifies the deanonymization report (framework envelope, base64-encoded report data, and expected user balance after all operations).
+    *   **Note**: Skipped when `CI_FLAG=true` due to long execution time.
+
+4.  **`fullstack_tests/`**:
+    *   **Type**: End-to-End (E2E) Full-Stack Test
+    *   **Scope**: Runs the app on Vela's `FullStackSystemTestSuite`: a real simulated chain with the deployed contracts, Manager, Executor and an in-process subgraph. Requests are submitted through the wallet's `testutil` driver.
+    *   **Purpose**: To verify the full on-chain flow (submission → Manager → Executor → WASM → state update on-chain → events and subgraph data), including access control and failure handling.
+    *   **Key tests**:
+        -   `TestFullStackDeployAndDeposit`: Smoke test — deploy, register a user, deposit ETH, check events and subgraph data.
+        -   `TestPrivateTransfer_TwoUsers`, `TestPrivateTransfer_TwoUsers_ERC20`, `TestPrivateTransferToUnregisteredRecipient`: Private transfers in ETH and ERC-20.
+        -   `TestERC20FullStack`, `TestERC20UnlistedTokenReverts`: ERC-20 deposits and the allowed-token list.
+        -   `TestDeanonymize_RealRoundTrip`, `TestDeanonymizeRequestFromUnauthorizedAuthorityReverts`: Deanonymization reports and auditor authorization.
+        -   `TestDeployerRoleEnforcement`, `TestNonManagerStateUpdateReverts`, `TestTEEAttestationRejection`, `TestInvalidPrevStateRootRejection`: Access control and rejection of invalid state updates.
+        -   `TestMultiAppIsolation`, `TestFeeRefundClaim`, `TestGetPendingPaymentsMatchesContract`, `TestFullStackRestart_KeysetRecovery`: App isolation, fee refunds, pending payments and keyset recovery after restart.
     *   **Note**: Skipped when `CI_FLAG=true` due to long execution time.
 
 ## Resources
