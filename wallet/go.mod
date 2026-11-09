@@ -5,15 +5,15 @@ go 1.24.0
 toolchain go1.24.3
 
 // Can be useful for local developments
-replace github.com/HorizenOfficial/vela => ../../vela
+// replace github.com/HorizenOfficial/vela => ../../vela
 
 //replace github.com/HorizenOfficial/vela-common-go => ../../vela-common-go
 
 replace github.com/HorizenOfficial/vela-nova/payment-app => ../runtime/wasm-go
 
 require (
-	github.com/HorizenOfficial/vela v0.2.0
-	github.com/HorizenOfficial/vela-common-go v0.2.0
+	github.com/HorizenOfficial/vela v0.3.0
+	github.com/HorizenOfficial/vela-common-go v0.3.0
 	github.com/HorizenOfficial/vela-nova/payment-app v0.1.0
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/magiconair/properties v1.8.10
@@ -43,7 +43,7 @@ require (
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
-	github.com/bytecodealliance/wasmtime-go v1.0.0 // indirect
+	github.com/bytecodealliance/wasmtime-go/v50 v50.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
