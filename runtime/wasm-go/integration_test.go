@@ -510,7 +510,7 @@ func TestIntegration_ProcessRequest_Deanonymize_TxHistory(t *testing.T) {
 	transferValue := types.NewUint256(500_000_000_000_000_000)
 	withdrawValue := types.NewUint256(100_000_000_000_000_000)
 
-	// Load module + deposit + transfer + withdrawal
+	// Deploy + deposit + transfer + withdrawal
 	state, _, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err)
 

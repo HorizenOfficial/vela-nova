@@ -410,7 +410,7 @@ func TestWasmtimeRuntime_FullWorkflow(t *testing.T) {
 	user1 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 1))
 	user2 := ethCommon.HexToAddress(fmt.Sprintf("0xadd%037x", 2))
 
-	t.Log("Step 1: Load module")
+	t.Log("Step 1: Deploy")
 	state, fuel, err := runtime.Deploy(ctx, appId, nil, wasmBytes)
 	require.NoError(t, err, "Deploy should succeed")
 	require.NotNil(t, state)

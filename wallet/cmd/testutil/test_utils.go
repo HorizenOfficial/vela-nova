@@ -39,7 +39,7 @@ func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.
 			panic(fmt.Sprintf("timeout waiting for deploy request in %s", t.Name()))
 		}
 
-		 _, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
+		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
 		if len(requests) > 0 {
 			request := requests[0]
@@ -76,8 +76,7 @@ func DeployTestApplication(t *testing.T, testHelper *testutil.SimTestHelper) com
 	testHelper.WaitMined(deployTx)
 
 	// Get the pending deploy request to extract the assigned applicationId
-	 _, requests, deployStateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
-	require.NoError(t, err)
+	_, requests, deployStateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 	require.NoError(t, err)
 	require.NotEmpty(t, requests, "expected at least one pending request")
 	deployReq := requests[0]
