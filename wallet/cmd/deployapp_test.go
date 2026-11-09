@@ -62,11 +62,22 @@ func (c *deployAppTestBlockchainClient) GetPendingRequests(_ context.Context) ([
 	return append([]*common.Request(nil), c.pending...), nil
 }
 
-func (*deployAppTestBlockchainClient) GetNextPendingRequest(context.Context) (*common.Request, [32]byte, error) {
-	return nil, [32]byte{}, nil
+func (c *deployAppTestBlockchainClient) GetPendingRequestsWithStateRoot(_ context.Context, maxCount uint64) (common.ApplicationIdType, []*common.Request, [32]byte, error) {
+	pending := append([]*common.Request(nil), c.pending...)
+	if uint64(len(pending)) > maxCount {
+		pending = pending[:maxCount]
+	}
+	if maxCount == 0 || len(c.pending) == 0 {
+		return 0, nil, [32]byte{}, nil
+	}
+	return pending[0].ApplicationID, pending, [32]byte{}, nil
 }
 
 func (*deployAppTestBlockchainClient) SubmitStateUpdate(context.Context, *common.UpdatePayload) error {
+	return nil
+}
+
+func (*deployAppTestBlockchainClient) SubmitBatchStateUpdate(context.Context, []*common.UpdatePayload, []byte) error {
 	return nil
 }
 

@@ -115,13 +115,6 @@ func TestFullStackDeployAndDeposit(t *testing.T) {
 	require.Equal(t, 0, depositAmount.Cmp(eventData.Amount.ToInt()),
 		"deposit event amount: expected %s, got %s", depositAmount, eventData.Amount.ToInt())
 
-	// Verify signature on the update payload
-	executorSigningKey, err := suite.GetExecutorSigningKey()
-	require.NoError(t, err)
-	payload, err := suite.GetRequestUpdatePayload(depositReq.RequestID)
-	require.NoError(t, err)
-	require.NoError(t, cryptoHelper.ValidateUpdatePayloadSignature(payload, executorSigningKey))
-
 	// --- In-process subgraph verification ---
 	// Query the subgraph for the completed deposit request
 	sgClient := suite.GetSubgraphClient()

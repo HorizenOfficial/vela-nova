@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	velacommon "github.com/HorizenOfficial/vela-common-go/common"
 	"github.com/HorizenOfficial/vela-nova/payment-app/testhelpers"
 	walletTestutil "github.com/HorizenOfficial/vela-nova/wallet/testutil"
+	"github.com/HorizenOfficial/vela/pkg/common/apperrors"
 	"github.com/HorizenOfficial/vela/pkg/testutil/fullstack"
 	"github.com/stretchr/testify/require"
 )
@@ -133,17 +135,26 @@ func TestPrivateTransferToUnregisteredRecipient(t *testing.T) {
 	err = driverA.PrivateTransfer(t.Context(),
 		driverB.UserAddress().Hex(), "0.3 ETH", "", "100 wei")
 	require.Error(t, err, "private transfer to unregistered recipient must fail")
-	// The executor's encryptEvents returns CodePubKeyNotRegistered (numeric
-	// code 9) when the recipient's P521 pubkey is missing from the keystore.
-	// That code is embedded in the signed error payload the manager records
-	// on-chain and surfaced by the wallet as "request failed (code 9)".
-	// Asserting on "code 9" specifically pins the exact failure mode we
-	// care about — a different code would indicate a different rejection
-	// path (e.g., insufficient balance, invalid payload), which would mean
-	// this test isn't testing what it thinks it's testing.
-	require.Contains(t, err.Error(), "code 9",
-		"expected PubKeyNotRegistered rejection (error code 9 from apperrors.CodePubKeyNotRegistered); got: %v",
-		err,
+	// The executor's encryptEvents returns CodePubKeyNotRegistered when the
+	// recipient's P521 pubkey is missing from the keystore. That code is embedded
+	// in the signed error payload the manager records on-chain, and the wallet
+	// surfaces it as "request failed (code N)".
+	//
+	// Asserting on the code pins the exact failure mode: a different one would mean
+	// a different rejection path (insufficient balance, invalid payload) and so that
+	// this test is not testing what it believes. The code is also the only signal
+	// available here — the wallet receives no error message for this failure, which
+	// is why the text above is the generic "request failed".
+	//
+	// The number is derived from the constant rather than written out. Vela's error
+	// categories are an iota enum, so removing or reordering one renumbers every
+	// category below it. This assertion used to hardcode 9 and went stale when
+	// categoryAppNotDeployed was removed from that enum, after which it failed for a
+	// reason unrelated to anything it tests.
+	expectedCode := apperrors.New(apperrors.CodePubKeyNotRegistered, "").Category()
+	require.Contains(t, err.Error(), fmt.Sprintf("code %d", expectedCode),
+		"expected PubKeyNotRegistered rejection (apperrors.CodePubKeyNotRegistered = code %d); got: %v",
+		expectedCode, err,
 	)
 
 	// Step 7a: A's private balance must be UNCHANGED — rollback held.

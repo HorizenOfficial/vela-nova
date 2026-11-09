@@ -62,7 +62,6 @@ The module exposes exactly these functions to the host runtime:
 | Export | Purpose |
 |---|---|
 | `deploy(appId, paramsJSON)` | Initialize state from `DeployParams` (`AllowedTokens`) — ETH (0x0) always allowed |
-| `load_module(appId)` | Re-hydrate state on runtime start |
 | `deposit(appId, sender, token, value, state)` | Credit a token balance |
 | `process_request(appId, sender, requestType, payload, state)` | Dispatch transfer / withdraw / deanonymize based on `PayloadInstructions.Type` |
 | `get_memory_stats()` | WASM memory diagnostics |

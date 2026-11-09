@@ -39,9 +39,10 @@ func DeployApplication(t *testing.T, testHelper *testutil.SimTestHelper) common.
 			panic(fmt.Sprintf("timeout waiting for deploy request in %s", t.Name()))
 		}
 
-		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
-		if request != nil {
+		if len(requests) > 0 {
+			request := requests[0]
 			var newStateRoot [32]byte
 			_, err = rand.Read(newStateRoot[:])
 			require.NoError(t, err)
@@ -75,9 +76,10 @@ func DeployTestApplication(t *testing.T, testHelper *testutil.SimTestHelper) com
 	testHelper.WaitMined(deployTx)
 
 	// Get the pending deploy request to extract the assigned applicationId
-	deployReq, deployStateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+	_, requests, deployStateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 	require.NoError(t, err)
-	require.NotNil(t, deployReq, "expected a pending deploy request")
+	require.NotEmpty(t, requests, "expected at least one pending request")
+	deployReq := requests[0]
 
 	// Complete the deploy with a successful stateUpdate
 	err = blockchainClient.SubmitStateUpdate(context.Background(), &common.UpdatePayload{
@@ -107,9 +109,10 @@ func CompleteNextRequest(t *testing.T, testHelper *testutil.SimTestHelper, refun
 			panic(fmt.Sprintf("timeout waiting for next pending request to complete in %s", t.Name()))
 		}
 
-		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
-		if request != nil {
+		if len(requests) > 0 {
+			request := requests[0]
 			var newStateRoot [32]byte
 			_, err = rand.Read(newStateRoot[:]) //dummy new state root
 			require.NoError(t, err)
@@ -142,9 +145,10 @@ func FailNextRequest(t *testing.T, testHelper *testutil.SimTestHelper) {
 			panic(fmt.Sprintf("timeout waiting for next pending request to fail in %s", t.Name()))
 		}
 
-		request, stateRoot, err := blockchainClient.GetNextPendingRequest(context.Background())
+		_, requests, stateRoot, err := blockchainClient.GetPendingRequestsWithStateRoot(context.Background(), 1)
 		require.NoError(t, err)
-		if request != nil {
+		if len(requests) > 0 {
+			request := requests[0]
 			update := &common.UpdatePayload{
 				ApplicationID:  request.ApplicationID,
 				RequestID:      request.RequestID,
